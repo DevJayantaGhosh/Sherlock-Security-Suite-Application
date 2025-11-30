@@ -15,8 +15,8 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import SwapVertIcon from "@mui/icons-material/SwapVert";
 
-import { AppUser } from "../models/User";
-import { deleteUser } from "../services/userService";
+import { AppUser } from "../../models/User";
+import { deleteUser } from "../../services/userService";
 
 const PAGE_SIZE = 6;
 

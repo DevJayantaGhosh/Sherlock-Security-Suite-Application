@@ -14,8 +14,8 @@ import {
     CartesianGrid,
 } from "recharts";
 
-import { Project } from "../models/project";
-import { AppUser } from "../models/User";
+import { Project } from "../../models/project";
+import { AppUser } from "../../models/User";
 
 /* -------------------------------------------------
    COLORS

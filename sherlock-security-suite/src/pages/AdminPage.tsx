@@ -4,10 +4,10 @@ import AddIcon from "@mui/icons-material/Add";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 
-import AdminCharts from "../components/AdminCharts";
-import UsersTable from "../components/UsersTable";
-import AdminStats from "../components/AdminStats";
-import AddEditUserDialog from "../components/AddEditUserDialog";
+import AdminCharts from "../components/admin/AdminCharts";
+import UsersTable from "../components/admin/UsersTable";
+import AdminStats from "../components/admin/AdminStats";
+import AddEditUserDialog from "../components/admin/AddEditUserDialog";
 
 import { getUsers } from "../services/userService";
 import { getProjects } from "../services/projectService";
