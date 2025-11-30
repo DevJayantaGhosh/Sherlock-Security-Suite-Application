@@ -34,7 +34,7 @@ const roles: UserRole[] = [
   "User",
 ];
 
-export default function UserDialog({
+export default function AddEditUserDialog({
   open,
   onClose,
   user,
