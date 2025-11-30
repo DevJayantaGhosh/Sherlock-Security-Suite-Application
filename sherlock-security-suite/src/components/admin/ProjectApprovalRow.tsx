@@ -1,5 +1,5 @@
 import { Box, Chip, Button } from "@mui/material";
-import { Project } from "../../models/project";
+import { Project } from "../../models/Project";
 import {
   authorizeApprove,
   updateProject,

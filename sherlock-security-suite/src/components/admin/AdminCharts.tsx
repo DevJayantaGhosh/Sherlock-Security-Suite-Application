@@ -14,7 +14,7 @@ import {
     CartesianGrid,
 } from "recharts";
 
-import { Project } from "../../models/project";
+import { Project } from "../../models/Project";
 import { AppUser } from "../../models/User";
 
 /* -------------------------------------------------
