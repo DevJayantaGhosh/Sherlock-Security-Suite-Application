@@ -1,8 +1,8 @@
 // src/models/User.ts
-export type Role =
+export type UserRole =
   | "Admin"
   | "ProjectDirector"
-  | "SecurityTechHead"
+  | "SecurityHead"
   | "ReleaseEngineer"
   | "User";
 
@@ -10,5 +10,5 @@ export interface AppUser {
   id: string;
   name: string;
   email: string;
-  role: Role;
+  role: UserRole;
 }

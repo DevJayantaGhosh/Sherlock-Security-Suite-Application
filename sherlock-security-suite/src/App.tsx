@@ -30,14 +30,8 @@ export default function App() {
           <Route path="/projects" element={<Projects />} />
           <Route path="/login" element={<Login />} />
 
-          <Route
-            path="/admin"
-            element={
-              <ProtectedRoute allowedRoles={["Admin"]}>
-                <AdminPage />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/admin" element={<ProtectedRoute allowedRoles={['Admin']}><AdminPage /></ProtectedRoute>} />
+
         </Routes>
       </Box>
 
