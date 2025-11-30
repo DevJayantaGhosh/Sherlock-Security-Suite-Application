@@ -1,7 +1,6 @@
-// src/components/ProjectCard.tsx
-import React from 'react';
+// src/components/project/ProjectCard.tsx
 import { Card, CardContent, Typography, Box, Chip, Button, Stack } from '@mui/material';
-import { Project } from '../models/User';
+import { Project } from '../models/Project';
 import { motion } from 'framer-motion';
 
 interface Props {
@@ -30,10 +29,6 @@ export default function ProjectCard({ project, onEdit, onDelete, onApprove, onRe
 
           <Typography sx={{ mt: 1 }} color="text.secondary">{project.description}</Typography>
 
-          <Stack direction="row" spacing={1} mt={2} alignItems="center">
-            <Typography variant="caption">Team Lead:</Typography>
-            <Typography variant="body2">{project.teamLead || '-'}</Typography>
-          </Stack>
 
           <Stack direction="row" spacing={1} mt={2}>
             <Button size="small" variant="outlined" onClick={() => onEdit?.(project)}>Edit</Button>

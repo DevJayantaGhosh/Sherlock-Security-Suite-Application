@@ -5,9 +5,9 @@ export interface Project {
   id: string;
   name: string;
   description?: string;
-  projectDirector?: string | null; // user id
-  securityHead?: string | null;    // user id
-  releaseEngineers: string[];      // user ids
+  projectDirector?: string | null; 
+  securityHead?: string | null;    
+  releaseEngineers: string[];      
   gitRepo?: string;
   gpgKey?: string;
   dependencies?: string[];
