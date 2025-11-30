@@ -26,7 +26,8 @@ contextBridge.exposeInMainWorld("ipcRenderer", {
 });
 
 
-// ✅ --- Electron Native Window Controls API ---
+
+// WINDOW CONTROLS
 contextBridge.exposeInMainWorld("electronWindow", {
   minimize: () => ipcRenderer.invoke("window:minimize"),
   maximize: () => ipcRenderer.invoke("window:maximize"),
