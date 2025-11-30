@@ -20,7 +20,7 @@ export default function About() {
         >
 
           <Typography
-            variant="h3"
+            variant="h4"
             fontWeight={800}
             mb={3}
             sx={{ lineHeight: 1.2, textAlign: "center", }}

@@ -78,7 +78,7 @@ export default function AdminPage() {
         >
           {/* PAGE HEADER */}
           <Typography
-            variant="h3"
+            variant="h4"
             sx={{
               mb: 4,
               fontWeight: 800,
