@@ -10,7 +10,7 @@ export default function Hero() {
   const visible = useOnScreen(ref, "-80px");
 
   return (
-    <Box ref={ref} sx={{ minHeight: "82vh", pt: 12, display: "flex", alignItems: "center" }}>
+    <Box ref={ref} sx={{ minHeight: "80vh", pt: 4, display: "flex", alignItems: "center" }}>
       <Container maxWidth="lg" sx={{ display: "flex", gap: 4, alignItems: "center", flexDirection: { xs: "column", md: "row" } }}>
         <motion.div initial={{ opacity: 0, x: -40 }} animate={visible ? { opacity: 1, x: 0 } : {}} transition={{ duration: 0.6 }} style={{ flex: 1 }}>
           <Typography variant="h2" sx={{ fontWeight: 900, lineHeight: 1.02, mb: 2 }}>Next-Gen <Box component="span" sx={{ color: "primary.main" }}>Cybersecurity</Box> for a Safer Tomorrow</Typography>
