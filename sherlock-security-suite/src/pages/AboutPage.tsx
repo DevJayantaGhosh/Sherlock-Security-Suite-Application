@@ -7,7 +7,7 @@ export default function About() {
     <Box
       sx={{
         p: 4,
-        pt: 6,
+        pt: 8,
         minHeight: "100vh",
         bgcolor: "#060712",
       }}
@@ -46,7 +46,12 @@ export default function About() {
 
 
         </motion.div>
+         <Box sx={{
+        pt: 6,
+      }}>
         <FeatureCards />
+         </Box>
+
       </Container>
     </Box>
   );
