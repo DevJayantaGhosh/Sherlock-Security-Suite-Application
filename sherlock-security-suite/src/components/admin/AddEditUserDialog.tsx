@@ -9,8 +9,8 @@ import {
   Box,
 } from "@mui/material";
 import { useEffect, useState } from "react";
-import { AppUser } from "../models/User";
-import { createUser, updateUser } from "../services/userService";
+import { AppUser } from "../../models/User";
+import { createUser, updateUser } from "../../services/userService";
 
 type UserRole =
   | "Admin"

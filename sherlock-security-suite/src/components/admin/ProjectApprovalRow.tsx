@@ -1,10 +1,10 @@
 import { Box, Chip, Button } from "@mui/material";
-import { Project } from "../models/project";
+import { Project } from "../../models/project";
 import {
   authorizeApprove,
   updateProject,
-} from "../services/projectService";
-import { useUserStore } from "../store/userStore";
+} from "../../services/projectService";
+import { useUserStore } from "../../store/userStore";
 
 interface Props {
   project: Project;
