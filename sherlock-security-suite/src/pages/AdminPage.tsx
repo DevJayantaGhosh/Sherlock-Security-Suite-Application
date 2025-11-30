@@ -1,68 +1,98 @@
 // src/pages/AdminPage.tsx
-import { Box, Container, Typography, Fab } from "@mui/material";
-import AddIcon from "@mui/icons-material/Add";
+import { Box, Container, Typography } from "@mui/material";
 import { useEffect, useState } from "react";
 
-import AdminStats from "../components/AdminStats";
-import ProjectCharts from "../components/ProjectCharts";
+import AdminCharts from "../components/AdminCharts";
 import UsersTable from "../components/UsersTable";
-import UserDialog from "../components/UserDialog";
-import ProjectApprovalRow from "../components/ProjectApprovalRow";
+import AdminStats from "../components/AdminStats";
 
 import { getUsers } from "../services/userService";
 import { getProjects } from "../services/projectService";
+
 import { AppUser } from "../models/User";
 import { Project } from "../models/project";
+import { motion } from "framer-motion";
 
 export default function AdminPage() {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editUser, setEditUser] = useState<AppUser | null>(null);
 
-  function refresh() {
-    setUsers(getUsers());
-    setProjects(getProjects());
-  }
-
-  useEffect(() => { refresh(); }, []);
-
-  const stats = {
-    total: projects.length,
-    approved: projects.filter(p => p.status === "Approved").length,
-    pending: projects.filter(p => p.status === "Pending").length,
-    rejected: projects.filter(p => p.status === "Rejected").length,
+  const loadData = async () => {
+    setUsers(await getUsers());
+    setProjects(await getProjects());
   };
 
+  useEffect(() => {
+    loadData();
+  }, []);
+
   return (
-    <Box sx={{ pt: 6, pb: 12 }}>
+    <Box
+      sx={{
+        p: 4,
+        pt: 6,
+        minHeight: "100vh",
+        bgcolor: "#060712",
+      }}
+    >
       <Container maxWidth="xl">
-        <Typography variant="h4" fontWeight={800} mb={3} textAlign="center">Admin Dashboard</Typography>
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.9, ease: "easeOut" }}
+        >
+          <Typography
+            variant="h3"
+            sx={{
+              mb: 3,
+              fontWeight: 800,
+              textAlign: "center",
+              letterSpacing: 1,
+            }}
+          >
+            Admin Dashboard
+          </Typography>
 
-        <Box display="flex" gap={2} flexWrap="wrap" justifyContent="center" mb={4}>
-          <AdminStats title="Total Projects" value={stats.total} />
-          <AdminStats title="Approved" value={stats.approved} />
-          <AdminStats title="Pending" value={stats.pending} />
-          <AdminStats title="Rejected" value={stats.rejected} />
-        </Box>
 
-        <Typography variant="h5" mb={1}>Project Insights</Typography>
-        <ProjectCharts projects={projects} />
+          {/* -------- STATS CARDS -------- */}
+          <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", mb: 3 }}>
+            <AdminStats title="Total Projects" value={projects.length} />
+            <AdminStats
+              title="Approved"
+              value={projects.filter(p => p.status === "Approved").length}
+            />
+            <AdminStats
+              title="Pending"
+              value={projects.filter(p => p.status === "Pending").length}
+            />
+            <AdminStats
+              title="Rejectd"
+              value={projects.filter(p => p.status === "Rejected").length}
+            />
+            <AdminStats title="Total Users" value={users.length} />
+          </Box>
 
-        <Typography variant="h6" mt={4} mb={1}>Pending Approvals</Typography>
-        {projects.map(p => <ProjectApprovalRow key={p.id} project={p} refresh={refresh} />)}
+          {/* -------- CHARTS -------- */}
+          <AdminCharts projects={projects} users={users} />
 
-        <Typography variant="h6" mt={4} mb={2}>User Management</Typography>
-        <Box sx={{ background: "rgba(255,255,255,0.01)", borderRadius: 2 }}>
-          <UsersTable users={users} onEdit={(u)=>{ setEditUser(u); setDialogOpen(true); }} refresh={refresh} />
-        </Box>
+          {/* -------- USERS TABLE -------- */}
+          <Box sx={{ mt: 4 }}>
+            <Typography variant="h5" sx={{ mb: 2 }}>
+              User Management
+            </Typography>
 
-        <Fab color="primary" sx={{ position: "fixed", bottom: 80, right: 30 }} onClick={() => { setEditUser(null); setDialogOpen(true); }}>
-          <AddIcon />
-        </Fab>
+            <UsersTable
+              users={users}
+              onEdit={() => { }}
+              refresh={loadData}
+            />
 
-        <UserDialog open={dialogOpen} onClose={() => setDialogOpen(false)} user={editUser} onSaved={refresh} />
+
+
+          </Box>
+        </motion.div>
       </Container>
+
     </Box>
   );
 }
