@@ -17,12 +17,29 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
   : RENDERER_DIST
 
 let win: BrowserWindow | null
+let splash: BrowserWindow | null = null
+
 
 function createWindow() {
+    // -------- SPLASH WINDOW --------
+  splash = new BrowserWindow({
+    width: 420,
+    height: 280,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    resizable: false,
+    show: true,
+    backgroundColor: "#00000000",
+  })
+
+  splash.loadFile(path.join(process.env.VITE_PUBLIC, "splash.html"))
+
   win = new BrowserWindow({
     width: 1280,
     height: 840,
     frame: false,
+    show: false,           // <-- ADD THIS
     titleBarStyle: 'hidden',
     backgroundColor: '#060712',
     icon: path.join(process.env.VITE_PUBLIC, 'electron-vite.svg'),
@@ -44,6 +61,16 @@ function createWindow() {
   } else {
     win.loadFile(path.join(RENDERER_DIST, 'index.html'))
   }
+
+    /* --------------------
+      READY → SHOW MAIN & CLOSE SPLASH
+  --------------------- */
+  win.once("ready-to-show", () => {
+    splash?.close();
+    splash = null;
+
+    win?.show();
+  });
 }
 
 app.whenReady().then(createWindow)
