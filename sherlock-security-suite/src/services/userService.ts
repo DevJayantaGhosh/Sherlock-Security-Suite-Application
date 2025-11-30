@@ -1,49 +1,112 @@
 // src/services/userService.ts
-import { AppUser } from "../models/User";
+import { AppUser, UserRole } from "../models/User";
 import { useUserStore } from "../store/userStore";
 
 /**
- * In-memory demo users — used for login validation during development.
- * Replace / remove in production and use the backend API instead.
+ * ---------------------------
+ * IN-MEMORY USER DATABASE
+ * ---------------------------
  */
-const demoUsers: AppUser[] = [
-  { id: "1", name: "Admin", email: "admin@gmail.com", role: "Admin" },
-  { id: "2", name: "Director", email: "director@gmail.com", role: "ProjectDirector" },
-  { id: "3", name: "SecHead", email: "security@gmail.com", role: "SecurityTechHead" },
-  { id: "4", name: "Eng", email: "engineer@gmail.com", role: "ReleaseEngineer" },
-  { id: "5", name: "Normal", email: "user@gmail.com", role: "User" },
+
+let demoUsers: AppUser[] = [
+  { id: "u1", name: "Admin", email: "admin@gmail.com", role: "Admin" },
+  { id: "u2", name: "Director", email: "director@gmail.com", role: "ProjectDirector" },
+  { id: "u3", name: "SecHead", email: "security@gmail.com", role: "SecurityHead" },
+  { id: "u4", name: "Eng", email: "engineer@gmail.com", role: "ReleaseEngineer" },
+  { id: "u5", name: "Normal", email: "user@gmail.com", role: "User" },
 ];
 
-/* ============================
-  BACKEND API INTEGRATION (COMMENTED)
-  When ready, uncomment and replace the in-memory logic.
-============================ */
-/*
-const API_BASE = "/api/auth";
+/* ======================================================
+   BACKEND API (COMMENTED FOR FUTURE REAL INTEGRATION)
+========================================================
 
-export async function loginApi(email: string, password: string) {
-  const res = await fetch(`${API_BASE}/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
-  if (!res.ok) throw new Error("Login failed");
-  return (await res.json()) as AppUser;
+const API="/api/users";
+
+export async function apiGetUsers() {
+  return fetch(API).then(r=>r.json());
 }
 
-export async function logoutApi() {
-  await fetch(`${API_BASE}/logout`, { method: "POST" });
+export async function apiCreateUser(payload) {
+  return fetch(API,{
+     method:"POST",
+     headers:{'Content-Type':'application/json'},
+     body:JSON.stringify(payload)
+  }).then(r=>r.json());
 }
-*/
 
-/* ============================
-  IN-MEMORY LOGIN (DEV)
-============================ */
+export async function apiUpdateUser(id,payload) {
+  return fetch(`${API}/${id}`,{
+     method:"PUT",
+     headers:{'Content-Type':'application/json'},
+     body:JSON.stringify(payload)
+  }).then(r=>r.json());
+}
+
+export async function apiDeleteUser(id){
+  return fetch(`${API}/${id}`,{method:'DELETE'});
+}
+
+====================================================== */
+
+/**
+ * ---------------------------
+ * LOCAL (IN-MEMORY) CRUD
+ * ---------------------------
+ */
+
+export function getUsers(): AppUser[] {
+  return [...demoUsers];
+}
+
+export function createUser(
+  name: string,
+  email: string,
+  role: UserRole
+): AppUser {
+  if (demoUsers.find(u => u.email.toLowerCase() === email.toLowerCase())) {
+    throw new Error("User already exists");
+  }
+
+  const user: AppUser = {
+    id: crypto.randomUUID(),
+    name,
+    email,
+    role,
+  };
+
+  demoUsers.push(user);
+  return user;
+}
+
+export function updateUser(id: string, patch: Partial<AppUser>) {
+  const index = demoUsers.findIndex(u => u.id === id);
+  if (index === -1) throw new Error("User not found");
+
+  demoUsers[index] = {
+    ...demoUsers[index],
+    ...patch,
+  };
+
+  return demoUsers[index];
+}
+
+export function deleteUser(id: string) {
+  demoUsers = demoUsers.filter(u => u.id !== id);
+}
+
+/**
+ * ---------------------------
+ * AUTH
+ * ---------------------------
+ */
 
 export function loginLocal(email: string) {
-  const found = demoUsers.find((u) => u.email.toLowerCase() === email.toLowerCase());
+  const found = demoUsers.find(
+    u => u.email.toLowerCase() === email.toLowerCase()
+  );
+
   if (!found) throw new Error("User not found");
-  // set global store
+
   useUserStore.getState().setUser(found);
   return found;
 }

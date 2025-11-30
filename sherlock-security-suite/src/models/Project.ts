@@ -1,12 +1,13 @@
-export type ProjectStatus = 'Pending' | 'Approved' | 'Rejected' | 'Released';
+// src/models/project.ts
+export type ProjectStatus = "Pending" | "Approved" | "Rejected" | "Released";
 
 export interface Project {
   id: string;
   name: string;
   description?: string;
-  projectDirectorId?: string | null;
-  securityHeadId?: string | null;
-  releaseEngineersIds: string[]; 
+  projectDirector?: string | null; // user id
+  securityHead?: string | null;    // user id
+  releaseEngineers: string[];      // user ids
   gitRepo?: string;
   gpgKey?: string;
   dependencies?: string[];
