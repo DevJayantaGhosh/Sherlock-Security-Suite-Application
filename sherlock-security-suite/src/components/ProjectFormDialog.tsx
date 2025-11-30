@@ -13,7 +13,7 @@ import {
 } from "@mui/material";
 
 import { createProject, updateProject } from "../services/projectService.ts";
-import { Project } from "../models/project.ts";
+import { Project } from "../models/Project";
 import { AppUser } from "../models/User.ts";
 
 interface Props {
@@ -35,9 +35,9 @@ export default function ProjectFormDialog({
 }: Props) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [projectDirectorId, setProjectDirectorId] = useState<string | null>(null);
-  const [securityHeadId, setSecurityHeadId] = useState<string | null>(null);
-  const [releaseEngineerId, setReleaseEngineerId] = useState<string | null>(null);
+  const [projectDirector, setProjectDirector] = useState<string | null>(null);
+  const [securityHead, setSecurityHead] = useState<string | null>(null);
+  const [releaseEngineer, setReleaseEngineer] = useState<string | null>(null);
   const [gitRepo, setGitRepo] = useState("");
   const [gpgKey, setGpgKey] = useState("");
   const [dependencies, setDependencies] = useState<string[]>([]);
@@ -50,18 +50,18 @@ export default function ProjectFormDialog({
     if (edit) {
       setName(edit.name);
       setDescription(edit.description || "");
-      setProjectDirectorId(edit.projectDirectorId || null);
-      setSecurityHeadId(edit.securityHeadId || null);
-      setReleaseEngineerId(edit.releaseEngineersIds[0] || null);
+      setProjectDirector(edit.projectDirector || null);
+      setSecurityHead(edit.securityHead || null);
+      setReleaseEngineer(edit.releaseEngineers[0] || null);
       setGitRepo(edit.gitRepo || "");
       setGpgKey(edit.gpgKey || "");
       setDependencies(edit.dependencies || []);
     } else {
       setName("");
       setDescription("");
-      setProjectDirectorId(null);
-      setSecurityHeadId(null);
-      setReleaseEngineerId(null);
+      setProjectDirector(null);
+      setSecurityHead(null);
+      setReleaseEngineer(null);
       setGitRepo("");
       setGpgKey("");
       setDependencies([]);
@@ -74,9 +74,9 @@ export default function ProjectFormDialog({
     const payload = {
       name,
       description,
-      projectDirectorId,
-      securityHeadId,
-      releaseEngineersIds: releaseEngineerId ? [releaseEngineerId] : [],
+      projectDirector,
+      securityHead,
+      releaseEngineers: releaseEngineer? [releaseEngineer] : [],
       gitRepo,
       gpgKey,
       dependencies,
@@ -113,9 +113,9 @@ export default function ProjectFormDialog({
           <TextField
             label="Project Director"
             select
-            value={projectDirectorId ?? ""}
+            value={projectDirector ?? ""}
             disabled={readOnly}
-            onChange={(e) => setProjectDirectorId(e.target.value || null)}
+            onChange={(e) => setProjectDirector(e.target.value || null)}
             sx={{ flex: "1 1 48%" }}
           >
             <MenuItem value="">None</MenuItem>
@@ -129,9 +129,9 @@ export default function ProjectFormDialog({
           <TextField
             label="Security Head"
             select
-            value={securityHeadId ?? ""}
+            value={securityHead ?? ""}
             disabled={readOnly}
-            onChange={(e) => setSecurityHeadId(e.target.value || null)}
+            onChange={(e) => setSecurityHead(e.target.value || null)}
             sx={{ flex: "1 1 48%" }}
           >
             <MenuItem value="">None</MenuItem>
@@ -145,9 +145,9 @@ export default function ProjectFormDialog({
           <TextField
             label="Release Engineer"
             select
-            value={releaseEngineerId ?? ""}
+            value={releaseEngineer ?? ""}
             disabled={readOnly}
-            onChange={(e) => setReleaseEngineerId(e.target.value || null)}
+            onChange={(e) => setReleaseEngineer(e.target.value || null)}
             sx={{ flex: "1 1 48%" }}
           >
             <MenuItem value="">None</MenuItem>

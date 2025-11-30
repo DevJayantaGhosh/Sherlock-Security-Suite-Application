@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { Project } from "../models/project";
+import { Project } from "../models/Project";
 import ProjectFormDialog from "./ProjectFormDialog";
 import { AppUser } from "../models/User";
 import {
