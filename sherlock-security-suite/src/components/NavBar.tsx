@@ -108,7 +108,7 @@ export default function NavBar() {
                 WebkitAppRegion: "no-drag",
               }}
             >
-              Sherlock Security
+              Sherlock Security Suite
             </Typography>
 
             {!isMobile && (
