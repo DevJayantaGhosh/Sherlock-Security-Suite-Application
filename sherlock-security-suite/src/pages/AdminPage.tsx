@@ -13,7 +13,7 @@ import { getUsers } from "../services/userService";
 import { getProjects } from "../services/projectService";
 
 import { AppUser } from "../models/User";
-import { Project } from "../models/project";
+import { Project } from "../models/Project";
 
 export default function AdminPage() {
   const [users, setUsers] = useState<AppUser[]>([]);
