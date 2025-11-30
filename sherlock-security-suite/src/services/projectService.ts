@@ -1,88 +1,106 @@
-// src/services/projectService.ts
-import { Project, ProjectStatus } from "../models/project";
+import { Project, ProjectStatus } from "../models/Project";
 import { AppUser } from "../models/User";
+import { api } from "./project-service-api";
 
-/**
- * In-memory DB
- * NOTE: fixed unique ids
- */
+/* ======================================================
+   IN-MEMORY DB (DEV FALLBACK — MATCHES MODEL)
+====================================================== */
+
 let projectDB: Project[] = [
   {
     id: "p1",
     name: "Threat Scanner",
     description: "Automated threat detection and sandboxing engine.",
+
     projectDirector: "u2",
     securityHead: "u3",
     releaseEngineers: ["u4"],
-    gitRepo: "https://github.com/example/threat-scanner",
-    gpgKey: "",
-    dependencies: ["Node", "Express", "Docker"],
+
+    gitRepo: ["https://github.com/example/threat-scanner"],
+    gpgKey: ["gpg-key-1"],
+
+    dependencies: ["Node", "Docker"],
+
+    createdBy: "u2",
+    updatedBy: "u2",
+
     createdAt: new Date().toISOString(),
     status: "Pending",
   },
+
   {
     id: "p2",
     name: "Audit Chain",
-    description: "Blockchain-based forensic auditing ledger.",
+    description: "Blockchain auditing ledger",
+
     projectDirector: "u2",
     securityHead: "u3",
     releaseEngineers: ["u4"],
-    gitRepo: "",
-    gpgKey: "",
-    dependencies: ["React", "MongoDB"],
+
+    gitRepo: ["https://github.com/example/audit-chain"],
+    gpgKey: ["gpg-key-2"],
+
+    dependencies: ["React", "Mongo"],
+
+    createdBy: "u2",
+    updatedBy: "u2",
+
     createdAt: new Date().toISOString(),
     status: "Approved",
-  },
-  {
-    id: "p3",
-    name: "Infra Monitor",
-    description: "Infrastructure health & anomaly dashboard.",
-    projectDirector: "u2",
-    securityHead: "u3",
-    releaseEngineers: ["u4"],
-    gitRepo: "",
-    gpgKey: "",
-    dependencies: ["Prometheus", "Grafana"],
-    createdAt: new Date().toISOString(),
-    status: "Rejected",
-  },
+  }
 ];
 
-/* ===========================
-   API stubs (commented)
-   ===========================
-const API = "/api/projects";
+/* ======================================================
+   API STUBS (REAL BACKEND READY)
+====================================================== */
 
-export async function apiGetProjects() {
-  return fetch(API).then(r => r.json());
-}
-export async function apiCreateProject(payload) { ... }
-export async function apiUpdateProject(id,payload) { ... }
-export async function apiDeleteProject(id) { ... }
-*/
+export const apiGetProjects = async () =>
+  api.get<Project[]>("/projects").then(r => r.data);
 
-/* ===========================
-   Local implementations
-   =========================== */
+export const apiCreateProject = async (payload: Project) =>
+  api.post<Project>("/projects", payload).then(r => r.data);
+
+export const apiUpdateProject = async (id: string, payload: Project) =>
+  api.put<Project>(`/projects/${id}`, payload).then(r => r.data);
+
+export const apiDeleteProject = async (id: string) =>
+  api.delete(`/projects/${id}`);
+
+export const apiUpdateProjectStatus = async (
+  id: string,
+  status: ProjectStatus
+) =>
+  api.patch(`/projects/${id}/status`, { status });
+
+/* ======================================================
+   LOCAL FALLBACK CRUD
+====================================================== */
 
 export function getProjects(): Project[] {
   return [...projectDB];
 }
 
-export function createProject(payload: Omit<Project, "id" | "createdAt">): Project {
+export function createProject(
+  payload: Omit<Project, "id" | "createdAt" | "updatedAt">
+): Project {
   const newP: Project = {
     ...payload,
     id: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
+    status: "Pending",
   };
-  projectDB.push(newP);
+
+  projectDB.unshift(newP);
   return newP;
 }
 
 export function updateProject(p: Project): Project {
   const idx = projectDB.findIndex(x => x.id === p.id);
   if (idx === -1) throw new Error("Project not found");
+
+  p.updatedBy = p.updatedBy ?? p.createdBy;
   p.updatedAt = new Date().toISOString();
+
   projectDB[idx] = p;
   return projectDB[idx];
 }
@@ -91,43 +109,89 @@ export function deleteProject(id: string) {
   projectDB = projectDB.filter(p => p.id !== id);
 }
 
-/* ===========================
-   RBAC helpers (client-side enforcement)
-   - authorizeApprove: only SecurityHead or Admin
-   - authorizeCreate: ProjectDirector or Admin
-   - authorizeEdit: ProjectDirector who created it (or Admin)
-   - authorizeRelease: ReleaseEngineer assigned + status Approved
-   NOTE: Real enforcement must exist on server.
-   =========================== */
+export function updateStatus(id: string, status: ProjectStatus) {
+  const p = projectDB.find(x => x.id === id);
+  if (!p) throw new Error("Project not found");
 
-export function authorizeApprove(user: AppUser | null, project: Project): boolean {
+  p.status = status;
+  p.updatedAt = new Date().toISOString();
+}
+
+/* ======================================================
+   RBAC HELPERS  ✅ UPDATED EXACTLY PER YOUR RULES
+====================================================== */
+
+/**
+ * Approve / Reject
+ * - Admin
+ * - OR SecurityHead assigned during onboarding
+ */
+export function authorizeApprove(
+  user: AppUser | null,
+  project: Project
+): boolean {
   if (!user) return false;
+
   if (user.role === "Admin") return true;
+
   if (user.role === "SecurityHead") {
-    // either assigned security head or global security head
-    return project.securityHead ? project.securityHead === user.id : true;
+    return project.securityHead === user.id;
   }
+
   return false;
 }
 
+/**
+ * Create:
+ * - Admin
+ * - ProjectDirector
+ */
 export function authorizeCreate(user: AppUser | null): boolean {
   if (!user) return false;
+
   return user.role === "Admin" || user.role === "ProjectDirector";
 }
 
-export function authorizeEdit(user: AppUser | null, project: Project): boolean {
+/**
+ * Edit or Delete:
+ * - Admin
+ * - OR ProjectDirector WHO CREATED IT
+ * - AND status must be Pending
+ */
+export function authorizeEdit(
+  user: AppUser | null,
+  project: Project
+): boolean {
   if (!user) return false;
+
+  if (project.status !== "Pending") return false;
+
   if (user.role === "Admin") return true;
+
   if (user.role === "ProjectDirector") {
-    return project.projectDirector === user.id;
+    return project.createdBy === user.id;
   }
+
   return false;
 }
 
-export function authorizeRelease(user: AppUser | null, project: Project): boolean {
+/**
+ * Release:
+ * - Status must be Approved
+ * - Admin or assigned ReleaseEngineer
+ */
+export function authorizeRelease(
+  user: AppUser | null,
+  project: Project
+): boolean {
   if (!user) return false;
+
   if (project.status !== "Approved") return false;
-  // release if user is Admin (global) or assigned release engineer
+
   if (user.role === "Admin") return true;
-  return project.releaseEngineers.includes(user.id) && user.role === "ReleaseEngineer";
+
+  return (
+    user.role === "ReleaseEngineer" &&
+    project.releaseEngineers.includes(user.id)
+  );
 }
