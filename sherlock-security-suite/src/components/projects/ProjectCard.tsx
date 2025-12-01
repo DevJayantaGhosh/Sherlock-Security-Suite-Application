@@ -1,3 +1,5 @@
+// src/components/ProjectCard.tsx
+
 import { motion } from "framer-motion";
 import {
   Box,
@@ -5,7 +7,7 @@ import {
   Stack,
   IconButton,
   Tooltip,
-  Typography,
+  Typography
 } from "@mui/material";
 
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -15,20 +17,22 @@ import CheckIcon from "@mui/icons-material/Check";
 import CloseIcon from "@mui/icons-material/Close";
 import RocketLaunchIcon from "@mui/icons-material/RocketLaunch";
 
-import { Project, ProjectStatus } from "../models/Project";
+import { Project } from "../../models/Project";
 import {
   authorizeApprove,
   authorizeEdit,
-  authorizeRelease,
-} from "../services/projectService";
-import { useUserStore } from "../store/userStore";
+  authorizeRelease
+} from "../../services/projectService";
+import { useUserStore } from "../../store/userStore";
 
-/* ✅ FIXED TYPES */
-const STATUS: Record<ProjectStatus, string> = {
+/* ------------------------------------------------------- */
+/* Color typing fix */
+/* ------------------------------------------------------- */
+const STATUS: Record<Project["status"], string> = {
   Pending: "#ffb020",
   Approved: "#4dd0e1",
   Rejected: "#ff6b6b",
-  Released: "#7b5cff",
+  Released: "#7b5cff"
 };
 
 interface Props {
@@ -48,53 +52,67 @@ export default function ProjectCard({
   onDelete,
   onApprove,
   onReject,
-  onRelease,
+  onRelease
 }: Props) {
-  const user = useUserStore((s) => s.user);
+
+  const user = useUserStore(s => s.user);
 
   return (
     <motion.div
+      layout
+      whileHover={{ y: -6, scale: 1.03 }}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      whileHover={{ y: -8, scale: 1.02 }}
-      transition={{ duration: 0.3 }}
+      transition={{ type: "spring", stiffness: 200 }}
+      style={{ height: "100%" }}
     >
       <Box
         sx={{
-          p: 3,
           height: "100%",
+          p: 3,
           borderRadius: 3,
           position: "relative",
           background:
-            "linear-gradient(180deg,#0b0f20,#060712)",
+            "linear-gradient(140deg,#0c1023,#090c1c,#060712)",
           border: "1px solid rgba(255,255,255,0.08)",
           boxShadow:
-            "0 10px 32px rgba(123,92,255,0.15)",
+            "0 12px 40px rgba(123,92,255,0.18)",
+
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "space-between"
         }}
       >
-        {/* STATUS TAG */}
+
+        {/* STATUS CHIP */}
         <Chip
           label={project.status}
           sx={{
             position: "absolute",
-            right: 12,
-            top: 12,
+            right: 14,
+            top: 14,
             bgcolor: STATUS[project.status],
             fontWeight: 800,
+            textTransform: "uppercase",
+            px: 1,
+            color: "#000"
           }}
         />
 
-        <Typography variant="h6" fontWeight={800}>
-          {project.name}
-        </Typography>
+        <Box>
+          <Typography variant="h6" fontWeight={800}>
+            {project.name}
+          </Typography>
 
-        <Typography color="text.secondary" mt={1}>
-          {project.description}
-        </Typography>
+          <Typography color="text.secondary" mt={1} noWrap>
+            {project.description}
+          </Typography>
+        </Box>
 
-        {/* ACTIONS */}
-        <Stack direction="row" mt={3} gap={1}>
-          <Tooltip title="View">
+        {/* ACTION BUTTONS */}
+        <Stack direction="row" spacing={1} mt={2}>
+
+          <Tooltip title="View details">
             <IconButton onClick={onView}>
               <VisibilityIcon />
             </IconButton>
@@ -102,13 +120,13 @@ export default function ProjectCard({
 
           {authorizeEdit(user, project) && (
             <>
-              <Tooltip title="Edit">
+              <Tooltip title="Edit Project">
                 <IconButton onClick={onEdit}>
                   <EditIcon />
                 </IconButton>
               </Tooltip>
 
-              <Tooltip title="Delete">
+              <Tooltip title="Delete Project">
                 <IconButton onClick={onDelete}>
                   <DeleteIcon />
                 </IconButton>
@@ -134,15 +152,14 @@ export default function ProjectCard({
 
           {authorizeRelease(user, project) && (
             <Tooltip title="Release">
-              <IconButton
-                sx={{ color: "#7b5cff" }}
-                onClick={onRelease}
-              >
+              <IconButton sx={{ color: "#7b5cff" }} onClick={onRelease}>
                 <RocketLaunchIcon />
               </IconButton>
             </Tooltip>
           )}
+
         </Stack>
+
       </Box>
     </motion.div>
   );
