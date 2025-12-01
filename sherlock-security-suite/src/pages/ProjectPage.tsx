@@ -94,7 +94,7 @@ export default function ProjectPage() {
   }
 
   return (
-    <Box sx={{ pt: 10, pb: 6, minHeight: "80vh" }}>
+    <Box sx={{ pt: 8, pb: 6, minHeight: "80vh" }}>
       <Container maxWidth="xl">
 
         {/* ---------------------------------------------------
