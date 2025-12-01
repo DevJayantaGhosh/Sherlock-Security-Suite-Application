@@ -5,87 +5,126 @@ import {
   Typography,
   TextField,
   MenuItem,
-  Grid,
   Stack
 } from "@mui/material";
 import { useEffect, useState } from "react";
-import { getProjects, deleteProject, updateStatus } from "../services/projectService";
-import { Project, ProjectStatus } from "../models/Project";
-import ProjectCard from "../components/ProjectCard";
-import ProjectDialog from "../components/ProjectDialog";
 
-import AddIcon from "@mui/icons-material/Add";
+import ProjectCard from "../components/projects/ProjectCard";
+import ProjectDialog from "../components/projects/ProjectDialog";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 import {
-  toastAdd,
-  toastApprove,
-  toastReject,
-  toastDelete,
-  toastRelease
-} from "../utils/toast";
+  getProjects,
+  deleteProject,
+  updateStatus,
+} from "../services/projectService";
+
+import { Project } from "../models/Project";
+import { useToast } from "../components/ToastProvider";
+import AddIcon from "@mui/icons-material/Add";
 
 const PAGE_SIZE = 6;
 
-export default function ProjectDashboard() {
+export default function ProjectPage() {
 
-  const [projects,setProjects] = useState<Project[]>([]);
-  const [search,setSearch] = useState("");
-  const [filter,setFilter] = useState<ProjectStatus | "All">("All");
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<"All" | Project["status"]>("All");
+  const [page, setPage] = useState(0);
 
-  const [page,setPage]=useState(0);
-  const [dlg,setDlg]=useState(false);
-  const [edit,setEdit]=useState<Project|null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogMode, setDialogMode] =
+    useState<"view" | "edit" | "create">("create");
+  const [selected, setSelected] = useState<Project | null>(null);
 
-  const load = ()=> setProjects(getProjects());
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<null | (() => void)>(null);
+  const [confirmTitle, setConfirmTitle] = useState("");
+  const [confirmDesc, setConfirmDesc] = useState("");
 
-  useEffect(load,[]);
+  const toast = useToast();
 
-  const filtered = projects.filter(p=>{
-    const s=p.name.toLowerCase().includes(search.toLowerCase());
-    const f=filter==="All" || p.status===filter;
-    return s && f;
-  });
+  function load() {
+    setProjects(getProjects());
+  }
 
-  const pageData = filtered.slice(
-    page*PAGE_SIZE,
-    (page+1)*PAGE_SIZE
+  useEffect(() => {
+    load();
+  }, []);
+
+  const filtered = projects.filter(
+    p =>
+      (filter === "All" || p.status === filter) &&
+      p.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  const openCreate = ()=>{
-    setEdit(null);
-    setDlg(true);
-  };
+  const pageData = filtered.slice(
+    page * PAGE_SIZE,
+    (page + 1) * PAGE_SIZE
+  );
 
-  const openEdit = (p:Project)=>{
-    setEdit(p);
-    setDlg(true);
-  };
+  /* ---------- Dialog handlers ---------- */
+
+  function openCreate() {
+    setDialogMode("create");
+    setSelected(null);
+    setDialogOpen(true);
+  }
+
+  function openView(p: Project) {
+    setDialogMode("view");
+    setSelected(p);
+    setDialogOpen(true);
+  }
+
+  function openEdit(p: Project) {
+    setDialogMode("edit");
+    setSelected(p);
+    setDialogOpen(true);
+  }
+
+  function confirmAndExec(title: string, desc: string, fn: () => void) {
+    setConfirmTitle(title);
+    setConfirmDesc(desc);
+    setConfirmAction(() => () => {
+      fn();
+      setConfirmOpen(false);
+    });
+    setConfirmOpen(true);
+  }
 
   return (
-    <Box sx={{minHeight:"100vh",bgcolor:"#060712",pb:5}}>
-      <Container maxWidth="lg">
-               <Typography
-                    variant="h4"
-                    sx={{
-                      mb: 4,
-                      mt:4,
-                      fontWeight: 800,
-                      textAlign: "center",
-                      letterSpacing: 1,
-                    }}
-                  >
-                    Project Configurations
-                  </Typography>
+    <Box sx={{ pt: 10, pb: 6, minHeight: "80vh" }}>
+      <Container maxWidth="xl">
 
-        {/* ==== TOP BAR ==== */}
-        <Stack direction="row" gap={2} mb={4} alignItems="center">
+        {/* ---------------------------------------------------
+             HEADING (CENTERED)
+        ---------------------------------------------------- */}
+        <Typography
+          variant="h4"
+          textAlign="center"
+          fontWeight={800}
+          mb={3}
+        >
+          Project Dashboard
+        </Typography>
 
+        {/* ---------------------------------------------------
+             FILTER + SEARCH + ADD BUTTON ROW
+        ---------------------------------------------------- */}
+        <Stack
+          direction="row"
+          spacing={2}
+          mb={4}
+          alignItems="center"
+        >
+          {/* Status filter */}
           <TextField
             select
+            sx={{ width: 160 }}
             label="Status"
-            sx={{ width: 180 }}
             value={filter}
-            onChange={e=>setFilter(e.target.value as any)}
+            onChange={e => setFilter(e.target.value as any)}
           >
             <MenuItem value="All">All</MenuItem>
             <MenuItem value="Pending">Pending</MenuItem>
@@ -94,68 +133,124 @@ export default function ProjectDashboard() {
             <MenuItem value="Released">Released</MenuItem>
           </TextField>
 
+          {/* Search */}
           <TextField
+            placeholder="Search projects..."
             fullWidth
-            placeholder="Search project..."
             value={search}
-            onChange={e=>setSearch(e.target.value)}
+            onChange={e => setSearch(e.target.value)}
           />
 
+          {/* Add project */}
           <Button
+            startIcon={<AddIcon />}
             variant="contained"
-            startIcon={<AddIcon/>}
             onClick={openCreate}
             sx={{
-              px:4,
-              fontWeight:800,
-              background:"linear-gradient(135deg,#7b5cff,#5ce1e6)"
+              minWidth: 180,
+              background: "linear-gradient(135deg,#7b5cff,#5ce1e6)"
             }}
           >
             Add Project
           </Button>
         </Stack>
 
-        {/* ==== CARDS ==== */}
-        <Grid container spacing={3}>
-          {pageData.map(p=>(
-            <Grid key={p.id} size={4}>
-              <ProjectCard
-                project={p}
-                onView={()=>{}}
-                onEdit={()=>openEdit(p)}
-                onDelete={()=>{
-                  deleteProject(p.id);
-                  toastDelete();
-                  load();
-                }}
-                onApprove={()=>{
-                  updateStatus(p.id,"Approved")
-                  toastApprove();
-                  load();
-                }}
-                onReject={()=>{
-                  updateStatus(p.id,"Rejected")
-                  toastReject();
-                  load();
-                }}
-                onRelease={()=>{
-                  updateStatus(p.id,"Released")
-                  toastRelease();
-                  load();
-                }}
-              />
-            </Grid>
-          ))}
-        </Grid>
+        {/* ---------------------------------------------------
+             PROJECT GRID — 3 CARDS PER ROW
+        ---------------------------------------------------- */}
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns:
+              "repeat(3, minmax(0, 1fr))",
+            gap: 3
+          }}
+        >
+          {pageData.map(p => (
+            <ProjectCard
+              key={p.id}
+              project={p}
 
-        {/* ==== PAGINATION ==== */}
-        <Stack direction="row" justifyContent="center" mt={4} gap={2}>
-          <Button disabled={page===0} onClick={()=>setPage(p=>p-1)}>
-            Previous
-          </Button>
+              onView={() => openView(p)}
+
+              onEdit={() => openEdit(p)}
+
+              onDelete={() =>
+                confirmAndExec(
+                  "Delete project",
+                  "Are you sure you want to remove this project?",
+                  () => {
+                    deleteProject(p.id);
+                    toast("Deleted", "info");
+                    load();
+                  }
+                )
+              }
+
+              onApprove={() =>
+                confirmAndExec(
+                  "Approve project",
+                  "Approve this project?",
+                  () => {
+                    updateStatus(p.id, "Approved", "system");
+                    toast("Approved", "success");
+                    load();
+                  }
+                )
+              }
+
+              onReject={() =>
+                confirmAndExec(
+                  "Reject project",
+                  "Reject this project?",
+                  () => {
+                    updateStatus(p.id, "Rejected", "system");
+                    toast("Rejected", "warning");
+                    load();
+                  }
+                )
+              }
+
+              onRelease={() =>
+                confirmAndExec(
+                  "Release project",
+                  "Mark this project as released?",
+                  () => {
+                    updateStatus(p.id, "Released", "system");
+                    toast("Released", "success");
+                    load();
+                  }
+                )
+              }
+            />
+          ))}
+        </Box>
+
+        {/* ---------------------------------------------------
+             PAGINATION (INLINE — SAME FILE)
+        ---------------------------------------------------- */}
+        <Stack
+          direction="row"
+          justifyContent="center"
+          spacing={2}
+          mt={4}
+        >
           <Button
-            disabled={(page+1)*PAGE_SIZE>=filtered.length}
-            onClick={()=>setPage(p=>p+1)}
+            disabled={page === 0}
+            onClick={() => setPage(p => p - 1)}
+          >
+            Prev
+          </Button>
+
+          <Typography sx={{ pt: 1 }}>
+            Page {page + 1} of
+            {" "}
+            {Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))}
+          </Typography>
+
+          <Button
+            disabled={(page + 1) * PAGE_SIZE >= filtered.length}
+            onClick={() => setPage(p => p + 1)}
           >
             Next
           </Button>
@@ -163,12 +258,26 @@ export default function ProjectDashboard() {
 
       </Container>
 
-      {/* ----- DIALOG ----- */}
+      {/* ---------------------------------------------------
+           MODALS
+      ---------------------------------------------------- */}
+
       <ProjectDialog
-        open={dlg}
-        onClose={()=>setDlg(false)}
-        project={edit}
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        project={selected ?? undefined}
+        mode={dialogMode}
         refresh={load}
+      />
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title={confirmTitle}
+        description={confirmDesc}
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={() => {
+          if (confirmAction) confirmAction();
+        }}
       />
 
     </Box>

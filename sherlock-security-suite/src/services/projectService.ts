@@ -11,44 +11,34 @@ let projectDB: Project[] = [
     id: "p1",
     name: "Threat Scanner",
     description: "Automated threat detection and sandboxing engine.",
-
-    projectDirector: "u2",
-    securityHead: "u3",
-    releaseEngineers: ["u4"],
-
+    projectDirector: "u1",
+    securityHead: "u2",
+    releaseEngineers: ["u3"],
     gitRepo: ["https://github.com/example/threat-scanner"],
-    gpgKey: ["gpg-key-1"],
-
-    dependencies: ["Node", "Docker"],
-
-    createdBy: "u2",
-    updatedBy: "u2",
-
+    gpgKey: [""],
+    dependencies: ["Node", "Express", "Docker"],
+    createdBy: "u1",
     createdAt: new Date().toISOString(),
     status: "Pending",
+    history: [{ status: "Pending", by: "u1", at: new Date().toISOString(), note: "Created" }],
   },
-
   {
     id: "p2",
     name: "Audit Chain",
-    description: "Blockchain auditing ledger",
-
-    projectDirector: "u2",
-    securityHead: "u3",
-    releaseEngineers: ["u4"],
-
-    gitRepo: ["https://github.com/example/audit-chain"],
-    gpgKey: ["gpg-key-2"],
-
-    dependencies: ["React", "Mongo"],
-
-    createdBy: "u2",
-    updatedBy: "u2",
-
+    description: "Blockchain-based forensic auditing ledger.",
+    projectDirector: "u1",
+    securityHead: "u2",
+    releaseEngineers: ["u3"],
+    gitRepo: [""],
+    gpgKey: [""],
+    dependencies: ["React", "MongoDB"],
+    createdBy: "u1",
     createdAt: new Date().toISOString(),
     status: "Approved",
-  }
+    history: [{ status: "Pending", by: "u1", at: new Date().toISOString() }, { status: "Approved", by: "u2", at: new Date().toISOString() }],
+  },
 ];
+
 
 /* ======================================================
    API STUBS (REAL BACKEND READY)
@@ -80,16 +70,14 @@ export function getProjects(): Project[] {
   return [...projectDB];
 }
 
-export function createProject(
-  payload: Omit<Project, "id" | "createdAt" | "updatedAt">
-): Project {
+export function createProject(payload: Omit<Project, "id" | "createdAt" | "createdBy" | "history"> & { createdBy: string }): Project {
   const newP: Project = {
     ...payload,
     id: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
-    status: "Pending",
-  };
-
+    history: [{ status: payload.status ?? "Pending", by: payload.createdBy, at: new Date().toISOString(), note: "Created" }],
+    status: payload.status ?? "Pending",
+  } as Project;
   projectDB.unshift(newP);
   return newP;
 }
@@ -97,10 +85,7 @@ export function createProject(
 export function updateProject(p: Project): Project {
   const idx = projectDB.findIndex(x => x.id === p.id);
   if (idx === -1) throw new Error("Project not found");
-
-  p.updatedBy = p.updatedBy ?? p.createdBy;
   p.updatedAt = new Date().toISOString();
-
   projectDB[idx] = p;
   return projectDB[idx];
 }
@@ -109,13 +94,16 @@ export function deleteProject(id: string) {
   projectDB = projectDB.filter(p => p.id !== id);
 }
 
-export function updateStatus(id: string, status: ProjectStatus) {
+export function updateStatus(id: string, status: ProjectStatus, byUserId: string, note?: string) {
   const p = projectDB.find(x => x.id === id);
   if (!p) throw new Error("Project not found");
-
   p.status = status;
   p.updatedAt = new Date().toISOString();
+  p.updatedBy = byUserId;
+  p.history = p.history || [];
+  p.history.push({ status, by: byUserId, at: new Date().toISOString(), note });
 }
+
 
 /* ======================================================
    RBAC HELPERS  ✅ UPDATED EXACTLY PER YOUR RULES

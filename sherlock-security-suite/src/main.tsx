@@ -11,17 +11,29 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <App />
+
       <Toaster
-        position="bottom-right"
+        position="top-right"
         toastOptions={{
           style: {
             background: "#0b0f20",
             color: "#fff",
-            border: "1px solid rgba(255,255,255,0.1)"
-          }
+            border: "1px solid rgba(255,255,255,0.08)",
+          },
+          success: {
+            style: {
+              background: "linear-gradient(133deg,#18c964,#13b97b)",
+            },
+          },
+          error: {
+            style: {
+              background: "linear-gradient(133deg,#ff4d4f,#ff1a40)",
+            },
+          },
         }}
       />
+
+      <App />
     </ThemeProvider>
   </React.StrictMode>
 );
