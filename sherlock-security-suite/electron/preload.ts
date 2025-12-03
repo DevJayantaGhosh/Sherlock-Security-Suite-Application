@@ -33,3 +33,24 @@ contextBridge.exposeInMainWorld("electronWindow", {
   maximize: () => ipcRenderer.invoke("window:maximize"),
   close: () => ipcRenderer.invoke("window:close"),
 });
+
+// ---------------- SECURITY API ----------------
+/* Higher level helpers for scans */
+contextBridge.exposeInMainWorld("electronAPI", {
+  runRepoScan: (payload: any) => ipcRenderer.invoke("scan:run", payload),
+  // subscribe to scan progress
+  onScanProgress: (cb: (arg0: any) => any) => {
+    const wrapped = (_event: any, data: any) => cb(data);
+    ipcRenderer.on("scan:progress", wrapped);
+    return () => ipcRenderer.off("scan:progress", wrapped);
+  },
+  // LLM: streaming helper
+  llmQuery: (payload: any) => ipcRenderer.invoke("llm:query", payload),
+  onLLMStream: (cb: (arg0: any) => any) => {
+    const wrapped = (_event: any, data: any) => cb(data);
+    ipcRenderer.on("llm:stream", wrapped);
+    return () => ipcRenderer.off("llm:stream", wrapped);
+  },
+
+  ping: () => ipcRenderer.invoke("ping"),
+});

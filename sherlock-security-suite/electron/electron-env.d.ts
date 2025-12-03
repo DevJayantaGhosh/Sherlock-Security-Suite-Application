@@ -30,4 +30,11 @@ interface Window {
     maximize: () => void
     close: () => void
   }
+  electronAPI: {
+    runRepoScan: (payload: { projectId: string; repoIndex: number; repoUrl: string }) => Promise<{ runId: string }>;
+    onScanProgress: (cb: (data: any) => void) => () => void;
+    llmQuery: (payload: { sessionId: string; prompt: string }) => Promise<{ streamId: string }>;
+    onLLMStream: (cb: (data: any) => void) => () => void;
+    ping: () => Promise<string>;
+  };
 }
