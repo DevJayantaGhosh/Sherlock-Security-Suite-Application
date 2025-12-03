@@ -26,3 +26,20 @@ electron.contextBridge.exposeInMainWorld("electronWindow", {
   maximize: () => electron.ipcRenderer.invoke("window:maximize"),
   close: () => electron.ipcRenderer.invoke("window:close")
 });
+electron.contextBridge.exposeInMainWorld("electronAPI", {
+  runRepoScan: (payload) => electron.ipcRenderer.invoke("scan:run", payload),
+  // subscribe to scan progress
+  onScanProgress: (cb) => {
+    const wrapped = (_event, data) => cb(data);
+    electron.ipcRenderer.on("scan:progress", wrapped);
+    return () => electron.ipcRenderer.off("scan:progress", wrapped);
+  },
+  // LLM: streaming helper
+  llmQuery: (payload) => electron.ipcRenderer.invoke("llm:query", payload),
+  onLLMStream: (cb) => {
+    const wrapped = (_event, data) => cb(data);
+    electron.ipcRenderer.on("llm:stream", wrapped);
+    return () => electron.ipcRenderer.off("llm:stream", wrapped);
+  },
+  ping: () => electron.ipcRenderer.invoke("ping")
+});
