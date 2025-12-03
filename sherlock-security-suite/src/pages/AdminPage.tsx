@@ -8,6 +8,11 @@ import AdminCharts from "../components/admin/AdminCharts";
 import UsersTable from "../components/admin/UsersTable";
 import AdminStats from "../components/admin/AdminStats";
 import AddEditUserDialog from "../components/admin/AddEditUserDialog";
+// src/pages/AdminPage.tsx
+
+import RepositoryManagement from "../components/admin/RepositoryManagement";
+import DependencyManagement from "../components/admin/DependencyManagement";
+
 
 import { getUsers } from "../services/userService";
 import { getProjects } from "../services/projectService";
@@ -109,10 +114,35 @@ export default function AdminPage() {
 
             <UsersTable
               users={users}
-              onEdit={openEdit}   
+              onEdit={openEdit}
               refresh={loadData}
             />
           </Box>
+
+          <Box sx={{ mt: 6 }}>
+            <Typography variant="h5" sx={{ mb: 2 }}>
+              Repository Management
+            </Typography>
+
+            <Box sx={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
+              <RepositoryManagement />
+            </Box>
+          </Box>
+
+            <Box sx={{ mt: 6 }}>
+            <Typography variant="h5" sx={{ mb: 2 }}>
+              Dependency Management
+            </Typography>
+
+            <Box sx={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
+              <DependencyManagement />
+            </Box>
+          </Box>
+
+          
+
+
+
         </motion.div>
       </Container>
 
