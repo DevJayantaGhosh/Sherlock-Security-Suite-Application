@@ -8,14 +8,16 @@ import { api } from "./project-service-api";
 
 let projectDB: Project[] = [
   {
-    id: "p1",
+    id: "1",
     name: "Threat Scanner",
+    version:"v1.2.0",
     description: "Automated threat detection and sandboxing engine.",
     projectDirector: "u1",
     securityHead: "u2",
     releaseEngineers: ["u3"],
     gitRepo: ["https://github.com/example/threat-scanner"],
     gpgKey: [""],
+    gitBrances:[""],
     dependencies: ["Node", "Express", "Docker"],
     createdBy: "u1",
     createdAt: new Date().toISOString(),
@@ -24,6 +26,7 @@ let projectDB: Project[] = [
   },
   {
     id: "p2",
+    version:"v1.3.0",
     name: "Audit Chain",
     description: "Blockchain-based forensic auditing ledger.",
     projectDirector: "u1",
@@ -31,6 +34,7 @@ let projectDB: Project[] = [
     releaseEngineers: ["u3"],
     gitRepo: [""],
     gpgKey: [""],
+    gitBrances:[""],
     dependencies: ["React", "MongoDB"],
     createdBy: "u1",
     createdAt: new Date().toISOString(),
@@ -174,7 +178,7 @@ export function authorizeRelease(
 ): boolean {
   if (!user) return false;
 
-  if (project.status !== "Approved") return false;
+  // if (project.status !== "Approved") return false;
 
   if (user.role === "Admin") return true;
 
