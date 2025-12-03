@@ -8,6 +8,7 @@ import {
   Stack
 } from "@mui/material";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import ProjectCard from "../components/projects/ProjectCard";
 import ProjectDialog from "../components/projects/ProjectDialog";
@@ -21,11 +22,15 @@ import {
 
 import { Project } from "../models/Project";
 import { useToast } from "../components/ToastProvider";
+
 import AddIcon from "@mui/icons-material/Add";
 
 const PAGE_SIZE = 6;
 
 export default function ProjectPage() {
+
+  const navigate = useNavigate();
+  const toast = useToast();
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [search, setSearch] = useState("");
@@ -41,8 +46,6 @@ export default function ProjectPage() {
   const [confirmAction, setConfirmAction] = useState<null | (() => void)>(null);
   const [confirmTitle, setConfirmTitle] = useState("");
   const [confirmDesc, setConfirmDesc] = useState("");
-
-  const toast = useToast();
 
   function load() {
     setProjects(getProjects());
@@ -93,6 +96,15 @@ export default function ProjectPage() {
     setConfirmOpen(true);
   }
 
+  /* --------------------------------------------------- */
+
+  function navigateToRelease(projectId: string) {
+    console.log("hi")
+    navigate(`/project/${projectId}/releases`);
+  }
+
+  /* --------------------------------------------------- */
+
   return (
     <Box sx={{ pt: 8, pb: 6, minHeight: "80vh" }}>
       <Container maxWidth="xl">
@@ -118,7 +130,7 @@ export default function ProjectPage() {
           mb={4}
           alignItems="center"
         >
-          {/* Status filter */}
+
           <TextField
             select
             sx={{ width: 160 }}
@@ -133,7 +145,6 @@ export default function ProjectPage() {
             <MenuItem value="Released">Released</MenuItem>
           </TextField>
 
-          {/* Search */}
           <TextField
             placeholder="Search projects..."
             fullWidth
@@ -141,7 +152,6 @@ export default function ProjectPage() {
             onChange={e => setSearch(e.target.value)}
           />
 
-          {/* Add project */}
           <Button
             startIcon={<AddIcon />}
             variant="contained"
@@ -153,6 +163,7 @@ export default function ProjectPage() {
           >
             Add Project
           </Button>
+
         </Stack>
 
         {/* ---------------------------------------------------
@@ -161,8 +172,7 @@ export default function ProjectPage() {
         <Box
           sx={{
             display: "grid",
-            gridTemplateColumns:
-              "repeat(3, minmax(0, 1fr))",
+            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
             gap: 3
           }}
         >
@@ -213,12 +223,14 @@ export default function ProjectPage() {
 
               onRelease={() =>
                 confirmAndExec(
-                  "Release project",
-                  "Mark this project as released?",
+                  "Start Release",
+                  "Proceed to release workflow for this project?",
                   () => {
                     updateStatus(p.id, "Released", "system");
-                    toast("Released", "success");
-                    load();
+                    toast("Release workflow started", "success");
+
+                    alert(p.id)
+                    navigateToRelease(p.id);
                   }
                 )
               }
@@ -227,7 +239,7 @@ export default function ProjectPage() {
         </Box>
 
         {/* ---------------------------------------------------
-             PAGINATION (INLINE — SAME FILE)
+             PAGINATION
         ---------------------------------------------------- */}
         <Stack
           direction="row"
@@ -243,8 +255,7 @@ export default function ProjectPage() {
           </Button>
 
           <Typography sx={{ pt: 1 }}>
-            Page {page + 1} of
-            {" "}
+            Page {page + 1} of{" "}
             {Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))}
           </Typography>
 

@@ -1,5 +1,3 @@
-// src/components/ProjectCard.tsx
-
 import { motion } from "framer-motion";
 import {
   Box,
@@ -25,9 +23,6 @@ import {
 } from "../../services/projectService";
 import { useUserStore } from "../../store/userStore";
 
-/* ------------------------------------------------------- */
-/* Color typing fix */
-/* ------------------------------------------------------- */
 const STATUS: Record<Project["status"], string> = {
   Pending: "#ffb020",
   Approved: "#4dd0e1",
@@ -61,9 +56,9 @@ export default function ProjectCard({
     <motion.div
       layout
       whileHover={{ y: -6, scale: 1.03 }}
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ type: "spring", stiffness: 200 }}
+      transition={{ type: "spring", stiffness: 220 }}
       style={{ height: "100%" }}
     >
       <Box
@@ -72,19 +67,15 @@ export default function ProjectCard({
           p: 3,
           borderRadius: 3,
           position: "relative",
-          background:
-            "linear-gradient(140deg,#0c1023,#090c1c,#060712)",
+          background: "linear-gradient(140deg,#0c1023,#090c1c,#060712)",
           border: "1px solid rgba(255,255,255,0.08)",
-          boxShadow:
-            "0 12px 40px rgba(123,92,255,0.18)",
-
+          boxShadow: "0 12px 40px rgba(123,92,255,0.18)",
           display: "flex",
           flexDirection: "column",
           justifyContent: "space-between"
         }}
       >
 
-        {/* STATUS CHIP */}
         <Chip
           label={project.status}
           sx={{
@@ -93,7 +84,6 @@ export default function ProjectCard({
             top: 14,
             bgcolor: STATUS[project.status],
             fontWeight: 800,
-            textTransform: "uppercase",
             px: 1,
             color: "#000"
           }}
@@ -103,33 +93,23 @@ export default function ProjectCard({
           <Typography variant="h6" fontWeight={800}>
             {project.name}
           </Typography>
-
           <Typography color="text.secondary" mt={1} noWrap>
             {project.description}
           </Typography>
         </Box>
 
-        {/* ACTION BUTTONS */}
         <Stack direction="row" spacing={1} mt={2}>
-
-          <Tooltip title="View details">
-            <IconButton onClick={onView}>
-              <VisibilityIcon />
-            </IconButton>
+          <Tooltip title="View">
+            <IconButton onClick={onView}><VisibilityIcon/></IconButton>
           </Tooltip>
 
           {authorizeEdit(user, project) && (
             <>
-              <Tooltip title="Edit Project">
-                <IconButton onClick={onEdit}>
-                  <EditIcon />
-                </IconButton>
+              <Tooltip title="Edit">
+                <IconButton onClick={onEdit}><EditIcon/></IconButton>
               </Tooltip>
-
-              <Tooltip title="Delete Project">
-                <IconButton onClick={onDelete}>
-                  <DeleteIcon />
-                </IconButton>
+              <Tooltip title="Delete">
+                <IconButton onClick={onDelete}><DeleteIcon/></IconButton>
               </Tooltip>
             </>
           )}
@@ -138,26 +118,24 @@ export default function ProjectCard({
             <>
               <Tooltip title="Approve">
                 <IconButton color="success" onClick={onApprove}>
-                  <CheckIcon />
+                  <CheckIcon/>
                 </IconButton>
               </Tooltip>
-
               <Tooltip title="Reject">
                 <IconButton color="error" onClick={onReject}>
-                  <CloseIcon />
+                  <CloseIcon/>
                 </IconButton>
               </Tooltip>
             </>
           )}
 
           {authorizeRelease(user, project) && (
-            <Tooltip title="Release">
+            <Tooltip title="Release workflow">
               <IconButton sx={{ color: "#7b5cff" }} onClick={onRelease}>
-                <RocketLaunchIcon />
+                <RocketLaunchIcon/>
               </IconButton>
             </Tooltip>
           )}
-
         </Stack>
 
       </Box>
