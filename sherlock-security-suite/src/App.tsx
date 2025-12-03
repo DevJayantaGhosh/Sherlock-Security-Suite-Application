@@ -9,6 +9,7 @@ import About from "./pages/AboutPage";
 import Projects from "./pages/ProjectPage";
 import Login from "./pages/LoginPage";
 import AdminPage from "./pages/AdminPage";
+import ProjectReleasePage from "./pages/ProjectReleasePage";
 import ProtectedRoute from "./auth/ProtectedRoute";
 
 export default function App() {
@@ -16,22 +17,38 @@ export default function App() {
     <Router>
       <NavBar />
 
-      {/* Main Content Area */}
       <Box
         component="main"
         sx={{
-          pt: "64px",                  // navbar height
-          minHeight: "calc(100vh - 128px)", // 64 navbar + 64 footer
+          pt: "64px",
+          minHeight: "calc(100vh - 128px)",
         }}
       >
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/about" element={<About />} />
           <Route path="/projects" element={<Projects />} />
+
+          {/* ✅ Correct release route */}
+          <Route
+            path="/project/:id/releases"
+            element={
+              <ProtectedRoute allowedRoles={["Admin","ReleaseEngineer"]}>
+                <ProjectReleasePage />
+              </ProtectedRoute>
+            }
+          />
+
           <Route path="/login" element={<Login />} />
 
-          <Route path="/admin" element={<ProtectedRoute allowedRoles={['Admin']}><AdminPage /></ProtectedRoute>} />
-
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute allowedRoles={["Admin"]}>
+                <AdminPage />
+              </ProtectedRoute>
+            }
+          />
         </Routes>
       </Box>
 
