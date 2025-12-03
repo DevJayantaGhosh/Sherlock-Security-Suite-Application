@@ -1,65 +1,33 @@
-// src/pages/ProjectSecurityScanPage.tsx
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Box,
   Button,
   Container,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   Paper,
-  Step,
-  StepLabel,
-  Stepper,
-  Typography,
   Stack,
-  Chip,
+  Typography,
   Divider,
-  LinearProgress,
-  IconButton,
+  Chip,
+  TextField,
+  IconButton
 } from "@mui/material";
-import { useParams, useNavigate } from "react-router-dom";
-import { getProjects, updateStatus } from "../services/projectService";
-import { useUserStore } from "../store/userStore";
-import { useToast } from "../components/ToastProvider";
-import { motion } from "framer-motion";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
-import ReplayIcon from "@mui/icons-material/Replay";
-import ArticleIcon from "@mui/icons-material/Article";
-import CloseIcon from "@mui/icons-material/Close";
+import { useParams } from "react-router-dom";
+import { motion } from "framer-motion";
 
-/**
- * Security Scan Page
- *
- * - per-repo pipeline:
- *   1) Verify GPG signatures (simulate commit scan; report total/signed/unsigned)
- *   2) LLM vulnerability scan (stubbed; show how to integrate with LLM)
- *   3) Dependency audit (simulate CVE findings)
- *
- * - runtime logs streamed during each step
- * - approve/reject with confirmation
- *
- * NOTE: Where real integrations are needed (git access, signature verification,
- * LLM, dependency scanner, blockchain tx) there are commented placeholders.
- */
+import { getProjects } from "../services/projectService";
 
-type ScanStatus = "idle" | "running" | "success" | "failed";
+/* ------------------------------------------------------------------ */
+/* ----------------------------- TYPES --------------------------------*/
 
-type PipelineStep =
-  | "Verify GPG Signatures"
-  | "LLM Vulnerability Scan"
-  | "Dependency Audit";
+type StepStatus = "idle" | "running" | "success" | "failed";
 
-const PIPELINE_STEPS: PipelineStep[] = [
-  "Verify GPG Signatures",
-  "LLM Vulnerability Scan",
-  "Dependency Audit",
-];
-
-interface RepoScanStep {
-  step: PipelineStep;
-  status: ScanStatus;
+interface RepoStep {
+  status: StepStatus;
   logs: string[];
 }
 
@@ -67,463 +35,436 @@ interface RepoScan {
   repo: string;
   branch: string;
   gpg: string;
-  dependencyCount: number;
-  steps: RepoScanStep[];
 
-  // results:
-  commitsTotal?: number;
-  commitsSigned?: number;
-  commitsUnsigned?: number;
-  llmSummary?: string;
-  dependencyIssues?: { pkg: string; severity: "low" | "medium" | "high" }[];
+  gpgVerify: RepoStep;
+  llmChat: RepoStep;
+  chatMessages: { from: "user" | "llm"; msg: string }[];
 }
 
-export default function ProjectSecurityScanPage(): JSX.Element | null {
+/* ------------------------------------------------------------------ */
+
+export default function ProjectSecurityScanPage() {
   const { id } = useParams();
-  const navigate = useNavigate();
-  const toast = useToast();
+  const project = getProjects().find(p => p.id === id);
 
-  const user = useUserStore((s) => s.user);
-  const project = getProjects().find((p) => p.id === id);
-
-  // state
-  const [scans, setScans] = useState<RepoScan[]>([]);
-  const [logOpen, setLogOpen] = useState(false);
-  const [logText, setLogText] = useState("");
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
-  const [confirmTitle, setConfirmTitle] = useState("");
-  const [confirmDesc, setConfirmDesc] = useState("");
-
-  // keep refs to running intervals so we can cleanup
-  const intervals = useRef<Record<string, number | null>>({});
-
-  const isAuthorized =
-    user?.role === "Admin" || project?.securityHead === user?.id;
+  const [repos, setRepos] = useState<RepoScan[]>([]);
+  const [dependencyChat, setDependencyChat] = useState<
+    { from: "user" | "llm"; msg: string }[]
+  >([]);
+  const [depInput, setDepInput] = useState("");
 
   useEffect(() => {
     if (!project) return;
-    if (!isAuthorized) {
-      toast("Unauthorized access", "error");
-      navigate("/projects");
-      return;
-    }
 
     const initial: RepoScan[] =
-      (project.gitRepo ?? []).map((repo, idx) => ({
-        repo,
-        branch: (project.gitBrances ?? [])[idx] ?? "main",
-        gpg: (project.gpgKey ?? [])[idx] ?? "",
-        dependencyCount: project.dependencies?.length ?? 0,
-        steps: PIPELINE_STEPS.map((s) => ({
-          step: s,
-          status: "idle",
-          logs: [],
-        })),
-      })) ?? [];
+      project.gitRepo?.map((r, i) => ({
+        repo: r,
+        branch: project.gitBrances?.[i] || "main",
+        gpg: project.gpgKey?.[i] || "—",
 
-    setScans(initial);
+        gpgVerify: { status: "idle", logs: [] },
+        llmChat: { status: "idle", logs: [] },
 
-    // cleanup on unmount
-    return () => {
-      Object.values(intervals.current).forEach((t) => {
-        if (t) clearInterval(t);
-      });
-      intervals.current = {};
-    };
+        chatMessages: []
+      })) || [];
+
+    setRepos(initial);
   }, [project]);
 
-  if (!project || !isAuthorized) return null;
+  if (!project) return null;
 
-  // Utility: append log to a repo-step
-  function appendLog(repoUrl: string, step: PipelineStep, line: string) {
-    setScans((prev) =>
-      prev.map((r) =>
-        r.repo === repoUrl
-          ? {
-              ...r,
-              steps: r.steps.map((s) =>
-                s.step === step ? { ...s, logs: [...s.logs, line] } : s
-              ),
-            }
-          : r
-      )
-    );
-  }
+  /* ------------------------------------------------------------------ */
+  /* ------------------------------ UTILS ------------------------------*/
 
-  // Update step state + optionally logs
-  function updateStepState(
-    repoUrl: string,
-    step: PipelineStep,
-    patch: Partial<RepoScanStep>
-  ) {
-    setScans((prev) =>
-      prev.map((r) =>
-        r.repo === repoUrl
-          ? {
-              ...r,
-              steps: r.steps.map((s) => (s.step === step ? { ...s, ...patch } : s)),
-            }
-          : r
-      )
-    );
-  }
+  const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-  // Update repo-level results
-  function updateRepoResult(repoUrl: string, patch: Partial<RepoScan>) {
-    setScans((prev) => prev.map((r) => (r.repo === repoUrl ? { ...r, ...patch } : r)));
-  }
+  /* ------------------------------------------------------------------ */
+  /* ------------------------- GPG SIMULATION --------------------------*/
 
-  // Simulated: verify GPG signatures by "scanning commits"
-  async function performGpgVerify(repo: RepoScan) {
-    const step: PipelineStep = "Verify GPG Signatures";
-    updateStepState(repo.repo, step, { status: "running", logs: [] });
-
-    // Simulate streaming log lines (e.g., checking commits)
-    const totalCommits = 10 + Math.floor(Math.random() * 10);
-    let signed = 0;
-
-    appendLog(repo.repo, step, `Starting signature verification for ${repo.repo}...`);
-    await delay(400);
-
-    // stream each commit check
-    for (let i = 1; i <= totalCommits; i++) {
-      // random sign pass
-      const isSigned = Math.random() > 0.22; // ≈78% signed
-      appendLog(repo.repo, step, `Checking commit #${i}... ${isSigned ? "SIGNED" : "UNSIGNED"}`);
-      if (isSigned) signed++;
-      await delay(180 + Math.random() * 200);
-    }
-
-    // finalize
-    const unsigned = totalCommits - signed;
-    updateRepoResult(repo.repo, {
-      commitsTotal: totalCommits,
-      commitsSigned: signed,
-      commitsUnsigned: unsigned,
+  async function runGpgScan(repo: RepoScan) {
+    updateRepoStep(repo.repo, "gpgVerify", {
+      status: "running",
+      logs: []
     });
 
-    appendLog(repo.repo, step, `Done — ${signed}/${totalCommits} signed, ${unsigned} unsigned.`);
-    updateStepState(repo.repo, step, { status: unsigned === 0 ? "success" : "failed" });
+    appendLog(repo.repo, "gpgVerify", "Fetching commit history...");
 
-    // if unsigned > 0 mark failed (security decision)
-    return unsigned === 0;
-  }
-
-  // Simulated: LLM vulnerability scan
-  async function performLlmVulnScan(repo: RepoScan) {
-    const step: PipelineStep = "LLM Vulnerability Scan";
-    updateStepState(repo.repo, step, { status: "running", logs: [] });
-    appendLog(repo.repo, step, `Preparing vulnerability scan via LLM for ${repo.repo}...`);
     await delay(600);
 
-    // -------------------------
-    // PLACEHOLDER: real LLM integration
-    // -------------------------
-    // Example (commented): send repo meta / short diff to an LLM service for analysis
-    //
-    // const resp = await fetch("https://your-llm-host/api/v1/analyze", {
-    //   method: "POST",
-    //   headers: { "Content-Type": "application/json", Authorization: `Bearer ${LLM_KEY}` },
-    //   body: JSON.stringify({ repo: repo.repo, branch: repo.branch, prompt: "...analysis prompt..." })
-    // });
-    // const data = await resp.json();
-    // const summary = data.summary;
-    //
-    // -------------------------
-    // For now simulate
-    const issuesDetected = Math.random() > 0.6 ? Math.floor(Math.random() * 4) : 0;
-    const summary =
-      issuesDetected === 0
-        ? "No obvious critical issues found by LLM scan."
-        : `${issuesDetected} potential issues (suggest manual review).`;
+    const total = 15 + Math.floor(Math.random() * 10);
+    let signed = 0;
 
-    appendLog(repo.repo, step, `LLM scan complete: ${summary}`);
-    updateRepoResult(repo.repo, { llmSummary: summary });
-    updateStepState(repo.repo, step, { status: issuesDetected === 0 ? "success" : "failed" });
+    for (let i = 1; i <= total; i++) {
+      const ok = Math.random() > 0.2;
+      appendLog(
+        repo.repo,
+        "gpgVerify",
+        `Commit ${i}: ${ok ? "SIGNED" : "UNSIGNED"}`
+      );
+      if (ok) signed++;
+      await delay(120);
+    }
 
-    return issuesDetected === 0;
+    appendLog(
+      repo.repo,
+      "gpgVerify",
+      `Summary: ${signed}/${total} signed commits`
+    );
+
+    updateRepoStep(repo.repo, "gpgVerify", {
+      status: signed === total ? "success" : "failed"
+    });
   }
 
-  // Simulated dependency audit
-  async function performDependencyAudit(repo: RepoScan) {
-    const step: PipelineStep = "Dependency Audit";
-    updateStepState(repo.repo, step, { status: "running", logs: [] });
-    appendLog(repo.repo, step, `Starting dependency audit for ${repo.repo}...`);
+  /* ------------------------------------------------------------------ */
+  /* ----------------------- INTERACTIVE LLM CHAT ----------------------*/
+
+  async function sendRepoLLMMessage(repo: RepoScan, input: string) {
+    updateRepo((r) => {
+      r.chatMessages.push({ from: "user", msg: input });
+      r.llmChat.status = "running";
+    }, repo.repo);
+
     await delay(500);
 
-    // simulate scanning project's dependencies
-    const depCount = repo.dependencyCount ?? 0;
-    const issues: RepoScan["dependencyIssues"] = [];
+    /*
+      ======================================================
+      REAL INTEGRATION (EXAMPLE)
+      ======================================================
+      const resp = await fetch("http://localhost:11434/api/generate", {
+        method: "POST",
+        body: JSON.stringify({
+          model: "llama3",
+          prompt: input,
+          stream: false
+        })
+      });
 
-    for (let i = 0; i < Math.min(depCount, 6); i++) {
-      // random chance of issue
-      if (Math.random() > 0.72) {
-        const pkg = `package-${i + 1}`;
-        const severity = Math.random() > 0.7 ? "high" : Math.random() > 0.5 ? "medium" : "low";
-        issues.push({ pkg, severity: severity as any });
-        appendLog(repo.repo, step, `Found ${severity.toUpperCase()} issue in ${pkg}`);
-      } else {
-        appendLog(repo.repo, step, `Checked package-${i + 1}: ok`);
-      }
-      await delay(150 + Math.random() * 200);
-    }
+      const data = await resp.json();
+      const llmReply = data.response;
+      ======================================================
+    */
 
-    updateRepoResult(repo.repo, { dependencyIssues: issues });
-    appendLog(repo.repo, step, `Dependency audit finished — ${issues.length} issues found.`);
-    updateStepState(repo.repo, step, { status: issues.length === 0 ? "success" : "failed" });
+    // ---- SIMULATED LLM RESPONSE ----
+    const llmReply = `
+LLM analysis complete:
+• No immediate critical vulnerabilities detected
+• Recommend dependency review for known CVEs
+• Static analysis confidence: HIGH
+`;
 
-    return issues.length === 0;
+    await delay(800);
+
+    updateRepo((r) => {
+      r.chatMessages.push({ from: "llm", msg: llmReply });
+      r.llmChat.status = "success";
+    }, repo.repo);
   }
 
-  // Run single pipeline step by step for a repo (safe: does not block other repos)
-  async function runFullPipeline(repo: RepoScan) {
-    // sequentially run steps but allow re-run of single steps via UI too.
-    // We'll run all three for convenience
-    try {
-      const ok1 = await performGpgVerify(repo);
-      // if GPG failed we still can continue (but keep status)
-      const ok2 = await performLlmVulnScan(repo);
-      const ok3 = await performDependencyAudit(repo);
+  /* ------------------------------------------------------------------ */
+  /* ---------------------- DEPENDENCY LLM CHAT ------------------------*/
 
-      appendLog(repo.repo, "Dependency Audit", "Pipeline finished.");
-      toast(`Scan finished for ${repo.repo}`, "info");
-      return ok1 && ok2 && ok3;
-    } catch (err) {
-      appendLog(repo.repo, "Dependency Audit", "Pipeline aborted with error.");
-      updateStepState(repo.repo, "Dependency Audit", { status: "failed" });
-      return false;
-    }
+  async function sendDependencyChat() {
+    if (!depInput.trim()) return;
+
+    const userMsg = depInput;
+    setDepInput("");
+
+    setDependencyChat(prev => [...prev, { from: "user", msg: userMsg }]);
+
+    await delay(700);
+
+    /*
+      ** REAL LLM AUDIT HOOK **
+      POST dependency lock file data + chat context to your LLM server
+    */
+
+    const llmSimulatedResponse = `
+Dependency audit completed:
+• lodash <4.17.21 – MEDIUM
+• axios <1.6.1 – LOW
+• no HIGH vulnerabilities detected
+`;
+
+    setDependencyChat(prev => [
+      ...prev,
+      { from: "llm", msg: llmSimulatedResponse }
+    ]);
   }
 
-  // Run a specific step on-demand (Run button on UI)
-  async function runStep(repo: RepoScan, step: PipelineStep) {
-    if (step === "Verify GPG Signatures") await performGpgVerify(repo);
-    else if (step === "LLM Vulnerability Scan") await performLlmVulnScan(repo);
-    else if (step === "Dependency Audit") await performDependencyAudit(repo);
-  }
+  /* ------------------------------------------------------------------ */
+  /* ----------------------------- HELPERS -----------------------------*/
 
-  function retryStep(repo: RepoScan, step: PipelineStep) {
-    // simply rerun step
-    runStep(repo, step);
-  }
-
-  // Confirm dialog wrapper
-  function openConfirm(title: string, desc: string, action: () => void) {
-    setConfirmTitle(title);
-    setConfirmDesc(desc);
-    setConfirmAction(() => action);
-    setConfirmOpen(true);
-  }
-
-  function handleApprove() {
-    openConfirm(
-      "Approve project",
-      "Approving will mark this project as Approved (a blockchain TX is simulated). Continue?",
-      () => {
-        updateStatus(project!.id, "Approved", user!.id, "Security scan approved");
-        toast("Approved (simulated) ✅", "success");
-        navigate("/projects");
-      }
+  function updateRepoStep(
+    repoUrl: string,
+    step: "gpgVerify" | "llmChat",
+    patch: Partial<RepoStep>
+  ) {
+    setRepos(prev =>
+      prev.map(r =>
+        r.repo === repoUrl
+          ? { ...r, [step]: { ...r[step], ...patch } }
+          : r
+      )
     );
   }
 
-  function handleReject() {
-    openConfirm(
-      "Reject project",
-      "Rejecting will mark this project as Rejected. Continue?",
-      () => {
-        updateStatus(project!.id, "Rejected", user!.id, "Security scan rejected");
-        toast("Rejected (simulated) ⚠️", "warning");
-        navigate("/projects");
-      }
+  function appendLog(
+    repoUrl: string,
+    step: "gpgVerify",
+    line: string
+  ) {
+    setRepos(prev =>
+      prev.map(r =>
+        r.repo === repoUrl
+          ? {
+              ...r,
+              gpgVerify: {
+                ...r.gpgVerify,
+                logs: [...r.gpgVerify.logs, line]
+              }
+            }
+          : r
+      )
     );
   }
 
-  // show logs modal
-  function showLogs(text: string) {
-    setLogText(text);
-    setLogOpen(true);
+  function updateRepo(
+    mutator: (r: RepoScan) => void,
+    repoUrl: string
+  ) {
+    setRepos(prev =>
+      prev.map(r => {
+        if (r.repo === repoUrl) {
+          const copy = structuredClone(r);
+          mutator(copy);
+          return copy;
+        }
+        return r;
+      })
+    );
   }
+
+  /* ------------------------------------------------------------------ */
+  /* ------------------------------ UI --------------------------------*/
 
   return (
-    <Box sx={{ pt: 10 }}>
+    <Box sx={{ background: "#0d1117", minHeight: "100vh", pt: 8 }}>
       <Container maxWidth="lg">
 
-        {/* Header / Project summary (matches Release page style) */}
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-          <Paper sx={{ p: 3, mb: 3 }}>
-            <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2}>
-              <Box>
-                <Typography variant="h4" fontWeight={800}>
-                  Security Scan — {project.name}
-                </Typography>
-                {project.description && (
-                  <Typography color="text.secondary" sx={{ mt: 0.5 }}>
-                    {project.description}
-                  </Typography>
-                )}
-                <Stack direction="row" spacing={2} sx={{ mt: 1 }}>
-                  <Typography color="text.secondary">Director: {project.projectDirector || "—"}</Typography>
-                  <Typography color="text.secondary">Security Head: {project.securityHead || "—"}</Typography>
-                  <Typography color="text.secondary">Release Engineers: {(project.releaseEngineers || []).length}</Typography>
-                </Stack>
-              </Box>
-
-              <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-                <Chip label={`Dependencies: ${project.dependencies?.length || 0}`} color="info" />
-                <Button variant="outlined" onClick={() => runFullPipeline(scans[0])} startIcon={<PlayArrowIcon />}>
-                  Run full (first repo)
-                </Button>
-              </Stack>
-            </Stack>
-          </Paper>
-        </motion.div>
-
-        {/* Repos grid / pipeline per repo */}
-        <Stack spacing={3}>
-          {scans.map((repo) => (
-            <Paper key={repo.repo} sx={{ p: 2 }}>
-              <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
-                <Box sx={{ flex: 1 }}>
-                  <Typography fontWeight={800}>{repo.repo}</Typography>
-                  <Typography fontSize={13} color="text.secondary">Branch: {repo.branch}</Typography>
-                  <Typography fontSize={13} color="text.secondary">GPG: {repo.gpg || "—"}</Typography>
-
-                  <Stack direction="row" spacing={2} sx={{ mt: 1 }}>
-                    <Chip label={`Commits: ${repo.commitsTotal ?? "—"}`} size="small" />
-                    <Chip label={`Signed: ${repo.commitsSigned ?? "—"}`} size="small" color="success" />
-                    <Chip label={`Unsigned: ${repo.commitsUnsigned ?? "—"}`} size="small" color={(repo.commitsUnsigned ?? 0) > 0 ? "error" : "default"} />
-                    <Chip label={`Deps: ${repo.dependencyCount}`} size="small" />
-                  </Stack>
-                </Box>
-
-                <Stack spacing={1} sx={{ minWidth: 280 }}>
-                  <Typography fontSize={13} color="text.secondary">Pipeline</Typography>
-
-                  <Stepper activeStep={repo.steps.findIndex(s => s.status === "running") >= 0 ? repo.steps.findIndex(s => s.status === "running") : repo.steps.findIndex(s => s.status === "failed") >= 0 ? repo.steps.findIndex(s => s.status === "failed") : repo.steps.findIndex(s => s.status === "success" ) + 1} alternativeLabel>
-                    {repo.steps.map(s => (
-                      <Step key={s.step} completed={s.status === "success"}>
-                        <StepLabel error={s.status === "failed"}>{s.step}</StepLabel>
-                      </Step>
-                    ))}
-                  </Stepper>
-
-                  <Stack spacing={1} mt={1}>
-                    {repo.steps.map((s) => (
-                      <Paper key={s.step} sx={{ p: 1, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                        <Box>
-                          <Typography variant="subtitle2">{s.step}</Typography>
-                          <Typography sx={{ fontSize: 12, color: "text.secondary" }}>{s.status.toUpperCase()}</Typography>
-                        </Box>
-
-                        <Stack direction="row" spacing={1} alignItems="center">
-                          {s.logs.length > 0 && (
-                            <Button size="small" onClick={() => showLogs(s.logs.join("\n"))} startIcon={<ArticleIcon />}>View Logs</Button>
-                          )}
-
-                          {s.status !== "success" && (
-                            <Button size="small" variant="contained" onClick={() => runStep(repo, s.step)} startIcon={<PlayArrowIcon />}>
-                              Run
-                            </Button>
-                          )}
-
-                          {s.status === "failed" && (
-                            <Button size="small" color="warning" onClick={() => retryStep(repo, s.step)} startIcon={<ReplayIcon />}>
-                              Retry
-                            </Button>
-                          )}
-                        </Stack>
-                      </Paper>
-                    ))}
-                  </Stack>
-                </Stack>
-              </Stack>
-
-              {/* optional live progress / summary */}
-              <Divider sx={{ my: 1 }} />
-              <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
-                <Box sx={{ width: "70%" }}>
-                  <LinearProgress variant="indeterminate" sx={{ opacity: repo.steps.some(s => s.status === "running") ? 1 : 0 }} />
-                </Box>
-
-                <Box>
-                  <Button size="small" onClick={() => runFullPipeline(repo)} variant="outlined">Run All</Button>
-                </Box>
-              </Stack>
-            </Paper>
-          ))}
-        </Stack>
-
-        {/* Dependency Audit summary (separate section) */}
-        <Paper sx={{ p: 2, mt: 3 }}>
-          <Typography variant="h6">Dependency Audit Summary</Typography>
-          <Typography color="text.secondary" sx={{ mt: 1 }}>
-            This section consolidates dependency issues discovered across repositories. Click individual repo steps to inspect per-repo findings and logs.
+        {/* HEADER - ONLY METADATA */}
+        <Paper sx={{ p: 3, mb: 3 }}>
+          <Typography variant="h4">{project.name}</Typography>
+          <Typography color="text.secondary">
+            {project.description}
           </Typography>
 
-          <Stack spacing={1} sx={{ mt: 2 }}>
-            {scans.map(s => (
-              <Box key={s.repo} sx={{ display: "flex", justifyContent: "space-between" }}>
-                <Typography>{s.repo}</Typography>
-                <Typography sx={{ color: s.dependencyIssues && s.dependencyIssues.length > 0 ? "error.main" : "success.main" }}>
-                  {s.dependencyIssues && s.dependencyIssues.length > 0 ? `${s.dependencyIssues.length} issue(s)` : "No issues"}
-                </Typography>
-              </Box>
-            ))}
+          <Stack direction="row" spacing={3} mt={1}>
+            <Typography>Director: {project.projectDirector || "—"}</Typography>
+            <Typography>Security Head: {project.securityHead || "—"}</Typography>
+            <Typography>
+              Release Engineers: {project.releaseEngineers.length}
+            </Typography>
           </Stack>
         </Paper>
 
-        {/* Approve / Reject */}
-        <Stack direction="row" spacing={2} mt={3}>
-          <Button fullWidth variant="contained" color="success" onClick={() => openConfirmAction("Approve project", "Are you sure you want to APPROVE this project? This will mark status Approved.", handleApprove)}>
-            Approve
-          </Button>
+        {/* -------------------------------------------------------- */}
 
-          <Button fullWidth variant="contained" color="error" onClick={() => openConfirmAction("Reject project", "Are you sure you want to REJECT this project? This will mark status Rejected.", handleReject)}>
-            Reject
-          </Button>
-        </Stack>
+        {/* MASTER ACCORDION */}
+        <Accordion defaultExpanded>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Typography variant="h6">
+              Repository Scans
+            </Typography>
+          </AccordionSummary>
+
+          <AccordionDetails>
+
+            {repos.map((repo) => (
+              <Accordion key={repo.repo} sx={{ mb: 2 }}>
+                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                  <Stack spacing={0.5}>
+                    <Typography fontWeight={700}>{repo.repo}</Typography>
+                    <Typography fontSize={12}>
+                      {repo.branch} | GPG: {repo.gpg}
+                    </Typography>
+                  </Stack>
+                </AccordionSummary>
+
+                <AccordionDetails>
+
+                  {/* ---------------- GPG STEP ---------------- */}
+
+                  <Typography variant="subtitle1">
+                    Verify GPG Signatures
+                  </Typography>
+
+                  <NeonButton onClick={() => runGpgScan(repo)}>
+                    RUN VERIFICATION
+                  </NeonButton>
+
+                  <LogsBox logs={repo.gpgVerify.logs} />
+
+                  <Divider sx={{ my: 2 }} />
+
+                  {/* ---------------- LLM CHAT ---------------- */}
+
+                  <Typography variant="subtitle1">
+                    LLM Vulnerability Scan
+                  </Typography>
+
+                  <ChatBlock
+                    messages={repo.chatMessages}
+                    onSend={(msg) => sendRepoLLMMessage(repo, msg)}
+                  />
+
+                </AccordionDetails>
+              </Accordion>
+            ))}
+
+          </AccordionDetails>
+        </Accordion>
+
+        {/* -------------------------------------------------------- */}
+
+        {/* DEPENDENCY LLM PANEL */}
+
+        <Paper sx={{ p: 2, mt: 4 }}>
+          <Typography variant="h6">
+            Dependency Audit — LLM Chat
+          </Typography>
+
+          <ChatBlock
+            messages={dependencyChat}
+            inputValue={depInput}
+            setInputValue={setDepInput}
+            onSend={sendDependencyChat}
+          />
+        </Paper>
 
       </Container>
-
-      {/* LOG modal */}
-      <Dialog open={logOpen} onClose={() => setLogOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>
-          Logs
-          <IconButton onClick={() => setLogOpen(false)} sx={{ position: "absolute", right: 8, top: 8 }}>
-            <CloseIcon />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent>
-          <Box component="pre" sx={{ whiteSpace: "pre-wrap", fontSize: 13 }}>{logText}</Box>
-        </DialogContent>
-      </Dialog>
-
-      {/* CONFIRM modal */}
-      <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)}>
-        <DialogTitle>{confirmTitle}</DialogTitle>
-        <DialogContent>
-          <Typography>{confirmDesc}</Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setConfirmOpen(false)}>Cancel</Button>
-          <Button onClick={() => { if (confirmAction) confirmAction(); setConfirmOpen(false); }} variant="contained">Confirm</Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
+}
 
-  // helper to open confirm with action
-  function openConfirmAction(title: string, desc: string, action: () => void) {
-    setConfirmTitle(title);
-    setConfirmDesc(desc);
-    setConfirmAction(() => action);
-    setConfirmOpen(true);
-  }
+/* ------------------------------------------------------------------ */
+/* ------------------------- REUSABLE UI -----------------------------*/
 
-  // small util
-  function delay(ms: number) {
-    return new Promise((r) => setTimeout(r, ms));
-  }
+function NeonButton({ onClick, children }: any) {
+  return (
+    <motion.div
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.95 }}
+      style={{ display: "inline-block", marginTop: 6 }}
+    >
+      <Button
+        startIcon={<PlayArrowIcon />}
+        onClick={onClick}
+        sx={{
+          background: "linear-gradient(90deg,#00f5ff,#6f00ff)",
+          color: "black",
+          fontWeight: 800,
+          boxShadow:
+            "0 0 8px #00f5ff, 0 0 16px #6f00ff",
+        }}
+      >
+        {children}
+      </Button>
+    </motion.div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+
+function LogsBox({ logs }: { logs: string[] }) {
+  if (!logs.length) return null;
+
+  return (
+    <Box
+      component="pre"
+      sx={{
+        maxHeight: 180,
+        overflow: "auto",
+        bgcolor: "#020617",
+        p: 1,
+        mt: 1,
+        fontSize: 12,
+        color: "#00f5ff",
+      }}
+    >
+      {logs.join("\n")}
+    </Box>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+
+function ChatBlock({
+  messages,
+  onSend,
+  inputValue,
+  setInputValue
+}: {
+  messages: { from: "user" | "llm"; msg: string }[];
+  onSend: (msg: string) => void;
+  inputValue?: string;
+  setInputValue?: any;
+}) {
+  const [localInput, setLocalInput] = useState("");
+
+  const value = setInputValue ? inputValue : localInput;
+  const setValue = setInputValue || setLocalInput;
+
+  return (
+    <Box>
+      <Box
+        sx={{
+          bgcolor: "#020617",
+          p: 1,
+          borderRadius: 1,
+          minHeight: 120,
+        }}
+      >
+        {messages.map((m, i) => (
+          <Box key={i} sx={{ mb: 1 }}>
+            <Typography
+              sx={{
+                fontWeight: 700,
+                color:
+                  m.from === "user"
+                    ? "#00f5ff"
+                    : "#7c3aed"
+              }}
+            >
+              {m.from === "user" ? "You" : "LLM"}:
+            </Typography>
+            <Typography sx={{ whiteSpace: "pre-wrap" }}>
+              {m.msg}
+            </Typography>
+          </Box>
+        ))}
+      </Box>
+
+      <Stack direction="row" spacing={1} mt={1}>
+        <TextField
+          size="small"
+          fullWidth
+          value={value || ""}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="Ask LLM..."
+        />
+        <Button
+          variant="contained"
+          onClick={() => {
+            if (value?.trim()) {
+              onSend(value);
+              setValue("");
+            }
+          }}
+        >
+          Send
+        </Button>
+      </Stack>
+    </Box>
+  );
 }
