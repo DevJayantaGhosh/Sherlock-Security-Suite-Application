@@ -11,9 +11,9 @@ import {
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
-import CheckIcon from "@mui/icons-material/Check";
-import CloseIcon from "@mui/icons-material/Close";
 import RocketLaunchIcon from "@mui/icons-material/RocketLaunch";
+import SecurityIcon from "@mui/icons-material/Security";
+
 
 import { Project } from "../../models/Project";
 import {
@@ -24,9 +24,9 @@ import {
 import { useUserStore } from "../../store/userStore";
 
 const STATUS: Record<Project["status"], string> = {
-  Pending: "#ffb020",
-  Approved: "#4dd0e1",
-  Rejected: "#ff6b6b",
+  Pending: "#ffe920ff",
+  Approved: "#1ca153ff",
+  Rejected: "#c22020ff",
   Released: "#7b5cff"
 };
 
@@ -35,8 +35,7 @@ interface Props {
   onView: () => void;
   onEdit: () => void;
   onDelete: () => void;
-  onApprove: () => void;
-  onReject: () => void;
+  onSecurityScan: () => void;
   onRelease: () => void;
 }
 
@@ -45,8 +44,7 @@ export default function ProjectCard({
   onView,
   onEdit,
   onDelete,
-  onApprove,
-  onReject,
+  onSecurityScan,
   onRelease
 }: Props) {
 
@@ -100,39 +98,39 @@ export default function ProjectCard({
 
         <Stack direction="row" spacing={1} mt={2}>
           <Tooltip title="View">
-            <IconButton onClick={onView}><VisibilityIcon/></IconButton>
+            <IconButton onClick={onView}><VisibilityIcon /></IconButton>
           </Tooltip>
 
           {authorizeEdit(user, project) && (
             <>
               <Tooltip title="Edit">
-                <IconButton onClick={onEdit}><EditIcon/></IconButton>
+                <IconButton onClick={onEdit}><EditIcon /></IconButton>
               </Tooltip>
               <Tooltip title="Delete">
-                <IconButton onClick={onDelete}><DeleteIcon/></IconButton>
+                <IconButton onClick={onDelete}><DeleteIcon /></IconButton>
               </Tooltip>
             </>
           )}
 
+          {/* -----------------------------------------
+    SECURITY SCAN ACTION
+------------------------------------------ */}
+
           {authorizeApprove(user, project) && (
-            <>
-              <Tooltip title="Approve">
-                <IconButton color="success" onClick={onApprove}>
-                  <CheckIcon/>
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="Reject">
-                <IconButton color="error" onClick={onReject}>
-                  <CloseIcon/>
-                </IconButton>
-              </Tooltip>
-            </>
+            <Tooltip title="Run Security Scan">
+              <IconButton
+                color="warning"
+                onClick={onSecurityScan}
+              >
+                <SecurityIcon />
+              </IconButton>
+            </Tooltip>
           )}
 
           {authorizeRelease(user, project) && (
             <Tooltip title="Release workflow">
               <IconButton sx={{ color: "#7b5cff" }} onClick={onRelease}>
-                <RocketLaunchIcon/>
+                <RocketLaunchIcon />
               </IconButton>
             </Tooltip>
           )}
