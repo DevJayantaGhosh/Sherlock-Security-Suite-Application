@@ -80,7 +80,6 @@ export default function ProjectSecurityScanPage() {
               repoUrl={repo}
               branch={project.gitBrances?.[idx] ?? "main"}
               gpg={project.gpgKey?.[idx] ?? ""}
-              depsCount={project.dependencies?.length ?? 0}
             />
           ))}
 

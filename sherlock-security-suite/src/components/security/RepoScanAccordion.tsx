@@ -46,8 +46,7 @@ interface Props {
 
 const steps = [
   "Signature Verification",
-  "Repo Scan",
-  "LLM Scan"
+  "Repository Scan By LLM",
 ];
 
 export default function RepoScanAccordion({
