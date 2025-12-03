@@ -11,6 +11,7 @@ import Login from "./pages/LoginPage";
 import AdminPage from "./pages/AdminPage";
 import ProjectReleasePage from "./pages/ProjectReleasePage";
 import ProtectedRoute from "./auth/ProtectedRoute";
+import ProjectSecurityScanPage from "./pages/ProjectSecurityScanPage";
 
 export default function App() {
   return (
@@ -28,6 +29,16 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/about" element={<About />} />
           <Route path="/projects" element={<Projects />} />
+
+          {/* ✅ Correct security scan route */}
+          <Route
+            path="/project/:id/security-scan"
+            element={
+              <ProtectedRoute allowedRoles={["Admin","SecurityHead"]}>
+                <ProjectSecurityScanPage />
+              </ProtectedRoute>
+            }
+          />
 
           {/* ✅ Correct release route */}
           <Route

@@ -98,6 +98,11 @@ export default function ProjectPage() {
 
   /* --------------------------------------------------- */
 
+  function navigateToSecurityScan(projectId: string) {
+    console.log("hi sc")
+    navigate(`/project/${projectId}/security-scan`);
+  }
+
   function navigateToRelease(projectId: string) {
     console.log("hi")
     navigate(`/project/${projectId}/releases`);
@@ -197,26 +202,19 @@ export default function ProjectPage() {
                 )
               }
 
-              onApprove={() =>
+              onSecurityScan={() =>
                 confirmAndExec(
-                  "Approve project",
-                  "Approve this project?",
+                  "Security Scan",
+                  "Do you want to proceed for security-scan of this project?",
                   () => {
-                    updateStatus(p.id, "Approved", "system");
-                    toast("Approved", "success");
-                    load();
-                  }
-                )
-              }
+                    // updateStatus(p.id, "Approved", "system");
+                    // toast("Approved", "success");
+                    // load();
 
-              onReject={() =>
-                confirmAndExec(
-                  "Reject project",
-                  "Reject this project?",
-                  () => {
-                    updateStatus(p.id, "Rejected", "system");
-                    toast("Rejected", "warning");
-                    load();
+                    toast("Security Scan started", "success");
+
+                    alert(p.id)
+                    navigateToSecurityScan(p.id);
                   }
                 )
               }
