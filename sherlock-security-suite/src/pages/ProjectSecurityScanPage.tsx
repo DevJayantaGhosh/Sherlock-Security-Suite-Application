@@ -1,3 +1,5 @@
+// src/pages/ProjectSecurityScanPage.tsx
+
 import { useEffect, useState } from "react";
 import {
   Box,
@@ -10,7 +12,7 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
 } from "@mui/material";
 
 import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
@@ -37,19 +39,36 @@ export default function ProjectSecurityScanPage() {
   const [decision, setDecision] = useState<"approve" | "reject" | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
+
   // ------------------------
-  // LOAD PROJECT — FIXED USEEFFECT
+  // LOAD PROJECT
   // ------------------------
   useEffect(() => {
     const p = getProjects().find(x => x.id === id);
+
     if (!p) {
       navigate("/projects");
       return;
     }
+
     setProject(p);
   }, [id, navigate]);
 
+
+  // ------------------------
+  // PREVENT SCROLL ON MOUNT
+  // ------------------------
+  useEffect(() => {
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: "instant"
+    });
+  }, []);
+
+
   if (!project) return null;
+
 
   // ------------------------
   // AUTH
@@ -75,7 +94,7 @@ export default function ProjectSecurityScanPage() {
     }
 
     const accounts = await (window as any).ethereum.request({
-      method: "eth_requestAccounts"
+      method: "eth_requestAccounts",
     });
 
     setWallet(accounts[0]);
@@ -137,9 +156,7 @@ export default function ProjectSecurityScanPage() {
         </Stack>
 
         {/* ---------- DEPENDENCY AUDIT ---------- */}
-        <DependencyAudit
-          dependencies={project.dependencies ?? []}
-        />
+        <DependencyAudit dependencies={project.dependencies ?? []} />
 
         {/* ---------- FINAL ACTIONS ---------- */}
         <Paper sx={{ mt: 6, p: 3 }}>
@@ -176,12 +193,15 @@ export default function ProjectSecurityScanPage() {
                 Reject
               </Button>
             </Stack>
-
           </Stack>
         </Paper>
 
         {/* ---------- CONFIRM DIALOG ---------- */}
-        <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)}>
+        <Dialog
+          open={confirmOpen}
+          onClose={() => setConfirmOpen(false)}
+          disableRestoreFocus
+        >
           <DialogTitle>Confirm Security Decision</DialogTitle>
 
           <DialogContent>

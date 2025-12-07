@@ -1,3 +1,5 @@
+// src/components/security/RepoScanAccordion.tsx
+
 import { useEffect, useRef, useState } from "react";
 import {
   Accordion,
@@ -57,9 +59,12 @@ const steps = ["Signature Verification", "Repository Scan (LLM)"];
 /* ---------------------------------------------------------------- */
 
 function StepStateIcon({ state, index }: { state: StepStatus; index: number }) {
+
   if (state === "running") return <CircularProgress size={18} />;
+
   if (state === "success" || state === "done")
     return <CheckCircleIcon color="success" fontSize="small" />;
+
   if (state === "failed")
     return <CancelIcon color="error" fontSize="small" />;
 
@@ -74,7 +79,7 @@ function StepStateIcon({ state, index }: { state: StepStatus; index: number }) {
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
-        fontSize: 12,
+        fontSize: 12
       }}
     >
       {index + 1}
@@ -89,19 +94,19 @@ export default function RepoScanAccordion({
   repoIndex,
   repoUrl,
   branch,
-  gpg,
+  gpg
 }: Props) {
 
   const sessionId = `repo-${projectId}-${repoIndex}`;
 
-  const chatRef = useRef<HTMLDivElement>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const activeRef = useRef(true);
 
   const [sigStatus, setSigStatus] = useState<StepStatus>("idle");
   const [llmStatus, setLlmStatus] = useState<StepStatus>("idle");
 
   const [repoRunning, setRepoRunning] = useState(false);
   const [repoFailed, setRepoFailed] = useState(false);
-
   const [llmRunning, setLlmRunning] = useState(false);
   const [llmFailed, setLlmFailed] = useState(false);
 
@@ -110,52 +115,50 @@ export default function RepoScanAccordion({
 
   const [repoLogsOpen, setRepoLogsOpen] = useState(true);
   const [llmLogsOpen, setLlmLogsOpen] = useState(true);
-  const [chatOpen, setChatOpen] = useState(true);
 
   const [input, setInput] = useState("");
-
   const [messages, setMessages] = useState<
     { from: "user" | "bot"; text: string }[]
   >([]);
 
   /* ---------------------------------------------------------------- */
-  /* TOKEN STREAM TYPING ANIMATION */
+  /* ✅ CHAT STREAM — SAFE + STABLE */
   /* ---------------------------------------------------------------- */
 
-  async function stream(chunk: string) {
-    setMessages(m => [...m, { from: "bot", text: "" }]);
-
-    for (const char of chunk) {
-      setMessages(prev => {
-        const copy = [...prev];
-        copy[copy.length - 1].text += char;
-        return copy;
-      });
-
-      chatRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "end"
-      });
-
-      await new Promise(res => setTimeout(res, 12));
-    }
-  }
-
   useEffect(() => {
-    return onLLMStream((msg) => {
+
+    activeRef.current = true;
+
+    const unsubscribe = onLLMStream(msg => {
+
+      if (!activeRef.current) return;
       if (msg.sessionId !== sessionId) return;
-      stream(msg.chunk);
+
+      setMessages(prev => [
+        ...prev,
+        { from: "bot", text: msg.chunk }
+      ]);
+
     });
+
+    return () => {
+      activeRef.current = false;
+      if (typeof unsubscribe === "function") unsubscribe();
+    };
+
   }, [sessionId]);
 
   /* ---------------------------------------------------------------- */
-  /* SCAN PROGRESS */
+  /* ✅ SCAN PROGRESS */
   /* ---------------------------------------------------------------- */
 
   useEffect(() => {
-    return onScanProgress((p: ScanProgress) => {
 
-      if (p.repo !== repoUrl) return;
+    activeRef.current = true;
+
+    const unsubscribe = onScanProgress((p: ScanProgress) => {
+
+      if (!activeRef.current || p.repo !== repoUrl) return;
 
       const logs = p.logs ?? [];
 
@@ -163,22 +166,39 @@ export default function RepoScanAccordion({
         setSigStatus(p.status);
         setRepoRunning(p.status === "running");
         setRepoFailed(p.status === "failed");
-
-        if (logs.length)
-          setRepoLogs(l => [...l, ...logs]);
+        if (logs.length) setRepoLogs(l => [...l, ...logs]);
       }
 
       if (p.step === "llm-scan") {
         setLlmStatus(p.status);
         setLlmRunning(p.status === "running");
         setLlmFailed(p.status === "failed");
-
-        if (logs.length)
-          setLlmLogs(l => [...l, ...logs]);
+        if (logs.length) setLlmLogs(l => [...l, ...logs]);
       }
 
     });
+
+    return () => {
+      activeRef.current = false;
+      if (typeof unsubscribe === "function") unsubscribe();
+    };
+
   }, [repoUrl]);
+
+  /* ---------------------------------------------------------------- */
+  /* ✅ CHAT AUTOSCROLL */
+  /* ---------------------------------------------------------------- */
+
+  useEffect(() => {
+
+    if (messages.length === 0) return;
+
+    chatEndRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest"
+    });
+
+  }, [messages]);
 
   /* ---------------------------------------------------------------- */
 
@@ -196,7 +216,9 @@ export default function RepoScanAccordion({
   }
 
   async function send() {
+
     if (!input.trim()) return;
+
     const text = input.trim();
     setInput("");
 
@@ -204,16 +226,18 @@ export default function RepoScanAccordion({
     await llmQuery(sessionId, text);
   }
 
+  function copyGPG() {
+    if (gpg) navigator.clipboard.writeText(gpg);
+  }
+
   function download(logs: string[], filename: string) {
+
     const blob = new Blob([logs.join("\n")], { type: "text/plain" });
+
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = filename;
     a.click();
-  }
-
-  function copyGPG() {
-    if (gpg) navigator.clipboard.writeText(gpg);
   }
 
   /* ---------------------------------------------------------------- */
@@ -233,9 +257,7 @@ export default function RepoScanAccordion({
       }}
     >
       {logs.map((l, i) => (
-        <Typography key={i} fontSize={12}>
-          {l}
-        </Typography>
+        <Typography key={i} fontSize={12}>{l}</Typography>
       ))}
     </Paper>
   );
@@ -243,14 +265,17 @@ export default function RepoScanAccordion({
   /* ---------------------------------------------------------------- */
 
   return (
+
     <Accordion defaultExpanded>
 
-      {/* ------------ HEADER ------------ */}
+      {/* ---------- HEADER ---------- */}
       <AccordionSummary expandIcon={<ExpandMoreIcon />}>
 
         <Stack spacing={1} width="100%">
 
-          <Typography variant="h6" >Repository Security Scan</Typography>
+          <Typography variant="h6">
+            Repository Security Scan
+          </Typography>
 
           <Stack
             direction="row"
@@ -267,24 +292,32 @@ export default function RepoScanAccordion({
             </Stack>
 
             <Stepper sx={{ width: 420 }}>
-              <Step>
-                <StepLabel icon={<StepStateIcon state={sigStatus} index={0} />}>
-                  Signature
-                </StepLabel>
-              </Step>
 
-              <Step>
-                <StepLabel icon={<StepStateIcon state={llmStatus} index={1} />}>
-                  LLM Scan
-                </StepLabel>
-              </Step>
+              {steps.map((_, idx) => (
+                <Step key={idx}>
+                  <StepLabel
+                    icon={
+                      <StepStateIcon
+                        index={idx}
+                        state={idx === 0 ? sigStatus : llmStatus}
+                      />
+                    }
+                  >
+                    {steps[idx]}
+                  </StepLabel>
+                </Step>
+              ))}
+
             </Stepper>
 
           </Stack>
 
           {gpg && (
+
             <Stack direction="row" alignItems="center" spacing={1}>
+
               <Typography variant="caption">GPG:</Typography>
+
               <Typography
                 noWrap
                 width={450}
@@ -297,7 +330,9 @@ export default function RepoScanAccordion({
               <IconButton size="small" onClick={copyGPG}>
                 <ContentCopyIcon fontSize="small" />
               </IconButton>
+
             </Stack>
+
           )}
 
         </Stack>
@@ -307,10 +342,15 @@ export default function RepoScanAccordion({
       <AccordionDetails>
 
         {/* ----- REPO STEP ----- */}
+
         <Stack direction="row" justifyContent="space-between">
-          <Typography fontWeight={600}>Commit Signature Check</Typography>
+
+          <Typography fontWeight={600}>
+            Commit Signature Check
+          </Typography>
 
           <Stack direction="row" spacing={1}>
+
             <Button
               startIcon={<PlayArrowIcon />}
               onClick={runRepo}
@@ -340,7 +380,9 @@ export default function RepoScanAccordion({
             <IconButton onClick={() => setRepoLogsOpen(!repoLogsOpen)}>
               {repoLogsOpen ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
             </IconButton>
+
           </Stack>
+
         </Stack>
 
         <Collapse in={repoLogsOpen}>
@@ -357,6 +399,7 @@ export default function RepoScanAccordion({
           <Typography fontWeight={600}>LLM Vulnerability Scan</Typography>
 
           <Stack direction="row" spacing={1}>
+
             <Button
               startIcon={<PlayArrowIcon />}
               onClick={runLLM}
@@ -386,6 +429,7 @@ export default function RepoScanAccordion({
             <IconButton onClick={() => setLlmLogsOpen(!llmLogsOpen)}>
               {llmLogsOpen ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
             </IconButton>
+
           </Stack>
         </Stack>
 
@@ -399,76 +443,70 @@ export default function RepoScanAccordion({
 
         {/* ----- CHAT ----- */}
 
-        <Stack direction="row" justifyContent="space-between">
-          <Typography fontWeight={700}>Security Chat with LLM</Typography>
-          <IconButton onClick={() => setChatOpen(!chatOpen)}>
-            {chatOpen ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
-          </IconButton>
-        </Stack>
+        <Paper sx={{ p: 2, mt: 1 }}>
 
-        <Collapse in={chatOpen}>
+          <Box maxHeight={260} overflow="auto" mb={2}>
 
-          <Paper sx={{ p: 2, mt: 1 }}>
+            {messages.map((m, i) => (
 
-            <Box maxHeight={260} overflow="auto" mb={2}>
+              <Stack
+                key={i}
+                direction="row"
+                justifyContent={m.from === "user" ? "flex-end" : "flex-start"}
+                spacing={1.2}
+                mb={1.8}
+              >
 
-              {messages.map((m, i) => (
-                <Stack
-                  key={i}
-                  direction="row"
-                  justifyContent={m.from === "user" ? "flex-end" : "flex-start"}
-                  spacing={1.2}
-                  mb={1.8}
+                {m.from === "bot" && (
+                  <Avatar sx={{ width: 26, height: 26 }}>
+                    <SmartToyIcon fontSize="small" />
+                  </Avatar>
+                )}
+
+                <Box
+                  sx={{
+                    px: 1.6,
+                    py: 1,
+                    borderRadius: 3,
+                    bgcolor: m.from === "user" ? "#2563eb" : "#2c2f38",
+                    color: "#fff",
+                    fontSize: 13.2,
+                    lineHeight: 1.6,
+                    maxWidth: "68%"
+                  }}
                 >
-                  {m.from === "bot" &&
-                    <Avatar sx={{ width: 26, height: 26 }}>
-                      <SmartToyIcon fontSize="small" />
-                    </Avatar>
-                  }
+                  {m.text}
+                </Box>
 
-                  <Box
-                    sx={{
-                      px: 1.6,
-                      py: 1,
-                      borderRadius: 3,
-                      bgcolor: m.from === "user" ? "#2563eb" : "#2c2f38",
-                      color: "#fff",
-                      fontSize: 13.2,
-                      lineHeight: 1.6,
-                      maxWidth: "68%"
-                    }}
-                  >
-                    {m.text}
-                  </Box>
+                {m.from === "user" && (
+                  <Avatar sx={{ width: 26, height: 26 }}>
+                    <PersonIcon fontSize="small" />
+                  </Avatar>
+                )}
 
-                  {m.from === "user" &&
-                    <Avatar sx={{ width: 26, height: 26 }}>
-                      <PersonIcon fontSize="small" />
-                    </Avatar>
-                  }
-                </Stack>
-              ))}
+              </Stack>
 
-              <div ref={chatRef}/>
-            </Box>
+            ))}
 
-            <Stack direction="row" spacing={1.5}>
-              <TextField
-                fullWidth
-                value={input}
-                size="small"
-                placeholder="Ask security questions..."
-                onChange={e => setInput(e.target.value)}
-              />
+            <div ref={chatEndRef} />
 
-              <IconButton color="primary" onClick={send}>
-                <SendIcon />
-              </IconButton>
-            </Stack>
+          </Box>
 
-          </Paper>
+          <Stack direction="row" spacing={1.5}>
+            <TextField
+              fullWidth
+              size="small"
+              placeholder="Ask security questions..."
+              value={input}
+              onChange={e => setInput(e.target.value)}
+            />
 
-        </Collapse>
+            <IconButton color="primary" onClick={send}>
+              <SendIcon />
+            </IconButton>
+          </Stack>
+
+        </Paper>
 
       </AccordionDetails>
 
