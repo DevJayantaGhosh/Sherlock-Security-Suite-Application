@@ -1,9 +1,7 @@
-// src/components/projects/DependencyAudit.tsx
+// src/components/security/DependencyAudit.tsx
 
+import { useEffect, useRef, useState } from "react";
 import {
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
   Box,
   Button,
   Paper,
@@ -12,23 +10,17 @@ import {
   Typography,
   Avatar,
   IconButton,
-  Chip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  LinearProgress
+  Divider,
+  Collapse,
+  CircularProgress
 } from "@mui/material";
-import { useEffect, useRef, useState } from "react";
 
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import SendIcon from "@mui/icons-material/Send";
+import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import SmartToyIcon from "@mui/icons-material/SmartToy";
 import PersonIcon from "@mui/icons-material/Person";
-import SendIcon from "@mui/icons-material/Send";
-import SummarizeIcon from "@mui/icons-material/Summarize";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import CancelIcon from "@mui/icons-material/Cancel";
-import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowUp";
+import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowDown";
 
 import { llmQuery, onLLMStream } from "../../services/securityService";
 
@@ -36,313 +28,183 @@ interface Props {
   dependencies: string[];
 }
 
-interface ChatMsg {
-  from: "user" | "bot";
-  text: string;
-}
-
 export default function DependencyAudit({ dependencies }: Props) {
 
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const sessionId = "dependency-audit";
 
-  const [activeDep, setActiveDep] = useState<string | null>(null);
-  const [inputs, setInputs] = useState<Record<string,string>>({});
-  const [messages, setMessages] = useState<Record<string, ChatMsg[]>>({});
-  const [riskScores, setRiskScores] = useState<Record<string, number>>({});
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [decision, setDecision] = useState<"approve" | "reject" | null>(null);
-  const [wallet, setWallet] = useState<string | null>(null);
+  const [chatOpen, setChatOpen] = useState(true);
+  const [auditRunning, setAuditRunning] = useState(false);
+  const [input, setInput] = useState("");
 
-  /* ---------------- AUTOSCROLL ---------------- */
+  const [messages, setMessages] = useState<
+    { from: "user" | "bot"; text: string }[]
+  >([]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, activeDep]);
-
-  /* ---------------- LLM STREAM LISTENER ---------------- */
+  /* ✅ SAFE STREAM HANDLER — NO LOOP, NO DELAY */
 
   useEffect(() => {
 
-    return onLLMStream((msg) => {
-      const dep = activeDep;
-      if (!dep || msg.sessionId !== `dep-${dep}`) return;
+    const unsubscribe = onLLMStream((msg) => {
 
-      setMessages(m => ({
-        ...m,
-        [dep]: [...(m[dep] || []), { from: "bot", text: msg.chunk }]
-      }));
+      if (msg.sessionId !== sessionId) return;
 
-      /* Simple demo risk scoring (naive heuristic) */
-      if (/critical|high risk|severe/i.test(msg.chunk)) {
-        setRiskScores(r => ({ ...r, [dep]: 90 }));
-      }
-      else if (/medium/i.test(msg.chunk)) {
-        setRiskScores(r => ({ ...r, [dep]: 50 }));
-      }
-      else if (/low|safe|ok/i.test(msg.chunk)) {
-        setRiskScores(r => ({ ...r, [dep]: 15 }));
-      }
+      setMessages((prev) => [...prev, { from: "bot", text: msg.chunk }]);
+
+      setAuditRunning(false);
     });
 
-  }, [activeDep]);
+    return () => unsubscribe?.();
 
-  /* ---------------- WALLET CONNECT ---------------- */
+  }, []);
 
-  async function connectWallet() {
-    if (!(window as any).ethereum) {
-      alert("MetaMask not installed");
-      return;
-    }
+  /* ✅ SAFE AUTOSCROLL */
 
-    const accounts = await (window as any).ethereum.request({
-      method: "eth_requestAccounts"
+  useEffect(() => {
+
+    if (!chatOpen || messages.length === 0) return;
+
+    chatEndRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "end",
     });
 
-    setWallet(accounts[0]);
-  }
+  }, [messages, chatOpen]);
 
-  /* ---------------- SEND CHAT ---------------- */
+  /* ------------------ */
 
-  async function send(dep: string) {
-    const input = inputs[dep];
-    if (!input) return;
+  async function startAudit() {
 
-    setMessages(m => ({
-      ...m,
-      [dep]: [...(m[dep] || []), { from: "user", text: input }]
-    }));
+    if (!dependencies.length) return;
 
-    setInputs(i => ({ ...i, [dep]: "" }));
+    setAuditRunning(true);
 
-    await llmQuery(`dep-${dep}`, input);
-  }
-
-  /* ---------------- AUTO SUMMARY ---------------- */
-
-  async function summarize(dep: string) {
     await llmQuery(
-      `dep-${dep}`,
-      "Provide a short vulnerability summary and risk rating for this dependency."
+      sessionId,
+      `Scan these dependencies for vulnerabilities:\n${dependencies.join("\n")}`
     );
   }
 
-  /* ---------------- DECISION FLOW ---------------- */
+  async function send() {
 
-  function decide(type: "approve" | "reject") {
-    setDecision(type);
-    setConfirmOpen(true);
+    if (!input.trim()) return;
+
+    const text = input.trim();
+
+    setInput("");
+    setMessages((prev) => [...prev, { from: "user", text }]);
+
+    await llmQuery(sessionId, text);
   }
 
-  function confirmDecision() {
-    console.log("DECISION:", decision, "Wallet:", wallet);
-    setConfirmOpen(false);
-  }
-
-  /* ---------------- RENDER ---------------- */
+  /* ------------------ */
 
   return (
-    <Paper sx={{ p: 2, mt: 4 }}>
 
-      {/* --- Title --- */}
+    <Paper sx={{ p: 3, mt: 4 }}>
+
       <Stack direction="row" justifyContent="space-between" alignItems="center">
-        <Typography variant="h6">
+
+        <Typography fontWeight={700} variant="h6">
           Dependency Audit
         </Typography>
 
-        <Chip
-          label={`Dependencies: ${dependencies.length}`}
-          color="primary"
-        />
+        <Stack direction="row" spacing={1}>
+          <Button
+            startIcon={<PlayArrowIcon />}
+            onClick={startAudit}
+            disabled={auditRunning || dependencies.length === 0}
+            variant="contained"
+          >
+            Run Audit
+          </Button>
+
+          <IconButton onClick={() => setChatOpen(!chatOpen)}>
+            {chatOpen ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
+          </IconButton>
+        </Stack>
+
       </Stack>
 
-      {/* --- Accordions --- */}
-      <Stack spacing={2} mt={2}>
-        {dependencies.map(dep => {
+      <Divider sx={{ my: 2 }} />
 
-          const msgs = messages[dep] || [];
-          const risk = riskScores[dep] || 0;
+      <Collapse in={chatOpen}>
 
-          return (
+        <Paper sx={{ p: 2 }}>
 
-            <Accordion
-              key={dep}
-              expanded={activeDep === dep}
-              onChange={() => setActiveDep(d => d === dep ? null : dep)}
-            >
+          {auditRunning && (
+            <Stack direction="row" spacing={1} alignItems="center" mb={1}>
+              <CircularProgress size={18} />
+              <Typography variant="caption">
+                Scanning dependencies...
+              </Typography>
+            </Stack>
+          )}
 
-              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Stack width="100%" spacing={1}>
-                  <Typography fontWeight={600}>{dep}</Typography>
+          <Box maxHeight={260} overflow="auto" mb={2}>
 
-                  {/* ---- Risk Score ---- */}
-                  <Box>
-                    <Typography fontSize={12}>
-                      Risk Score: {risk}/100
-                    </Typography>
-                    <LinearProgress
-                      value={risk}
-                      variant="determinate"
-                      sx={{
-                        height: 8,
-                        borderRadius: 2
-                      }}
-                    />
-                  </Box>
-                </Stack>
-              </AccordionSummary>
+            {messages.map((m, i) => (
 
-              <AccordionDetails>
+              <Stack
+                key={i}
+                direction="row"
+                justifyContent={m.from === "user" ? "flex-end" : "flex-start"}
+                spacing={1.2}
+                mb={1.6}
+              >
 
-                {/* ---- Summary Action ---- */}
-                <Stack direction="row" mb={1}>
-                  <Button
-                    startIcon={<SummarizeIcon />}
-                    onClick={() => summarize(dep)}
-                    variant="outlined"
-                  >
-                    Summarize Findings (AI)
-                  </Button>
-                </Stack>
+                {m.from === "bot" && (
+                  <Avatar sx={{ width: 26, height: 26 }}>
+                    <SmartToyIcon fontSize="small" />
+                  </Avatar>
+                )}
 
-                {/* ---- Chat Window ---- */}
-                <Box sx={{ maxHeight: 240, overflow: "auto", mb: 1 }}>
-
-                  {msgs.map((m,i) => (
-                    <Stack
-                      key={i}
-                      direction="row"
-                      justifyContent={m.from === "user" ? "flex-end" : "flex-start"}
-                      spacing={1}
-                      mb={1}
-                    >
-
-                      {m.from === "bot" && (
-                        <Avatar sx={{ width:28, height:28 }}>
-                          <SmartToyIcon fontSize="small"/>
-                        </Avatar>
-                      )}
-
-                      <Box sx={{
-                        bgcolor: m.from === "user" ? "#1976d2" : "#2c2f38",
-                        color: "#fff",
-                        px: 1.2,
-                        py: .8,
-                        borderRadius: 2,
-                        maxWidth: "70%"
-                      }}>
-                        {m.text}
-                      </Box>
-
-                      {m.from === "user" && (
-                        <Avatar sx={{ width:28, height:28 }}>
-                          <PersonIcon fontSize="small"/>
-                        </Avatar>
-                      )}
-
-                    </Stack>
-                  ))}
-
-                  <div ref={bottomRef} />
-
+                <Box
+                  sx={{
+                    px: 1.5,
+                    py: 1,
+                    borderRadius: 3,
+                    bgcolor: m.from === "user" ? "#2563eb" : "#2c2f38",
+                    color: "#fff",
+                    maxWidth: "70%",
+                    fontSize: 13,
+                  }}
+                >
+                  {m.text}
                 </Box>
 
-                {/* ---- Input ---- */}
-                <Stack direction="row" spacing={1}>
-                  <TextField
-                    size="small"
-                    fullWidth
-                    placeholder={`Ask about ${dep}`}
-                    value={inputs[dep] || ""}
-                    onChange={(e) =>
-                      setInputs(i => ({ ...i, [dep]: e.target.value }))
-                    }
-                  />
+                {m.from === "user" && (
+                  <Avatar sx={{ width: 26, height: 26 }}>
+                    <PersonIcon fontSize="small" />
+                  </Avatar>
+                )}
+              </Stack>
+            ))}
 
-                  <IconButton onClick={() => send(dep)}>
-                    <SendIcon/>
-                  </IconButton>
-                </Stack>
+            <div ref={chatEndRef} />
 
-              </AccordionDetails>
+          </Box>
 
-            </Accordion>
+          <Stack direction="row" spacing={1.5}>
 
-          );
-        })}
-      </Stack>
+            <TextField
+              fullWidth
+              size="small"
+              placeholder="Ask about dependencies..."
+              value={input}
+              onChange={e => setInput(e.target.value)}
+            />
 
-
-      {/* ---- Approve / Reject ---- */}
-
-      <Stack direction="row" spacing={2} justifyContent="center" mt={4}>
-
-        <Button
-          color="success"
-          startIcon={<CheckCircleIcon />}
-          variant="contained"
-          onClick={() => decide("approve")}
-        >
-          Approve
-        </Button>
-
-        <Button
-          color="error"
-          startIcon={<CancelIcon />}
-          variant="contained"
-          onClick={() => decide("reject")}
-        >
-          Reject
-        </Button>
-
-      </Stack>
-
-
-      {/* ---- Confirmation Dialog ---- */}
-
-      <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)}>
-
-        <DialogTitle>
-          Confirm Decision
-        </DialogTitle>
-
-        <DialogContent>
-
-          <Stack spacing={2}>
-
-            <Typography>
-              You are about to <b>{decision}</b> all dependency security decisions.
-            </Typography>
-
-            <Button
-              startIcon={<AccountBalanceWalletIcon/>}
-              onClick={connectWallet}
-              variant="outlined"
-            >
-              {wallet ? `Wallet: ${wallet.slice(0,6)}...` : "Connect MetaMask"}
-            </Button>
+            <IconButton color="primary" onClick={send}>
+              <SendIcon />
+            </IconButton>
 
           </Stack>
 
-        </DialogContent>
+        </Paper>
 
-        <DialogActions>
-
-          <Button onClick={() => setConfirmOpen(false)}>
-            Cancel
-          </Button>
-
-          <Button
-            disabled={!wallet}
-            variant="contained"
-            onClick={confirmDecision}
-          >
-            Confirm
-          </Button>
-
-        </DialogActions>
-
-      </Dialog>
+      </Collapse>
 
     </Paper>
   );
