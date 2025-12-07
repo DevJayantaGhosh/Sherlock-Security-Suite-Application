@@ -212,8 +212,6 @@ export default function ProjectPage() {
                     // load();
 
                     toast("Security Scan started", "success");
-
-                    alert(p.id)
                     navigateToSecurityScan(p.id);
                   }
                 )
@@ -227,7 +225,6 @@ export default function ProjectPage() {
                     updateStatus(p.id, "Released", "system");
                     toast("Release workflow started", "success");
 
-                    alert(p.id)
                     navigateToRelease(p.id);
                   }
                 )
