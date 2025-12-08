@@ -1,56 +1,57 @@
 import { ipcRenderer, contextBridge } from "electron";
 
-// --------- Expose IPC + Window Controls to Renderer ---------
+// --------- IPC Wrapper ----------
 contextBridge.exposeInMainWorld("ipcRenderer", {
-  on(...args: Parameters<typeof ipcRenderer.on>) {
-    const [channel, listener] = args;
-    return ipcRenderer.on(channel, (event, ...args) =>
-      listener(event, ...args)
-    );
+  on(channel: string, listener: (...args: any[]) => void) {
+    ipcRenderer.on(channel, listener);
   },
 
-  off(...args: Parameters<typeof ipcRenderer.off>) {
-    const [channel, ...omit] = args;
-    return ipcRenderer.off(channel, ...omit);
+  off(channel: string, listener: (...args: any[]) => void) {
+    ipcRenderer.off(channel, listener);
   },
 
-  send(...args: Parameters<typeof ipcRenderer.send>) {
-    const [channel, ...omit] = args;
-    return ipcRenderer.send(channel, ...omit);
-  },
-
-  invoke(...args: Parameters<typeof ipcRenderer.invoke>) {
-    const [channel, ...omit] = args;
-    return ipcRenderer.invoke(channel, ...omit);
+  invoke(channel: string, payload?: any) {
+    return ipcRenderer.invoke(channel, payload);
   },
 });
 
-
-
-// WINDOW CONTROLS
+// --------- WINDOW CONTROLS ----------
 contextBridge.exposeInMainWorld("electronWindow", {
   minimize: () => ipcRenderer.invoke("window:minimize"),
   maximize: () => ipcRenderer.invoke("window:maximize"),
   close: () => ipcRenderer.invoke("window:close"),
 });
 
-// ---------------- SECURITY API ----------------
-/* Higher level helpers for scans */
+// --------- SECURITY API ----------
 contextBridge.exposeInMainWorld("electronAPI", {
-  runRepoScan: (payload: any) => ipcRenderer.invoke("scan:run", payload),
-  // subscribe to scan progress
-  onScanProgress: (cb: (arg0: any) => any) => {
-    const wrapped = (_event: any, data: any) => cb(data);
-    ipcRenderer.on("scan:progress", wrapped);
-    return () => ipcRenderer.off("scan:progress", wrapped);
-  },
-  // LLM: streaming helper
-  llmQuery: (payload: any) => ipcRenderer.invoke("llm:query", payload),
-  onLLMStream: (cb: (arg0: any) => any) => {
-    const wrapped = (_event: any, data: any) => cb(data);
-    ipcRenderer.on("llm:stream", wrapped);
-    return () => ipcRenderer.off("llm:stream", wrapped);
+  runRepoScan: (payload: {
+    projectId: string;
+    repoIndex: number;
+    repoUrl: string;
+    branch: string;
+  }) =>
+    ipcRenderer.invoke("scan:run", payload),
+
+  onScanProgress: (cb: (p: any) => void) => {
+    const listener = (_: any, data: any) => cb(data);
+    ipcRenderer.on("scan:progress", listener);
+
+    // ✅ Unsubscribe FIX
+    return () => {
+      ipcRenderer.off("scan:progress", listener);
+    };
   },
 
-  ping: () => ipcRenderer.invoke("ping"),
+  llmQuery: (payload: { sessionId: string; prompt: string }) =>
+    ipcRenderer.invoke("llm:query", payload),
+
+  onLLMStream: (cb: (d: any) => void) => {
+    const listener = (_: any, data: any) => cb(data);
+    ipcRenderer.on("llm:stream", listener);
+
+    // ✅ Unsubscribe FIX
+    return () => {
+      ipcRenderer.off("llm:stream", listener);
+    };
+  },
 });

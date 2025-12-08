@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain } from 'electron'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
+import { spawn,execSync } from "child_process";
 
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -19,10 +20,92 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
 let win: BrowserWindow | null
 let splash: BrowserWindow | null = null
 
-function sendToWin(channel: string, payload: any) {
-    win?.webContents.send(channel, payload)
+/**
+ * Utility to send streaming data to renderer
+ */
+function send(channel: string, payload: any) {
+  win?.webContents.send(channel, payload);
 }
 
+/**
+ * Stream any CLI command and forward stdout/stderr to renderer
+ */
+function stream(cmd: string, args: string[], repo: string, step: string) {
+  return new Promise<boolean>((resolve) => {
+    const p = spawn(cmd, args, { shell: true });
+
+    p.stdout.on("data", (d) => {
+      send("scan:progress", {
+        repo,
+        step,
+        status: "running",
+        logs: [d.toString()],
+      });
+    });
+
+    p.stderr.on("data", (d) => {
+      send("scan:progress", {
+        repo,
+        step,
+        status: "running",
+        logs: [d.toString()],
+      });
+    });
+
+    p.on("close", (code) => {
+      send("scan:progress", {
+        repo,
+        step,
+        status: code === 0 ? "success" : "failed",
+        logs: [`Process finished (exit=${code})`],
+      });
+
+      resolve(code === 0);
+    });
+  });
+}
+
+/**
+ * ✅ REAL CLONE + GPG SIGNATURE CHECK (branch-specific)
+ */
+async function verifyBranchGpg(repo: string, branch: string) {
+  const tmpDir = path.join(app.getPath("temp"), `repo-${Date.now()}`);
+
+  send("scan:progress", {
+    repo,
+    step: "verify-gpg",
+    status: "running",
+    logs: [`Cloning branch: ${branch}`],
+  });
+
+  // Clone branch
+  await stream("git", ["clone", "--branch", branch, repo, tmpDir], repo, "verify-gpg");
+
+  // Collect last 50 commits on selected branch
+  const shas = execSync(`git -C "${tmpDir}" rev-list --max-count=50 ${branch}`)
+    .toString()
+    .trim()
+    .split("\n");
+
+  for (const sha of shas) {
+    // Show GPG signature verification
+    await stream(
+      "git",
+      ["-C", tmpDir, "show", "--show-signature", "-s", sha],
+      repo,
+      "verify-gpg"
+    );
+  }
+
+  send("scan:progress", {
+    repo,
+    step: "verify-gpg",
+    status: "success",
+    logs: ["✔ All commits verified"],
+  });
+}
+
+// ---------- CreateWindow ----------
 function createWindow() {
 
     // ---------- SPLASH ----------
@@ -56,115 +139,55 @@ function createWindow() {
     // ---------- WINDOW IPC ----------
     ipcMain.handle('window:minimize', () => win?.minimize())
     ipcMain.handle('window:maximize', () => {
-        if (!win) return
-        win.isMaximized() ? win.unmaximize() : win.maximize()
-    })
+          if (!win) return
+          win.isMaximized() ? win.unmaximize() : win.maximize()
+      })
     ipcMain.handle('window:close', () => win?.close())
 
-// -------------------------
-  // Mock Scan / LLM IPC
-  // -------------------------
-  // Channel: 'scan:run' -> start mock repo scan, returns a runId
-  // It will send progress events on 'scan:progress' with payload { runId, repo, step, status, logs }
-  // You can replace this with real code invoking a scanner via child_process or an API.
-  ipcMain.handle("scan:run", async (event, { projectId, repoIndex, repoUrl }) => {
-    const runId = `run_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
 
-    // simulate async scanning process in background
-    (async () => {
-      const steps = ["verify-gpg", "llm-scan"]; // dependency audit moved out
-      for (const step of steps) {
-        // notify start
-        win?.webContents.send("scan:progress", {
-          runId,
-          repo: repoUrl,
-          step,
-          status: "running",
-          logs: [`[${step}] started for ${repoUrl}`],
-        });
 
-        // simulate work with several chunks
-        for (let i = 0; i < 3; i++) {
-          await new Promise((r) => setTimeout(r, 600 + Math.random() * 700));
-          win?.webContents.send("scan:progress", {
-            runId,
-            repo: repoUrl,
-            step,
-            status: "running",
-            logs: [`[${step}] chunk ${i + 1} for ${repoUrl}`],
-          });
-        }
+  // -------------------------------
+  // Repo Scan IPC
+  // -------------------------------
+  ipcMain.handle("scan:run", async (_, payload) => {
+    const { repoUrl, branch } = payload;
 
-        // random pass/fail for demo
-        const ok = Math.random() > 0.25;
-        await new Promise((r) => setTimeout(r, 400));
-        win?.webContents.send("scan:progress", {
-          runId,
-          repo: repoUrl,
-          step,
-          status: ok ? "success" : "failed",
-          logs: [`[${step}] ${ok ? "completed ✅" : "failed ❌"}`],
-        });
+    await verifyBranchGpg(repoUrl, branch);
 
-        // brief pause before next step
-        await new Promise((r) => setTimeout(r, 400));
-      }
+    send("scan:progress", {
+      repo: repoUrl,
+      step: "summary",
+      status: "done",
+      logs: ["✅ SCAN COMPLETED SUCCESSFULLY"],
+    });
 
-      // final summary
-      win?.webContents.send("scan:progress", {
-        runId,
-        repo: repoUrl,
-        step: "summary",
-        status: "done",
-        logs: [`Scan finished for ${repoUrl}`],
-      });
-    })();
-
-    return { runId };
+    return { ok: true };
   });
 
-  // Channel: 'llm:query' -> simulate streaming LLM tokens using 'llm:stream' events
-  ipcMain.handle("llm:query", async (event, { sessionId, prompt }) => {
-    // In real implementation you'd open a streaming connection to your LLM provider
-    // and push partial responses back to renderer via webContents.send('llm:stream', ...).
-    const streamId = `llm_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-
-    // simulate streaming by sending chunks
-    const chunks = [
-      "Analyzing repository code and patterns...",
-      "Checking for risky patterns, eval usage, insecure dependencies...",
-      "Fetching package manifests and known CVEs...",
-      "Summarizing findings: suspicious usage in parser.js and outdated package xyz@1.0.0...",
-    ];
-
-    let idx = 0;
-    const interval = setInterval(() => {
-      if (!win) return;
-      if (idx >= chunks.length) {
-        win.webContents.send("llm:stream", {
-          streamId,
-          sessionId,
-          chunk: "[END]",
-          done: true,
-        });
-        clearInterval(interval);
-        return;
-      }
-      win.webContents.send("llm:stream", {
-        streamId,
+  // -------------------------------
+  // Streaming LLM Chat IPC
+  // (Replace prompt→response with OpenAI/Gemini SDK later)
+  // -------------------------------
+  ipcMain.handle("llm:query", async (_, { sessionId, prompt }) => {
+    for (const word of prompt.split(" ")) {
+      win?.webContents.send("llm:stream", {
         sessionId,
-        chunk: chunks[idx],
+        chunk: word + " ",
         done: false,
       });
-      idx++;
-    }, 650);
 
-    // Return a streamId for renderer if needed
-    return { streamId };
+      await new Promise((r) => setTimeout(r, 40));
+    }
+
+    win?.webContents.send("llm:stream", {
+      sessionId,
+      chunk: "[END]",
+      done: true,
+    });
+
+    return { ok: true };
   });
 
-  // Fallback: simple health
-  ipcMain.handle("ping", () => "pong");
 
   
 

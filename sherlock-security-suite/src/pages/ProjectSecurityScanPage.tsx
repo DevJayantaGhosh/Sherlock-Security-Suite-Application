@@ -1,18 +1,8 @@
-// src/pages/ProjectSecurityScanPage.tsx
-
 import { useEffect, useState } from "react";
 import {
-  Box,
-  Button,
-  Container,
-  Paper,
-  Stack,
-  Typography,
-  Chip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
+  Box, Button, Container, Paper, Stack,
+  Typography, Chip, Dialog, DialogTitle,
+  DialogContent, DialogActions
 } from "@mui/material";
 
 import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
@@ -26,72 +16,49 @@ import { useUserStore } from "../store/userStore";
 import RepoScanAccordion from "../components/security/RepoScanAccordion";
 import DependencyAudit from "../components/security/DependencyAudit";
 
+import { Project } from "../models/Project";
+
 export default function ProjectSecurityScanPage() {
 
   const { id } = useParams();
   const navigate = useNavigate();
-
   const user = useUserStore(s => s.user);
 
-  const [project, setProject] = useState<any>(null);
-  const [wallet, setWallet] = useState<string | null>(null);
+  const [project, setProject] = useState<Project | null>(null);
 
-  const [decision, setDecision] = useState<"approve" | "reject" | null>(null);
+  const [wallet, setWallet] = useState<string | null>(null);
+  const [decision, setDecision] =
+    useState<"approve" | "reject" | null>(null);
+
   const [confirmOpen, setConfirmOpen] = useState(false);
 
+  /* ---------------- LOAD PROJECT ---------------- */
 
-  // ------------------------
-  // LOAD PROJECT
-  // ------------------------
   useEffect(() => {
     const p = getProjects().find(x => x.id === id);
-
-    if (!p) {
-      navigate("/projects");
-      return;
-    }
-
-    setProject(p);
+    if (!p) navigate("/projects");
+    else setProject(p);
   }, [id, navigate]);
 
-
-  // ------------------------
-  // PREVENT SCROLL ON MOUNT
-  // ------------------------
-  useEffect(() => {
-    window.scrollTo({
-      top: 0,
-      left: 0,
-      behavior: "instant"
-    });
-  }, []);
-
+  useEffect(() => window.scrollTo({ top: 0, behavior: "instant" }), []);
 
   if (!project) return null;
 
+  /* ---------------- AUTH ---------------- */
 
-  // ------------------------
-  // AUTH
-  // ------------------------
   const isAuthorized =
-    user?.role === "Admin" || project.securityHead === user?.id;
+    user?.role === "Admin" ||
+    project.securityHead === user?.id;
 
   if (!isAuthorized) {
-    return (
-      <Box p={4}>
-        <Typography color="error">Unauthorized</Typography>
-      </Box>
-    );
+    return <Typography color="error">Unauthorized</Typography>;
   }
 
-  // ------------------------
-  // WALLET CONNECT
-  // ------------------------
+  /* ---------------- WALLET ---------------- */
+
   async function connectWallet() {
-    if (!(window as any).ethereum) {
-      alert("MetaMask not installed");
-      return;
-    }
+    if (!(window as any).ethereum)
+      return alert("MetaMask not installed");
 
     const accounts = await (window as any).ethereum.request({
       method: "eth_requestAccounts",
@@ -100,31 +67,26 @@ export default function ProjectSecurityScanPage() {
     setWallet(accounts[0]);
   }
 
-  // ------------------------
-  // APPROVE / REJECT FLOW
-  // ------------------------
   function handleDecision(type: "approve" | "reject") {
     setDecision(type);
     setConfirmOpen(true);
   }
 
   function confirmDecision() {
-    console.log("✅ FINAL DECISION:", decision);
+    console.log("✅ FINAL:", decision);
     console.log("🔐 WALLET:", wallet);
-
     setConfirmOpen(false);
   }
 
-  // ------------------------
-  // RENDER
-  // ------------------------
+  /* ---------------- RENDER ---------------- */
+
   return (
     <Box sx={{ pt: 8, pb: 8 }}>
       <Container maxWidth="lg">
 
-        {/* ---------- HEADER ---------- */}
         <Paper sx={{ p: 3, mb: 3 }}>
           <Stack direction="row" justifyContent="space-between">
+
             <Box>
               <Typography variant="h4" fontWeight={800}>
                 Security Scan — {project.name}
@@ -135,30 +97,33 @@ export default function ProjectSecurityScanPage() {
             </Box>
 
             <Chip
-              label={`Dependencies: ${project.dependencies?.length ?? 0}`}
+              label={`Repositories: ${project.repos.length}`}
               color="primary"
             />
+
           </Stack>
         </Paper>
 
-        {/* ---------- REPO SCANS ---------- */}
+        {/* ✅ CORRECT ACCORDION MAPPING */}
         <Stack spacing={3}>
-          {project.gitRepo?.map((repo: string, idx: number) => (
+          {project.repos.map((repo, idx) => (
             <RepoScanAccordion
-              key={repo + idx}
+              key={`${repo.repoUrl}-${idx}`}
               projectId={project.id}
               repoIndex={idx}
-              repoUrl={repo}
-              branch={project.gitBrances?.[idx] ?? "main"}
-              gpg={project.gpgKey?.[idx]}
+              repoUrl={repo.repoUrl}
+              branch={repo.branch}
+              gpg={repo.gpgKey}
             />
           ))}
         </Stack>
 
-        {/* ---------- DEPENDENCY AUDIT ---------- */}
-        <DependencyAudit dependencies={project.dependencies ?? []} />
+        <DependencyAudit
+          dependencies={project.dependencies ?? []}
+        />
 
-        {/* ---------- FINAL ACTIONS ---------- */}
+        {/* ---------------- FINAL DECISION ---------------- */}
+
         <Paper sx={{ mt: 6, p: 3 }}>
           <Stack spacing={3} alignItems="center">
 
@@ -193,28 +158,19 @@ export default function ProjectSecurityScanPage() {
                 Reject
               </Button>
             </Stack>
+
           </Stack>
         </Paper>
 
-        {/* ---------- CONFIRM DIALOG ---------- */}
-        <Dialog
-          open={confirmOpen}
-          onClose={() => setConfirmOpen(false)}
-          disableRestoreFocus
-        >
+        <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)}>
           <DialogTitle>Confirm Security Decision</DialogTitle>
 
           <DialogContent>
-            <Typography>
-              Are you sure you want to <b>{decision}</b> this scan?
-            </Typography>
+            Are you sure you want to <b>{decision}</b>?
           </DialogContent>
 
           <DialogActions>
-            <Button onClick={() => setConfirmOpen(false)}>
-              Cancel
-            </Button>
-
+            <Button onClick={() => setConfirmOpen(false)}>Cancel</Button>
             <Button
               disabled={!wallet}
               variant="contained"
