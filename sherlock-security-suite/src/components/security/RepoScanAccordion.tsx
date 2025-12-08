@@ -1,5 +1,3 @@
-// src/components/security/RepoScanAccordion.tsx
-
 import { useEffect, useRef, useState } from "react";
 import {
   Accordion,
@@ -10,61 +8,65 @@ import {
   IconButton,
   Paper,
   Stack,
+  Stepper,
   Step,
   StepLabel,
-  Stepper,
   TextField,
   Typography,
-  Avatar,
   Divider,
   Collapse,
-  CircularProgress
+  CircularProgress,
 } from "@mui/material";
 
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import ReplayIcon from "@mui/icons-material/Replay";
 import DownloadIcon from "@mui/icons-material/Download";
-import SendIcon from "@mui/icons-material/Send";
-import SmartToyIcon from "@mui/icons-material/SmartToy";
-import PersonIcon from "@mui/icons-material/Person";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 
 import {
   runRepoScan,
-  llmQuery,
   onScanProgress,
-  onLLMStream,
-  ScanProgress
+  ScanProgress,
 } from "../../services/securityService";
+import { color } from "framer-motion";
+import { orange } from "@mui/material/colors";
 
-/* ---------------------------------------------------------------- */
-
-interface Props {
-  projectId: string;
-  repoIndex: number;
-  repoUrl: string;
-  branch: string;
-  gpg?: string;
-}
+/* ------------------------------------------------------- */
+/* Types */
+/* ------------------------------------------------------- */
 
 type StepStatus = "idle" | "running" | "success" | "failed" | "done";
 
-const steps = ["Signature Verification", "Repository Scan (LLM)"];
+/* ------------------------------------------------------- */
+/* Pipeline Steps */
+/* ------------------------------------------------------- */
 
-/* ---------------------------------------------------------------- */
+export const ALL_STEPS = [
+  { id: "verify-gpg", label: "GPG Signature Verification" },
+  { id: "sbom-trivy", label: "SBOM Scan – Trivy" },
+  { id: "sbom-grype", label: "SBOM Scan – Grype" },
+  { id: "sast-semgrep", label: "SAST – Semgrep" },
+  { id: "binary-verify", label: "Binary Integrity Check" },
+];
 
-function StepStateIcon({ state, index }: { state: StepStatus; index: number }) {
+/* ------------------------------------------------------- */
+/* Step Icon */
+/* ------------------------------------------------------- */
 
+function StepIcon({
+  state,
+  idx,
+}: {
+  state: StepStatus;
+  idx: number;
+}) {
   if (state === "running") return <CircularProgress size={18} />;
-
   if (state === "success" || state === "done")
     return <CheckCircleIcon color="success" fontSize="small" />;
-
   if (state === "failed")
     return <CancelIcon color="error" fontSize="small" />;
 
@@ -75,441 +77,332 @@ function StepStateIcon({ state, index }: { state: StepStatus; index: number }) {
         height: 22,
         borderRadius: "50%",
         border: "1px solid #7c3aed",
-        color: "#c7d2fe",
         display: "flex",
-        justifyContent: "center",
         alignItems: "center",
-        fontSize: 12
+        justifyContent: "center",
+        fontSize: 12,
+        color: "#7c3aed",
       }}
     >
-      {index + 1}
+      {idx + 1}
     </Box>
   );
 }
 
-/* ---------------------------------------------------------------- */
+/* ------------------------------------------------------- */
+/* Main Component */
+/* ------------------------------------------------------- */
 
 export default function RepoScanAccordion({
   projectId,
   repoIndex,
   repoUrl,
-  branch,
-  gpg
-}: Props) {
+  branch = "main",
+  gpg,
+}: {
+  projectId: string;
+  repoIndex: number;
+  repoUrl: string;
+  branch?: string;
+  gpg?: string;
+}) {
+  const tailRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  const sessionId = `repo-${projectId}-${repoIndex}`;
+  const [statuses, setStatuses] = useState<Record<string, StepStatus>>(
+    ALL_STEPS.reduce(
+      (acc, s) => ({ ...acc, [s.id]: "idle" }),
+      {} as Record<string, StepStatus>
+    )
+  );
 
-  const chatEndRef = useRef<HTMLDivElement>(null);
-  const activeRef = useRef(true);
+  const [logs, setLogs] = useState<Record<string, string[]>>({});
+  const [expandedSteps, setExpandedSteps] = useState<Record<string, boolean>>(
+    ALL_STEPS.reduce(
+      (acc, s) => ({ ...acc, [s.id]: true }),
+      {} as Record<string, boolean>
+    )
+  );
 
-  const [sigStatus, setSigStatus] = useState<StepStatus>("idle");
-  const [llmStatus, setLlmStatus] = useState<StepStatus>("idle");
+  const [running, setRunning] = useState(false);
 
-  const [repoRunning, setRepoRunning] = useState(false);
-  const [repoFailed, setRepoFailed] = useState(false);
-  const [llmRunning, setLlmRunning] = useState(false);
-  const [llmFailed, setLlmFailed] = useState(false);
-
-  const [repoLogs, setRepoLogs] = useState<string[]>([]);
-  const [llmLogs, setLlmLogs] = useState<string[]>([]);
-
-  const [repoLogsOpen, setRepoLogsOpen] = useState(true);
-  const [llmLogsOpen, setLlmLogsOpen] = useState(true);
-
-  const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<
-    { from: "user" | "bot"; text: string }[]
-  >([]);
-
-  /* ---------------------------------------------------------------- */
-  /* ✅ CHAT STREAM — SAFE + STABLE */
-  /* ---------------------------------------------------------------- */
+  /* ------------------------------------------------------- */
+  /* Subscribe to pipeline stream */
+  /* ------------------------------------------------------- */
 
   useEffect(() => {
+    const handler = (p: ScanProgress) => {
+      if (p.repo !== repoUrl) return;
 
-    activeRef.current = true;
+      if (!p.step) return;
 
-    const unsubscribe = onLLMStream(msg => {
 
-      if (!activeRef.current) return;
-      if (msg.sessionId !== sessionId) return;
+      // Append logs with deduplication
+      setLogs((prev) => {
+        const existing = prev[p.step] || [];
+        const incoming = p.logs || [];
 
-      setMessages(prev => [
+        const deduped = incoming.filter(
+          (line) => line && line !== existing[existing.length - 1]
+        );
+
+        return {
+          ...prev,
+          [p.step]: [...existing, ...deduped],
+        };
+      });
+
+
+      // Update status
+      setStatuses((prev) => ({
         ...prev,
-        { from: "bot", text: msg.chunk }
-      ]);
+        [p.step]:
+          p.status === "running"
+            ? "running"
+            : p.status === "failed"
+              ? "failed"
+              : "success",
+      }));
 
-    });
-
-    return () => {
-      activeRef.current = false;
-      if (typeof unsubscribe === "function") unsubscribe();
+      if (p.step === "summary" && p.status === "done") {
+        setRunning(false);
+      }
     };
 
-  }, [sessionId]);
-
-  /* ---------------------------------------------------------------- */
-  /* ✅ SCAN PROGRESS */
-  /* ---------------------------------------------------------------- */
-
-  useEffect(() => {
-
-    activeRef.current = true;
-
-    const unsubscribe = onScanProgress((p: ScanProgress) => {
-
-      if (!activeRef.current || p.repo !== repoUrl) return;
-
-      const logs = p.logs ?? [];
-
-      if (p.step === "verify-gpg") {
-        setSigStatus(p.status);
-        setRepoRunning(p.status === "running");
-        setRepoFailed(p.status === "failed");
-        if (logs.length) setRepoLogs(l => [...l, ...logs]);
-      }
-
-      if (p.step === "llm-scan") {
-        setLlmStatus(p.status);
-        setLlmRunning(p.status === "running");
-        setLlmFailed(p.status === "failed");
-        if (logs.length) setLlmLogs(l => [...l, ...logs]);
-      }
-
-    });
+    onScanProgress(handler);
 
     return () => {
-      activeRef.current = false;
-      if (typeof unsubscribe === "function") unsubscribe();
+      // IPC cleanup is handled internally — no unsafe unsub calls
     };
-
   }, [repoUrl]);
 
-  /* ---------------------------------------------------------------- */
-  /* ✅ CHAT AUTOSCROLL */
-  /* ---------------------------------------------------------------- */
+  /* ------------------------------------------------------- */
+  /* Auto-scroll terminals */
+  /* ------------------------------------------------------- */
 
   useEffect(() => {
-
-    if (messages.length === 0) return;
-
-    chatEndRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "nearest"
+    ALL_STEPS.forEach((s) => {
+      tailRefs.current[s.id]?.scrollIntoView({
+        behavior: "smooth",
+        block: "end",
+      });
     });
+  }, [logs]);
 
-  }, [messages]);
+  /* ------------------------------------------------------- */
+  /* Run entire pipeline */
+  /* ------------------------------------------------------- */
 
-  /* ---------------------------------------------------------------- */
+  async function onRun() {
+    setRunning(true);
 
-  async function runRepo() {
-    setRepoLogs([]);
-    setSigStatus("running");
+    setLogs({});
+    setStatuses(
+      ALL_STEPS.reduce(
+        (acc, s) => ({ ...acc, [s.id]: "idle" }),
+        {} as Record<string, StepStatus>
+      )
+    );
+
     await runRepoScan(projectId, repoIndex, repoUrl, branch);
   }
 
-  async function runLLM() {
-    if (sigStatus !== "success" && sigStatus !== "done") return;
-    setLlmLogs([]);
-    setLlmStatus("running");
-    await llmQuery(sessionId, "Run LLM vulnerability scan");
+  /* ------------------------------------------------------- */
+  /* Retry from step */
+  /* ------------------------------------------------------- */
+
+  async function retryStep(stepId: string) {
+    if (statuses[stepId] !== "failed") return;
+
+    setRunning(true);
+
+    // wipe logs ONLY for that step
+    setLogs((prev) => ({ ...prev, [stepId]: [] }));
+
+    setStatuses((prev) => ({
+      ...prev,
+      [stepId]: "idle",
+    }));
+
+    // re-run full pipeline
+    await runRepoScan(projectId, repoIndex, repoUrl, branch);
   }
 
-  async function send() {
+  /* ------------------------------------------------------- */
+  /* Download logs */
+  /* ------------------------------------------------------- */
 
-    if (!input.trim()) return;
+  function downloadStep(stepId: string) {
+    const data = logs[stepId] || [];
 
-    const text = input.trim();
-    setInput("");
+    const blob = new Blob([data.join("\n")], {
+      type: "text/plain",
+    });
 
-    setMessages(m => [...m, { from: "user", text }]);
-    await llmQuery(sessionId, text);
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `${repoUrl.replace(/[^\w.-]/g, "_")}-${stepId}.log`;
+    link.click();
   }
 
-  function copyGPG() {
-    if (gpg) navigator.clipboard.writeText(gpg);
-  }
-
-  function download(logs: string[], filename: string) {
-
-    const blob = new Blob([logs.join("\n")], { type: "text/plain" });
-
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = filename;
-    a.click();
-  }
-
-  /* ---------------------------------------------------------------- */
-
-  const LogBox = ({ logs }: { logs: string[] }) => (
-    <Paper
-      sx={{
-        bgcolor: "#05081a",
-        border: "1px solid #2a36ff50",
-        boxShadow: "0 0 12px #2a36ff44",
-        fontFamily: "JetBrains Mono",
-        fontSize: 12,
-        color: "#dbeafe",
-        p: 1,
-        maxHeight: 200,
-        overflow: "auto"
-      }}
-    >
-      {logs.map((l, i) => (
-        <Typography key={i} fontSize={12}>{l}</Typography>
-      ))}
-    </Paper>
-  );
-
-  /* ---------------------------------------------------------------- */
+  /* ------------------------------------------------------- */
+  /* UI */
+  /* ------------------------------------------------------- */
 
   return (
-
     <Accordion defaultExpanded>
-
-      {/* ---------- HEADER ---------- */}
       <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+        <Stack width="100%" spacing={1}>
 
-        <Stack spacing={1} width="100%">
-
-          <Typography variant="h6">
-            Repository Security Scan
+          {/* Center Title */}
+          <Typography
+            textAlign="center"
+            fontWeight={700}
+            fontSize={18}
+          >
+            Security Scanning of Repository
           </Typography>
 
+          {/* Repo + Branch Row */}
           <Stack
             direction="row"
-            spacing={2}
-            alignItems="center"
-            justifyContent="space-between"
+            justifyContent="center"
+            spacing={3}
+            flexWrap="wrap"
           >
-
-            <Stack>
-              <Typography fontSize={14}>{repoUrl}</Typography>
-              <Typography variant="caption" color="text.secondary">
-                Branch: {branch}
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Typography variant="caption">Repository:</Typography>
+              <Typography variant="caption" color="text.secondary" noWrap>
+                {repoUrl}
               </Typography>
             </Stack>
 
-            <Stepper sx={{ width: 420 }}>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Typography variant="caption">Branch:</Typography>
+              <Typography variant="caption" color="text.secondary">
+                {branch}
+              </Typography>
+            </Stack>
+          </Stack>
 
-              {steps.map((_, idx) => (
-                <Step key={idx}>
-                  <StepLabel
-                    icon={
-                      <StepStateIcon
-                        index={idx}
-                        state={idx === 0 ? sigStatus : llmStatus}
-                      />
-                    }
-                  >
-                    {steps[idx]}
+          {/* Stepper */}
+          <Box sx={{ mt: 1 }}>
+            <Stepper alternativeLabel activeStep={-1}>
+              {ALL_STEPS.map((s, idx) => (
+                <Step key={s.id}>
+                  <StepLabel icon={<StepIcon state={statuses[s.id]} idx={idx} />}>
+                    {s.label}
                   </StepLabel>
                 </Step>
               ))}
-
             </Stepper>
-
-          </Stack>
-
-          {gpg && (
-
-            <Stack direction="row" alignItems="center" spacing={1}>
-
-              <Typography variant="caption">GPG:</Typography>
-
-              <Typography
-                noWrap
-                width={450}
-                variant="caption"
-                color="text.secondary"
-              >
-                {gpg}
-              </Typography>
-
-              <IconButton size="small" onClick={copyGPG}>
-                <ContentCopyIcon fontSize="small" />
-              </IconButton>
-
-            </Stack>
-
-          )}
+          </Box>
 
         </Stack>
-
       </AccordionSummary>
 
+
       <AccordionDetails>
-
-        {/* ----- REPO STEP ----- */}
-
-        <Stack direction="row" justifyContent="space-between">
-
-          <Typography fontWeight={600}>
-            Commit Signature Check
-          </Typography>
-
-          <Stack direction="row" spacing={1}>
-
+        <Stack spacing={2}>
+          {/* Pipeline Run */}
+          <Stack direction="row" justifyContent="flex-end">
             <Button
               startIcon={<PlayArrowIcon />}
-              onClick={runRepo}
-              disabled={repoRunning}
               variant="contained"
+              onClick={onRun}
+              disabled={running}
             >
-              Run
+              Run Full Pipeline
             </Button>
-
-            {repoFailed && (
-              <Button
-                startIcon={<ReplayIcon />}
-                onClick={runRepo}
-                color="error"
-              >
-                Retry
-              </Button>
-            )}
-
-            <Button
-              startIcon={<DownloadIcon />}
-              onClick={() => download(repoLogs, "repo.log")}
-            >
-              Logs
-            </Button>
-
-            <IconButton onClick={() => setRepoLogsOpen(!repoLogsOpen)}>
-              {repoLogsOpen ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
-            </IconButton>
-
           </Stack>
 
-        </Stack>
+          <Divider />
 
-        <Collapse in={repoLogsOpen}>
-          <Box mt={1}>
-            <LogBox logs={repoLogs} />
-          </Box>
-        </Collapse>
-
-        <Divider sx={{ my: 2 }} />
-
-        {/* ----- LLM STEP ----- */}
-
-        <Stack direction="row" justifyContent="space-between">
-          <Typography fontWeight={600}>LLM Vulnerability Scan</Typography>
-
-          <Stack direction="row" spacing={1}>
-
-            <Button
-              startIcon={<PlayArrowIcon />}
-              onClick={runLLM}
-              disabled={llmRunning || sigStatus !== "success"}
-              variant="contained"
-            >
-              Run
-            </Button>
-
-            {llmFailed && (
-              <Button
-                startIcon={<ReplayIcon />}
-                onClick={runLLM}
-                color="error"
-              >
-                Retry
-              </Button>
-            )}
-
-            <Button
-              startIcon={<DownloadIcon />}
-              onClick={() => download(llmLogs, "llm.log")}
-            >
-              Logs
-            </Button>
-
-            <IconButton onClick={() => setLlmLogsOpen(!llmLogsOpen)}>
-              {llmLogsOpen ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
-            </IconButton>
-
-          </Stack>
-        </Stack>
-
-        <Collapse in={llmLogsOpen}>
-          <Box mt={1}>
-            <LogBox logs={llmLogs} />
-          </Box>
-        </Collapse>
-
-        <Divider sx={{ my: 2 }} />
-
-        {/* ----- CHAT ----- */}
-
-        <Paper sx={{ p: 2, mt: 1 }}>
-
-          <Box maxHeight={260} overflow="auto" mb={2}>
-
-            {messages.map((m, i) => (
-
+          {/* Steps */}
+          {ALL_STEPS.map((s) => (
+            <Box key={s.id}>
               <Stack
-                key={i}
                 direction="row"
-                justifyContent={m.from === "user" ? "flex-end" : "flex-start"}
-                spacing={1.2}
-                mb={1.8}
+                justifyContent="space-between"
+                alignItems="center"
               >
+                <Typography fontWeight={600}>{s.label}</Typography>
 
-                {m.from === "bot" && (
-                  <Avatar sx={{ width: 26, height: 26 }}>
-                    <SmartToyIcon fontSize="small" />
-                  </Avatar>
-                )}
+                <Stack direction="row" spacing={1}>
+                  {statuses[s.id] === "failed" && (
+                    <Button
+                      size="small"
+                      startIcon={<ReplayIcon />}
+                      sx={{
+                        color: "#f97316",
+                        borderColor: "#f97316",
+                        "&:hover": {
+                          backgroundColor: "rgba(249, 115, 22, 0.08)",
+                          borderColor: "#fb923c",
+                        },
+                      }}
+                      onClick={() => retryStep(s.id)}
+                    >
+                      Retry
+                    </Button>
+                  )}
 
-                <Box
-                  sx={{
-                    px: 1.6,
-                    py: 1,
-                    borderRadius: 3,
-                    bgcolor: m.from === "user" ? "#2563eb" : "#2c2f38",
-                    color: "#fff",
-                    fontSize: 13.2,
-                    lineHeight: 1.6,
-                    maxWidth: "68%"
-                  }}
-                >
-                  {m.text}
-                </Box>
+                  <Button size="small"
+                    endIcon={<DownloadIcon />}
+                    onClick={() => downloadStep(s.id)}>
+                    Download Logs
+                  </Button>
 
-                {m.from === "user" && (
-                  <Avatar sx={{ width: 26, height: 26 }}>
-                    <PersonIcon fontSize="small" />
-                  </Avatar>
-                )}
-
+                  <IconButton
+                    onClick={() =>
+                      setExpandedSteps((prev) => ({
+                        ...prev,
+                        [s.id]: !prev[s.id],
+                      }))
+                    }
+                  >
+                    {expandedSteps[s.id] ? (
+                      <KeyboardArrowUpIcon />
+                    ) : (
+                      <KeyboardArrowDownIcon />
+                    )}
+                  </IconButton>
+                </Stack>
               </Stack>
 
-            ))}
+              {/* Terminal */}
+              <Collapse in={expandedSteps[s.id]}>
+                <Paper
+                  sx={{
+                    p: 1,
+                    mt: 1,
+                    maxHeight: 200,
+                    overflow: "auto",
+                    fontFamily: "JetBrains Mono, monospace",
+                    fontSize: 12,
+                    backgroundColor: "#05070d",
+                    color: "#d1d5db",
+                  }}
+                >
+                  {(logs[s.id] || []).map((line, i) => (
+                    <Typography
+                      key={i}
+                      sx={{
+                        whiteSpace: "pre-wrap",
+                        fontSize: 12,
+                      }}
+                    >
+                      {line}
+                    </Typography>
+                  ))}
+                  <div ref={(el) => (tailRefs.current[s.id] = el)} />
+                </Paper>
+              </Collapse>
 
-            <div ref={chatEndRef} />
-
-          </Box>
-
-          <Stack direction="row" spacing={1.5}>
-            <TextField
-              fullWidth
-              size="small"
-              placeholder="Ask security questions..."
-              value={input}
-              onChange={e => setInput(e.target.value)}
-            />
-
-            <IconButton color="primary" onClick={send}>
-              <SendIcon />
-            </IconButton>
-          </Stack>
-
-        </Paper>
-
+              <Divider sx={{ my: 1 }} />
+            </Box>
+          ))}
+        </Stack>
       </AccordionDetails>
-
     </Accordion>
   );
 }

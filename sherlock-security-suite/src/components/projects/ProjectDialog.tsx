@@ -1,5 +1,3 @@
-// src/components/projects/ProjectDialog.tsx
-
 import {
   Dialog,
   DialogTitle,
@@ -12,7 +10,7 @@ import {
   MenuItem,
   Chip,
   Typography,
-  Tooltip
+  Tooltip,
 } from "@mui/material";
 
 import AddIcon from "@mui/icons-material/Add";
@@ -21,20 +19,14 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 
 import { useEffect, useState } from "react";
 
-import { Project } from "../../models/Project";
+import { Project, RepoConfig } from "../../models/Project";
 import { createProject, updateProject } from "../../services/projectService";
 import { useUserStore } from "../../store/userStore";
 import { getUsers } from "../../services/userService";
 
-// =====================================================
-// 🔮 COMMENTED FOR FUTURE API INTEGRATION
-// import { getRepos } from "../../services/repoService";
-// import { getDependencies } from "../../services/dependencyService";
-// =====================================================
-
-// -----------------------------------------------------
-// DEMO DATA (replace via API later)
-// -----------------------------------------------------
+/* -----------------------------------------------------
+   DEMO DATA
+----------------------------------------------------- */
 
 const REPOSITORIES = [
   "https://github.com/org/web-ui",
@@ -49,19 +41,27 @@ const DEPENDENCIES = [
   "Docker",
   "MongoDB",
   "Redis",
-  "Kubernetes"
+  "Kubernetes",
 ];
 
-// ✅ SEMVER regex: 1.2.0 / 1.2.0-beta / 1.2.0-rc
-const SEMVER_REGEX =
-  /^(\d+)\.(\d+)\.(\d+)(-(alpha|beta|rc))?$/;
+// ✅ SEMVER regex (no leading v)
+const SEMVER_REGEX = /^(\d+)\.(\d+)\.(\d+)(-(alpha|beta|rc))?$/;
+
+/* -----------------------------------------------------
+   COMPONENT
+----------------------------------------------------- */
+
+type ProjectForm = Omit<
+  Project,
+  "id" | "createdAt" | "updatedAt" | "updatedBy" | "history"
+>;
 
 export default function ProjectDialog({
   open,
   onClose,
   project,
   refresh,
-  mode = "create"
+  mode = "create",
 }: {
   open: boolean;
   onClose: () => void;
@@ -69,82 +69,66 @@ export default function ProjectDialog({
   refresh: () => void;
   mode?: "create" | "edit" | "view";
 }) {
-
-  const user = useUserStore(s => s.user);
+  const user = useUserStore((s) => s.user);
   const isView = mode === "view";
   const users = getUsers();
 
-  // -----------------------------------------------------
-  // FORM STATE
-  // -----------------------------------------------------
+  /* -----------------------------------------------------
+     FORM STATE
+  ----------------------------------------------------- */
 
-  const [form, setForm] = useState<Omit<Project,
-    "id" | "createdAt" | "updatedAt" | "updatedBy"
-  >>({
+  const emptyForm: ProjectForm = {
     name: "",
     version: "",
     description: "",
     projectDirector: null,
     securityHead: null,
     releaseEngineers: [],
-    gitRepo: [""],
-    gitBrances: [""],
-    gpgKey: [""],
+    repos: [{ repoUrl: "", branch: "", gpgKey: "" }],
     dependencies: [],
     createdBy: "",
-    status: "Pending"
-  });
+    status: "Pending",
+  };
 
+  const [form, setForm] = useState<ProjectForm>(emptyForm);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // -----------------------------------------------------
-  // LOAD DATA
-  // -----------------------------------------------------
+  /* -----------------------------------------------------
+     LOAD DATA
+  ----------------------------------------------------- */
 
   useEffect(() => {
     if (project) {
+      const { id, createdAt, updatedAt, updatedBy, history, ...rest } =
+        project;
+
       setForm({
-        ...project,
-        gitRepo: project.gitRepo?.length ? project.gitRepo : [""],
-        gitBrances: project.gitBrances?.length ? project.gitBrances : [""],
-        gpgKey: project.gpgKey?.length ? project.gpgKey : [""],
-      } as any);
-    } else {
-      setForm({
-        name: "",
-        version: "",
-        description: "",
-        projectDirector: null,
-        securityHead: null,
-        releaseEngineers: [],
-        gitRepo: [""],
-        gitBrances: [""],
-        gpgKey: [""],
-        dependencies: [],
-        createdBy: "",
-        status: "Pending",
+        ...rest,
+        repos: rest.repos.length
+          ? rest.repos
+          : [{ repoUrl: "", branch: "", gpgKey: "" }],
       });
+    } else {
+      setForm(emptyForm);
     }
 
     setErrors({});
   }, [project, open]);
 
-  // -----------------------------------------------------
-  // VALIDATION
-  // -----------------------------------------------------
+  /* -----------------------------------------------------
+     VALIDATION
+  ----------------------------------------------------- */
 
-  function validate() {
-
+  function validate(): boolean {
     const e: Record<string, string> = {};
 
-    if (!form.name?.trim())
+    if (!form.name.trim())
       e.name = "Project name required";
 
-    if (!form.version?.trim())
+    if (!form.version.trim())
       e.version = "Version required";
-
-    if (!SEMVER_REGEX.test(form.version))
-      e.version = "Use semantic version: 1.2.0 / 1.2.0-beta / 1.2.0-rc";
+    else if (!SEMVER_REGEX.test(form.version))
+      e.version = "Use format: 1.2.0 / 1.2.0-beta / 1.2.0-rc";
 
     if (!form.description?.trim())
       e.description = "Description required";
@@ -156,135 +140,123 @@ export default function ProjectDialog({
       e.securityHead = "Select security head";
 
     if (!form.releaseEngineers.length)
-      e.releaseEngineers = "Select at least one Release Engineer";
+      e.releaseEngineers = "Select at least 1 release engineer";
 
     if (!form.dependencies?.length)
       e.dependencies = "Select at least one dependency";
 
-    (form.gitRepo ?? []).forEach((v, i) => {
-      if (!v?.trim()) e[`repo-${i}`] = "Repo required";
-    });
-
-    (form.gitBrances ?? []).forEach((v, i) => {
-      if (!v?.trim()) e[`branch-${i}`] = "Branch required";
-    });
-
-    (form.gpgKey ?? []).forEach((v, i) => {
-      if (!v?.trim()) e[`gpg-${i}`] = "GPG key required";
+    form.repos.forEach((r, i) => {
+      if (!r.repoUrl) e[`repo-${i}`] = "Repo required";
+      if (!r.branch) e[`branch-${i}`] = "Branch required";
+      if (!r.gpgKey) e[`gpg-${i}`] = "GPG key required";
     });
 
     setErrors(e);
     return Object.keys(e).length === 0;
   }
 
-  // -----------------------------------------------------
-  // ROW MANIPULATION
-  // -----------------------------------------------------
+  /* -----------------------------------------------------
+     REPO EDIT
+  ----------------------------------------------------- */
 
-  function setAt<K extends keyof typeof form>(
-    key: K,
+  function setRepoField<K extends keyof RepoConfig>(
     idx: number,
-    val: string
+    key: K,
+    value: string
   ) {
-    const arr = [...(form[key] as string[])];
-    arr[idx] = val;
-    setForm({ ...form, [key]: arr });
+    const arr = [...form.repos];
+    arr[idx] = { ...arr[idx], [key]: value };
+    setForm({ ...form, repos: arr });
   }
 
   function addRepoRow() {
     setForm({
       ...form,
-      gitRepo: [...(form.gitRepo ?? []), ""],
-      gitBrances: [...(form.gitBrances ?? []), ""],
-      gpgKey: [...(form.gpgKey ?? []), ""]
+      repos: [...form.repos, { repoUrl: "", branch: "", gpgKey: "" }],
     });
   }
 
   function removeRepoRow(i: number) {
-    const r = [...(form.gitRepo ?? [])];
-    const b = [...(form.gitBrances ?? [])];
-    const g = [...(form.gpgKey ?? [])];
-
-    r.splice(i, 1);
-    b.splice(i, 1);
-    g.splice(i, 1);
-
-    setForm({ ...form, gitRepo: r, gitBrances: b, gpgKey: g });
+    setForm({
+      ...form,
+      repos: form.repos.filter((_, idx) => idx !== i),
+    });
   }
 
-  // -----------------------------------------------------
-  // SUBMIT ✅ createdBy FIX
-  // -----------------------------------------------------
+  /* -----------------------------------------------------
+     SUBMIT
+  ----------------------------------------------------- */
 
   function submit() {
     if (!validate()) return;
-
-    if (!user?.id) {
-      console.error("User session missing");
-      return;
-    }
+    if (!user?.id) return;
 
     if (project) {
       updateProject({
-        ...(project as Project),
+        ...project,
         ...form,
-        updatedBy: user.id
+        updatedBy: user.id,
       });
     } else {
-      createProject({
-        ...(form as Project),
-        createdBy: user.id
-      });
+      const payload: ProjectForm = {
+        ...form,
+        createdBy: user.id,
+      };
+
+      // ✅ SHOW ALERT BEFORE INSERT
+      alert(
+        "Creating project:\n\n" +
+          JSON.stringify(payload, null, 2)
+      );
+
+      createProject(payload);
     }
 
     refresh();
     onClose();
   }
 
-  // -----------------------------------------------------
-  // CLIPBOARD
-  // -----------------------------------------------------
+  /* -----------------------------------------------------
+     CLIPBOARD
+  ----------------------------------------------------- */
 
   function copy(text: string) {
-    if (!text) return;
+    if (!text.trim()) return;
     navigator.clipboard.writeText(text);
   }
 
-  // -----------------------------------------------------
-  // RENDER
-  // -----------------------------------------------------
+  /* -----------------------------------------------------
+     RENDER
+  ----------------------------------------------------- */
 
   return (
-
-    <Dialog
-      open={open}
-      onClose={onClose}
-      fullWidth
-      maxWidth="md"
-    >
-
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
       <DialogTitle>
         {mode === "view"
           ? "Project Details"
-          : project ? "Edit Project" : "Create Project"}
+          : project
+          ? "Edit Project"
+          : "Create Project"}
       </DialogTitle>
 
       <DialogContent dividers>
-
         {/* BASIC INFO */}
-        <Box sx={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr 1fr",
-          gap: 2,
-        }}>
-
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr 1fr",
+            gap: 2,
+          }}
+        >
           <TextField
             label="Name"
             value={form.name}
             error={!!errors.name}
             helperText={errors.name}
             disabled={isView}
-            onChange={e => setForm({ ...form, name: e.target.value })}
+            onChange={(e) =>
+              setForm({ ...form, name: e.target.value })
+            }
           />
 
           <TextField
@@ -293,20 +265,23 @@ export default function ProjectDialog({
             error={!!errors.version}
             helperText={errors.version}
             disabled={isView}
-            onChange={e => setForm({ ...form, version: e.target.value })}
+            onChange={(e) =>
+              setForm({ ...form, version: e.target.value })
+            }
           />
 
           <TextField
             label="Description"
             value={form.description}
-            multiline
-            rows={1}
             error={!!errors.description}
             helperText={errors.description}
             disabled={isView}
-            onChange={e => setForm({ ...form, description: e.target.value })}
+            onChange={(e) =>
+              setForm({ ...form, description: e.target.value })
+            }
           />
 
+          {/* Selects */}
           <TextField
             select
             label="Project Director"
@@ -314,11 +289,18 @@ export default function ProjectDialog({
             error={!!errors.projectDirector}
             helperText={errors.projectDirector}
             disabled={isView}
-            onChange={e => setForm({ ...form, projectDirector: e.target.value })}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                projectDirector: e.target.value,
+              })
+            }
           >
-            {users.map(u =>
-              <MenuItem key={u.id} value={u.id}>{u.name}</MenuItem>
-            )}
+            {users.map((u) => (
+              <MenuItem key={u.id} value={u.id}>
+                {u.name}
+              </MenuItem>
+            ))}
           </TextField>
 
           <TextField
@@ -328,11 +310,18 @@ export default function ProjectDialog({
             error={!!errors.securityHead}
             helperText={errors.securityHead}
             disabled={isView}
-            onChange={e => setForm({ ...form, securityHead: e.target.value })}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                securityHead: e.target.value,
+              })
+            }
           >
-            {users.map(u =>
-              <MenuItem key={u.id} value={u.id}>{u.name}</MenuItem>
-            )}
+            {users.map((u) => (
+              <MenuItem key={u.id} value={u.id}>
+                {u.name}
+              </MenuItem>
+            ))}
           </TextField>
 
           <TextField
@@ -343,72 +332,97 @@ export default function ProjectDialog({
             error={!!errors.releaseEngineers}
             helperText={errors.releaseEngineers}
             disabled={isView}
-            onChange={e =>
-              setForm({ ...form, releaseEngineers: e.target.value as unknown as string[] })
+            onChange={(e) =>
+              setForm({
+                ...form,
+                releaseEngineers:
+                  e.target.value as unknown as string[],
+              })
             }
           >
-            {users.map(u =>
+            {users.map((u) => (
               <MenuItem key={u.id} value={u.id}>
                 <Chip label={u.name} size="small" />
               </MenuItem>
-            )}
+            ))}
           </TextField>
-
         </Box>
 
         {/* REPOS */}
         <Box sx={{ mt: 3 }}>
-
           <Typography mb={1}>Repositories</Typography>
 
-          {(form.gitRepo ?? []).map((_, i) => (
-
-            <Box key={i} sx={{
-              display: "grid",
-              gridTemplateColumns: "1.5fr .8fr 2fr auto auto",
-              alignItems: "center",
-              gap: 1,
-              mb: 1
-            }}>
-
+          {form.repos.map((r, i) => (
+            <Box
+              key={i}
+              sx={{
+                display: "grid",
+                gridTemplateColumns:
+                  "1.5fr .8fr 2fr auto",
+                alignItems: "center",
+                gap: 1,
+                mb: 1,
+              }}
+            >
               <TextField
                 select
                 label="Repo"
-                value={(form.gitRepo?.[i] ?? "")}
+                value={r.repoUrl}
                 error={!!errors[`repo-${i}`]}
                 helperText={errors[`repo-${i}`]}
                 disabled={isView}
-                onChange={e => setAt("gitRepo", i, e.target.value)}
+                onChange={(e) =>
+                  setRepoField(
+                    i,
+                    "repoUrl",
+                    e.target.value
+                  )
+                }
               >
-                {REPOSITORIES.map(r =>
-                  <MenuItem key={r} value={r}>{r}</MenuItem>
-                )}
+                {REPOSITORIES.map((x) => (
+                  <MenuItem key={x} value={x}>
+                    {x}
+                  </MenuItem>
+                ))}
               </TextField>
 
               <TextField
                 label="Branch"
-                value={(form.gitBrances?.[i] ?? "")}
+                value={r.branch}
                 error={!!errors[`branch-${i}`]}
                 helperText={errors[`branch-${i}`]}
                 disabled={isView}
-                onChange={e => setAt("gitBrances", i, e.target.value)}
+                onChange={(e) =>
+                  setRepoField(
+                    i,
+                    "branch",
+                    e.target.value
+                  )
+                }
               />
 
-              {/* GPG + COPY INLINE */}
-              <Box sx={{ display: "flex", gap: 0.5, alignItems: "center" }}>
+              <Box sx={{ display: "flex", gap: 0.5 }}>
                 <TextField
                   fullWidth
                   label="GPG Key"
-                  value={(form.gpgKey?.[i] ?? "")}
+                  value={r.gpgKey}
                   error={!!errors[`gpg-${i}`]}
                   helperText={errors[`gpg-${i}`]}
                   disabled={isView}
-                  onChange={e => setAt("gpgKey", i, e.target.value)}
+                  onChange={(e) =>
+                    setRepoField(
+                      i,
+                      "gpgKey",
+                      e.target.value
+                    )
+                  }
                 />
 
                 <Tooltip title="Copy GPG key">
                   <IconButton
-                    onClick={() => copy(form.gpgKey?.[i] ?? "")}
+                    onClick={() =>
+                      copy(r.gpgKey)
+                    }
                   >
                     <ContentCopyIcon fontSize="small" />
                   </IconButton>
@@ -416,31 +430,32 @@ export default function ProjectDialog({
               </Box>
 
               {!isView && (
-
                 <IconButton
-                  onClick={() => removeRepoRow(i)}
-                  disabled={(form.gitRepo?.length || 1) <= 1}
+                  onClick={() =>
+                    removeRepoRow(i)
+                  }
+                  disabled={
+                    form.repos.length <= 1
+                  }
                 >
                   <RemoveIcon />
                 </IconButton>
-
               )}
-
             </Box>
-
           ))}
 
           {!isView && (
-            <Button onClick={addRepoRow} startIcon={<AddIcon />}>
+            <Button
+              onClick={addRepoRow}
+              startIcon={<AddIcon />}
+            >
               Add Repo
             </Button>
           )}
-
         </Box>
 
         {/* DEPENDENCIES */}
         <Box sx={{ mt: 3 }}>
-
           <TextField
             select
             label="Dependencies"
@@ -450,42 +465,41 @@ export default function ProjectDialog({
             error={!!errors.dependencies}
             helperText={errors.dependencies}
             disabled={isView}
-            onChange={e =>
+            onChange={(e) =>
               setForm({
                 ...form,
-                dependencies: e.target.value as unknown as string[]
+                dependencies:
+                  e.target.value as unknown as string[],
               })
             }
           >
-            {DEPENDENCIES.map(d =>
+            {DEPENDENCIES.map((d) => (
               <MenuItem key={d} value={d}>
                 <Chip label={d} size="small" />
               </MenuItem>
-            )}
+            ))}
           </TextField>
-
         </Box>
-
       </DialogContent>
 
       <DialogActions>
-
-        <Button onClick={onClose}>Close</Button>
+        <Button onClick={onClose}>
+          Close
+        </Button>
 
         {!isView && (
           <Button
             variant="contained"
             onClick={submit}
             sx={{
-              background: "linear-gradient(135deg,#7b5cff,#5ce1e6)"
+              background:
+                "linear-gradient(135deg,#7b5cff,#5ce1e6)",
             }}
           >
             {project ? "Save" : "Create"}
           </Button>
         )}
-
       </DialogActions>
-
     </Dialog>
   );
 }

@@ -1,49 +1,11 @@
-// src/services/securityService.ts
-
-declare global {
-  interface Window {
-    electronAPI: {
-      runRepoScan: (args: {
-        projectId: string;
-        repoIndex: number;
-        repoUrl: string;
-        branch: string;
-      }) => Promise<{ runId: string }>;
-
-      onScanProgress: (
-        cb: (p: ScanProgress) => void
-      ) => () => void;
-
-      llmQuery: (args: {
-        sessionId: string;
-        prompt: string;
-      }) => Promise<{ streamId: string }>;
-
-      onLLMStream: (
-        cb: (msg: LLMStreamMessage) => void
-      ) => () => void;
-    };
-  }
-}
-
 export type ScanProgress = {
-  runId: string;
   repo: string;
-  step: "verify-gpg" | "llm-scan";
+  step: string;
   status: "running" | "success" | "failed" | "done";
   logs: string[];
 };
 
-export type LLMStreamMessage = {
-  streamId: string;
-  sessionId: string;
-  chunk: string;
-  done: boolean;
-};
-
-/* -------------------- IPC CALLS -------------------- */
-
-export async function runRepoScan(
+export function runRepoScan(
   projectId: string,
   repoIndex: number,
   repoUrl: string,
@@ -53,32 +15,28 @@ export async function runRepoScan(
     projectId,
     repoIndex,
     repoUrl,
-    branch
+    branch,
   });
 }
 
-/* -------------------- REPO SCAN STREAM -------------------- */
-
-export function onScanProgress(cb: (p: ScanProgress) => void) {
+export function onScanProgress(cb: (p: ScanProgress) => void): () => void {
   return window.electronAPI.onScanProgress(cb);
 }
 
-/* -------------------- LLM QUERY -------------------- */
+// ----- LLM -----
 
-export async function llmQuery(
-  sessionId: string,
-  prompt: string
-) {
-  return window.electronAPI.llmQuery({
-    sessionId,
-    prompt
-  });
+export type LLMStreamChunk = {
+  sessionId: string;
+  chunk: string;
+  done: boolean;
+};
+
+export function llmQuery(sessionId: string, prompt: string) {
+  return window.electronAPI.llmQuery({ sessionId, prompt });
 }
 
-/* -------------------- LLM STREAM SUBSCRIBE -------------------- */
-
 export function onLLMStream(
-  cb: (msg: LLMStreamMessage) => void
-) {
+  cb: (d: LLMStreamChunk) => void
+): () => void {
   return window.electronAPI.onLLMStream(cb);
 }

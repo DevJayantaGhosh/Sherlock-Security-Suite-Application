@@ -1,24 +1,14 @@
 "use strict";
 const electron = require("electron");
 electron.contextBridge.exposeInMainWorld("ipcRenderer", {
-  on(...args) {
-    const [channel, listener] = args;
-    return electron.ipcRenderer.on(
-      channel,
-      (event, ...args2) => listener(event, ...args2)
-    );
+  on(channel, listener) {
+    electron.ipcRenderer.on(channel, listener);
   },
-  off(...args) {
-    const [channel, ...omit] = args;
-    return electron.ipcRenderer.off(channel, ...omit);
+  off(channel, listener) {
+    electron.ipcRenderer.off(channel, listener);
   },
-  send(...args) {
-    const [channel, ...omit] = args;
-    return electron.ipcRenderer.send(channel, ...omit);
-  },
-  invoke(...args) {
-    const [channel, ...omit] = args;
-    return electron.ipcRenderer.invoke(channel, ...omit);
+  invoke(channel, payload) {
+    return electron.ipcRenderer.invoke(channel, payload);
   }
 });
 electron.contextBridge.exposeInMainWorld("electronWindow", {
@@ -28,18 +18,19 @@ electron.contextBridge.exposeInMainWorld("electronWindow", {
 });
 electron.contextBridge.exposeInMainWorld("electronAPI", {
   runRepoScan: (payload) => electron.ipcRenderer.invoke("scan:run", payload),
-  // subscribe to scan progress
   onScanProgress: (cb) => {
-    const wrapped = (_event, data) => cb(data);
-    electron.ipcRenderer.on("scan:progress", wrapped);
-    return () => electron.ipcRenderer.off("scan:progress", wrapped);
+    const listener = (_, data) => cb(data);
+    electron.ipcRenderer.on("scan:progress", listener);
+    return () => {
+      electron.ipcRenderer.off("scan:progress", listener);
+    };
   },
-  // LLM: streaming helper
   llmQuery: (payload) => electron.ipcRenderer.invoke("llm:query", payload),
   onLLMStream: (cb) => {
-    const wrapped = (_event, data) => cb(data);
-    electron.ipcRenderer.on("llm:stream", wrapped);
-    return () => electron.ipcRenderer.off("llm:stream", wrapped);
-  },
-  ping: () => electron.ipcRenderer.invoke("ping")
+    const listener = (_, data) => cb(data);
+    electron.ipcRenderer.on("llm:stream", listener);
+    return () => {
+      electron.ipcRenderer.off("llm:stream", listener);
+    };
+  }
 });
