@@ -11,7 +11,6 @@ import {
   Stepper,
   Step,
   StepLabel,
-  TextField,
   Typography,
   Divider,
   Collapse,
@@ -32,8 +31,6 @@ import {
   onScanProgress,
   ScanProgress,
 } from "../../services/securityService";
-import { color } from "framer-motion";
-import { orange } from "@mui/material/colors";
 
 /* ------------------------------------------------------- */
 /* Types */
@@ -98,7 +95,6 @@ export default function RepoScanAccordion({
   repoIndex,
   repoUrl,
   branch = "main",
-  gpg,
 }: {
   projectId: string;
   repoIndex: number;
