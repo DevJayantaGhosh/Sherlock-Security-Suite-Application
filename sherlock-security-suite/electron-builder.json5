@@ -11,8 +11,8 @@
   },
 
   "files": [
-    "dist/**",
-    "dist-electron/**",
+    "dist",
+    "dist-electron",
     "!tools/**"
   ],
 

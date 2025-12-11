@@ -23,7 +23,7 @@ export default function Hero() {
         </motion.div>
 
         <motion.div initial={{ opacity: 0, scale: 0.92 }} animate={visible ? { opacity: 1, scale: 1 } : {}} transition={{ duration: 0.8 }} style={{ flex: 1, display: "flex", justifyContent: "center" }}>
-          <Box component="img" src="/cyber-shield-glow.png" alt="shield" sx={{
+          <Box component="img" src="./cyber-shield-glow.png" alt="shield" sx={{
             width: { xs: 220, md: 460 },
             WebkitMaskImage: "radial-gradient(circle, white 10%, transparent 100%)",
             maskImage: "radial-gradient(circle, white 10%, transparent 100%)",
