@@ -20,7 +20,7 @@ export default function ProtectedRoute({ children, allowedRoles }: Props) {
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     // optionally show "not authorized" page — for now redirect home
-    return <Navigate to="/" replace />;
+    return <Navigate to="/unauthorized" replace />;
   }
 
   return children;

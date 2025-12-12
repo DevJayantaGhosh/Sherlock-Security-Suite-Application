@@ -46,9 +46,6 @@ export default function ProjectSecurityScanPage() {
   if (!project) return null;
 
   /* ---------------- AUTH ---------------- */
-  if (!user) {
-    return <Typography color="error">Unauthorized</Typography>;
-  }
   const isAuthorized = authorizeApprove(user, project);
 
   const tooltip = isAuthorized
@@ -116,7 +113,6 @@ export default function ProjectSecurityScanPage() {
               repoIndex={idx}
               repoUrl={repo.repoUrl}
               branch={repo.branch}
-              gpg={repo.gpgKey}
             />
           ))}
         </Stack>
