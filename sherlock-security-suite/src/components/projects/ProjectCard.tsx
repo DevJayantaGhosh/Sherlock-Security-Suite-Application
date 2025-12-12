@@ -17,9 +17,7 @@ import SecurityIcon from "@mui/icons-material/Security";
 
 import { Project } from "../../models/Project";
 import {
-  authorizeApprove,
   authorizeEdit,
-  authorizeRelease
 } from "../../services/projectService";
 import { useUserStore } from "../../store/userStore";
 
@@ -116,7 +114,7 @@ export default function ProjectCard({
     SECURITY SCAN ACTION
 ------------------------------------------ */}
 
-          {authorizeApprove(user, project) && (
+
             <Tooltip title="Run Security Scan">
               <IconButton
                 color="warning"
@@ -125,15 +123,15 @@ export default function ProjectCard({
                 <SecurityIcon />
               </IconButton>
             </Tooltip>
-          )}
 
-          {authorizeRelease(user, project) && (
+
+
             <Tooltip title="Release workflow">
               <IconButton sx={{ color: "#7b5cff" }} onClick={onRelease}>
                 <RocketLaunchIcon />
               </IconButton>
             </Tooltip>
-          )}
+
         </Stack>
 
       </Box>

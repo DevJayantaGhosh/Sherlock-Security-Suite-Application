@@ -9,13 +9,14 @@ import {
   Stack,
   Paper,
   Dialog,
-  DialogContent
+  DialogContent,
+  Tooltip
 } from "@mui/material";
 
 import { useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useUserStore } from "../store/userStore";
-import { getProjects } from "../services/projectService";
+import { authorizeApprove, getProjects } from "../services/projectService";
 
 import {
   PIPELINE_STEPS,
@@ -66,12 +67,16 @@ export default function ProjectReleasePage() {
     setActive({ ...active });
   }
 
-  function showLogs(text:string){
+  function showLogs(text: string) {
     setLogText(text);
     setLogOpen(true);
   }
 
   if (!project) return null;
+  const isAuthorized = authorizeApprove(user, project);
+  const tooltip = isAuthorized
+    ? ""
+    : "You can view this page, but cannot perform any release activities";
 
   return (
     <Box sx={{ pt: 10 }}>
@@ -89,9 +94,14 @@ export default function ProjectReleasePage() {
 
         {/* START RELEASE */}
         {!active && (
-          <Button fullWidth variant="contained" onClick={beginRelease}>
-            Start New Release
-          </Button>
+          <Tooltip title={tooltip}>
+            <span>
+              <Button fullWidth variant="contained" disabled={!isAuthorized} onClick={beginRelease}>
+                Start New Release
+              </Button>
+            </span>
+          </Tooltip>
+
         )}
 
         {/* PIPELINE */}
@@ -165,9 +175,9 @@ export default function ProjectReleasePage() {
           </Typography>
 
           {runs.map(r => (
-            <Paper key={r.id} sx={{ p:2, my:1 }}>
+            <Paper key={r.id} sx={{ p: 2, my: 1 }}>
               <Typography>
-                Release: {r.id.slice(0,8)}
+                Release: {r.id.slice(0, 8)}
               </Typography>
               <Typography fontSize={13}>
                 Created: {new Date(r.createdAt).toLocaleString()}
@@ -179,7 +189,7 @@ export default function ProjectReleasePage() {
       </Container>
 
       {/* LOG VIEW MODAL */}
-      <Dialog open={logOpen} onClose={()=>setLogOpen(false)} maxWidth="md" fullWidth>
+      <Dialog open={logOpen} onClose={() => setLogOpen(false)} maxWidth="md" fullWidth>
         <DialogContent>
           <pre>{logText}</pre>
         </DialogContent>

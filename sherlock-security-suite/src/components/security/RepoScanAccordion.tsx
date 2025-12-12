@@ -15,6 +15,7 @@ import {
   Divider,
   Collapse,
   CircularProgress,
+  Tooltip,
 } from "@mui/material";
 
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
@@ -31,6 +32,9 @@ import {
   onScanProgress,
   ScanProgress,
 } from "../../services/securityService";
+import { useUserStore } from "../../store/userStore";
+import { authorizeApprove } from "../../services/projectService";
+import { Project } from "../../models/Project";
 
 /* ------------------------------------------------------- */
 /* Types */
@@ -91,17 +95,24 @@ function StepIcon({
 /* ------------------------------------------------------- */
 
 export default function RepoScanAccordion({
+  project,
   projectId,
   repoIndex,
   repoUrl,
   branch = "main",
 }: {
+  project: Project
   projectId: string;
   repoIndex: number;
   repoUrl: string;
   branch?: string;
   gpg?: string;
 }) {
+  const user = useUserStore((s) => s.user);
+  const isAuthorized = authorizeApprove(user, project);
+  const tooltip = isAuthorized
+    ? ""
+    : "You can view this page, but cannot perform any security review actions";
   const tailRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const [statuses, setStatuses] = useState<Record<string, StepStatus>>(
@@ -301,14 +312,19 @@ export default function RepoScanAccordion({
         <Stack spacing={2}>
           {/* Pipeline Run */}
           <Stack direction="row" justifyContent="flex-end">
-            <Button
-              startIcon={<PlayArrowIcon />}
-              variant="contained"
-              onClick={onRun}
-              disabled={running}
-            >
-              Run Full Pipeline
-            </Button>
+            <Tooltip title={tooltip}>
+              <span>
+                <Button
+                  startIcon={<PlayArrowIcon />}
+                  variant="contained"
+                  onClick={onRun}
+                  disabled={!isAuthorized || running}
+                >
+                  Run Full Pipeline
+                </Button>
+              </span>
+            </Tooltip>
+
           </Stack>
 
           <Divider />
@@ -325,21 +341,27 @@ export default function RepoScanAccordion({
 
                 <Stack direction="row" spacing={1}>
                   {statuses[s.id] === "failed" && (
-                    <Button
-                      size="small"
-                      startIcon={<ReplayIcon />}
-                      sx={{
-                        color: "#f97316",
-                        borderColor: "#f97316",
-                        "&:hover": {
-                          backgroundColor: "rgba(249, 115, 22, 0.08)",
-                          borderColor: "#fb923c",
-                        },
-                      }}
-                      onClick={() => retryStep(s.id)}
-                    >
-                      Retry
-                    </Button>
+                    <Tooltip title={tooltip}>
+                      <span>
+                        <Button
+                          size="small"
+                          disabled={!isAuthorized}
+                          startIcon={<ReplayIcon />}
+                          sx={{
+                            color: "#f97316",
+                            borderColor: "#f97316",
+                            "&:hover": {
+                              backgroundColor: "rgba(249, 115, 22, 0.08)",
+                              borderColor: "#fb923c",
+                            },
+                          }}
+                          onClick={() => retryStep(s.id)}
+                        >
+                          Retry
+                        </Button>
+                      </span>
+                    </Tooltip>
+
                   )}
 
                   <Button size="small"
