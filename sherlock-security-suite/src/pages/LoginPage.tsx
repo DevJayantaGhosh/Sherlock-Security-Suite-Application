@@ -12,7 +12,7 @@ export default function Login() {
   function handleSignIn() {
     try {
       loginLocal(email);
-      navigate("/");
+      navigate("/projects");
     } catch (err) {
       alert((err as Error).message);
     }
