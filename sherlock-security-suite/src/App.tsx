@@ -1,23 +1,26 @@
 // src/App.tsx
-import { HashRouter  as Router, Routes, Route } from "react-router-dom";
+import { HashRouter as Router, Routes, Route } from "react-router-dom";
 import { Box } from "@mui/material";
 
 import NavBar from "./components/NavBar";
 import Footer from "./components/Footer";
+
 import Home from "./pages/HomePage";
 import About from "./pages/AboutPage";
 import Projects from "./pages/ProjectPage";
 import Login from "./pages/LoginPage";
 import AdminPage from "./pages/AdminPage";
 import ProjectReleasePage from "./pages/ProjectReleasePage";
-import ProtectedRoute from "./auth/ProtectedRoute";
 import ProjectSecurityScanPage from "./pages/ProjectSecurityScanPage";
+
+import ProtectedRoute from "./auth/ProtectedRoute";
 
 export default function App() {
   return (
     <Router>
       <NavBar />
 
+      {/* Main content wrapper for pages except login */}
       <Box
         component="main"
         sx={{
@@ -26,30 +29,38 @@ export default function App() {
         }}
       >
         <Routes>
+          {/* Public pages without layout interference */}
+          <Route path="/login" element={<Login />} />
           <Route path="/" element={<Home />} />
           <Route path="/about" element={<About />} />
-          <Route path="/projects" element={<Projects />} />
 
-          {/* ✅ Correct security scan route */}
+          {/* Protected and layouted pages */}
+          <Route
+            path="/projects"
+            element={
+              <ProtectedRoute>
+                <Projects />
+              </ProtectedRoute>
+            }
+          />
+
           <Route
             path="/project/:id/security-scan"
             element={
               <ProtectedRoute>
                 <ProjectSecurityScanPage />
               </ProtectedRoute>
-
             }
           />
 
-          {/* ✅ Correct release route */}
           <Route
             path="/project/:id/releases"
             element={
+              <ProtectedRoute>
                 <ProjectReleasePage />
+              </ProtectedRoute>
             }
           />
-
-          <Route path="/login" element={<Login />} />
 
           <Route
             path="/admin"
