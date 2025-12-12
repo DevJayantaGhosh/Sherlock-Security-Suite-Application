@@ -1,1 +1,36 @@
-"use strict";const e=require("electron");e.contextBridge.exposeInMainWorld("ipcRenderer",{on(n,r){e.ipcRenderer.on(n,r)},off(n,r){e.ipcRenderer.off(n,r)},invoke(n,r){return e.ipcRenderer.invoke(n,r)}});e.contextBridge.exposeInMainWorld("electronWindow",{minimize:()=>e.ipcRenderer.invoke("window:minimize"),maximize:()=>e.ipcRenderer.invoke("window:maximize"),close:()=>e.ipcRenderer.invoke("window:close")});e.contextBridge.exposeInMainWorld("electronAPI",{runRepoScan:n=>e.ipcRenderer.invoke("scan:run",n),onScanProgress:n=>{const r=(o,i)=>n(i);return e.ipcRenderer.on("scan:progress",r),()=>{e.ipcRenderer.off("scan:progress",r)}},llmQuery:n=>e.ipcRenderer.invoke("llm:query",n),onLLMStream:n=>{const r=(o,i)=>n(i);return e.ipcRenderer.on("llm:stream",r),()=>{e.ipcRenderer.off("llm:stream",r)}}});
+"use strict";
+const electron = require("electron");
+electron.contextBridge.exposeInMainWorld("ipcRenderer", {
+  on(channel, listener) {
+    electron.ipcRenderer.on(channel, listener);
+  },
+  off(channel, listener) {
+    electron.ipcRenderer.off(channel, listener);
+  },
+  invoke(channel, payload) {
+    return electron.ipcRenderer.invoke(channel, payload);
+  }
+});
+electron.contextBridge.exposeInMainWorld("electronWindow", {
+  minimize: () => electron.ipcRenderer.invoke("window:minimize"),
+  maximize: () => electron.ipcRenderer.invoke("window:maximize"),
+  close: () => electron.ipcRenderer.invoke("window:close")
+});
+electron.contextBridge.exposeInMainWorld("electronAPI", {
+  runRepoScan: (payload) => electron.ipcRenderer.invoke("scan:run", payload),
+  onScanProgress: (cb) => {
+    const listener = (_, data) => cb(data);
+    electron.ipcRenderer.on("scan:progress", listener);
+    return () => {
+      electron.ipcRenderer.off("scan:progress", listener);
+    };
+  },
+  llmQuery: (payload) => electron.ipcRenderer.invoke("llm:query", payload),
+  onLLMStream: (cb) => {
+    const listener = (_, data) => cb(data);
+    electron.ipcRenderer.on("llm:stream", listener);
+    return () => {
+      electron.ipcRenderer.off("llm:stream", listener);
+    };
+  }
+});

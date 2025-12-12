@@ -34,9 +34,7 @@ export default function App() {
           <Route
             path="/project/:id/security-scan"
             element={
-              <ProtectedRoute allowedRoles={["Admin","SecurityHead"]}>
                 <ProjectSecurityScanPage />
-              </ProtectedRoute>
             }
           />
 
@@ -44,9 +42,7 @@ export default function App() {
           <Route
             path="/project/:id/releases"
             element={
-              <ProtectedRoute allowedRoles={["Admin","ReleaseEngineer"]}>
                 <ProjectReleasePage />
-              </ProtectedRoute>
             }
           />
 

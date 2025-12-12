@@ -12,7 +12,8 @@ import {
   IconButton,
   Divider,
   Collapse,
-  CircularProgress
+  CircularProgress,
+  Tooltip
 } from "@mui/material";
 
 import SendIcon from "@mui/icons-material/Send";
@@ -23,12 +24,22 @@ import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowUp";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowDown";
 
 import { llmQuery, onLLMStream } from "../../services/securityService";
+import { useUserStore } from "../../store/userStore";
+import { authorizeApprove } from "../../services/projectService";
+import { Project } from "../../models/Project";
 
 interface Props {
+  project: Project
   dependencies: string[];
 }
 
-export default function DependencyAudit({ dependencies }: Props) {
+export default function DependencyAudit({ project, dependencies }: Props) {
+  const user = useUserStore((s) => s.user);
+  const isAuthorized = authorizeApprove(user, project);
+
+  const tooltip = isAuthorized
+    ? ""
+    : "You can view this page, but cannot perform any security review actions";
 
   const sessionId = "dependency-audit";
 
@@ -111,14 +122,19 @@ export default function DependencyAudit({ dependencies }: Props) {
         </Typography>
 
         <Stack direction="row" spacing={1}>
-          <Button
-            startIcon={<PlayArrowIcon />}
-            onClick={startAudit}
-            disabled={auditRunning || dependencies.length === 0}
-            variant="contained"
-          >
-            Run Audit
-          </Button>
+          <Tooltip title={tooltip}>
+            <span>
+              <Button
+                startIcon={<PlayArrowIcon />}
+                onClick={startAudit}
+                disabled={!isAuthorized || auditRunning || dependencies.length === 0}
+                variant="contained"
+              >
+                Run Audit
+              </Button>
+            </span>
+          </Tooltip>
+
 
           <IconButton onClick={() => setChatOpen(!chatOpen)}>
             {chatOpen ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
@@ -196,9 +212,14 @@ export default function DependencyAudit({ dependencies }: Props) {
               onChange={e => setInput(e.target.value)}
             />
 
-            <IconButton color="primary" onClick={send}>
-              <SendIcon />
-            </IconButton>
+            <Tooltip title={tooltip}>
+              <span>
+                <IconButton color="primary" onClick={send}>
+                  <SendIcon />
+                </IconButton>
+              </span>
+            </Tooltip>
+
 
           </Stack>
 

@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import {
   Box, Button, Container, Paper, Stack,
   Typography, Chip, Dialog, DialogTitle,
-  DialogContent, DialogActions
+  DialogContent, DialogActions,
+  Tooltip
 } from "@mui/material";
 
 import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
@@ -10,7 +11,7 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
 
 import { useParams, useNavigate } from "react-router-dom";
-import { getProjects } from "../services/projectService";
+import { authorizeApprove, getProjects } from "../services/projectService";
 import { useUserStore } from "../store/userStore";
 
 import RepoScanAccordion from "../components/security/RepoScanAccordion";
@@ -45,14 +46,15 @@ export default function ProjectSecurityScanPage() {
   if (!project) return null;
 
   /* ---------------- AUTH ---------------- */
-
-  const isAuthorized =
-    user?.role === "Admin" ||
-    project.securityHead === user?.id;
-
-  if (!isAuthorized) {
+  if (!user) {
     return <Typography color="error">Unauthorized</Typography>;
   }
+  const isAuthorized = authorizeApprove(user, project);
+
+  const tooltip = isAuthorized
+    ? ""
+    : "You can view this page, but cannot perform any security review actions";
+
 
   /* ---------------- WALLET ---------------- */
 
@@ -109,6 +111,7 @@ export default function ProjectSecurityScanPage() {
           {project.repos.map((repo, idx) => (
             <RepoScanAccordion
               key={`${repo.repoUrl}-${idx}`}
+              project={project}
               projectId={project.id}
               repoIndex={idx}
               repoUrl={repo.repoUrl}
@@ -119,6 +122,7 @@ export default function ProjectSecurityScanPage() {
         </Stack>
 
         <DependencyAudit
+          project={project}
           dependencies={project.dependencies ?? []}
         />
 
@@ -126,37 +130,51 @@ export default function ProjectSecurityScanPage() {
 
         <Paper sx={{ mt: 6, p: 3 }}>
           <Stack spacing={3} alignItems="center">
+            <Tooltip title={tooltip}>
+              <span>
+                <Button
+                  startIcon={<AccountBalanceWalletIcon />}
+                  onClick={connectWallet}
+                  disabled={!isAuthorized}
+                  variant="outlined"
+                >
+                  {wallet
+                    ? `Wallet: ${wallet.slice(0, 6)}...${wallet.slice(-4)}`
+                    : "Connect MetaMask"}
+                </Button>
+              </span>
+            </Tooltip>
 
-            <Button
-              startIcon={<AccountBalanceWalletIcon />}
-              onClick={connectWallet}
-              variant="outlined"
-            >
-              {wallet
-                ? `Wallet: ${wallet.slice(0, 6)}...${wallet.slice(-4)}`
-                : "Connect MetaMask"}
-            </Button>
 
             <Stack direction="row" spacing={3}>
-              <Button
-                color="success"
-                startIcon={<CheckCircleIcon />}
-                variant="contained"
-                disabled={!wallet}
-                onClick={() => handleDecision("approve")}
-              >
-                Approve
-              </Button>
+              <Tooltip title={tooltip}>
+                <span>
+                  <Button
+                    color="success"
+                    startIcon={<CheckCircleIcon />}
+                    variant="contained"
+                    disabled={!wallet || !isAuthorized}
+                    onClick={() => handleDecision("approve")}
+                  >
+                    Approve
+                  </Button>
+                </span>
+              </Tooltip>
 
-              <Button
-                color="error"
-                startIcon={<CancelIcon />}
-                variant="contained"
-                disabled={!wallet}
-                onClick={() => handleDecision("reject")}
-              >
-                Reject
-              </Button>
+              <Tooltip title={tooltip}>
+                <span>
+                  <Button
+                    color="error"
+                    startIcon={<CancelIcon />}
+                    variant="contained"
+                    disabled={!wallet || !isAuthorized}
+                    onClick={() => handleDecision("reject")}
+                  >
+                    Reject
+                  </Button>
+                </span>
+              </Tooltip>
+
             </Stack>
 
           </Stack>

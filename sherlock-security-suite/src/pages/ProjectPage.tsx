@@ -17,13 +17,15 @@ import ConfirmDialog from "../components/ConfirmDialog";
 import {
   getProjects,
   deleteProject,
-  updateStatus,
+  authorizeApprove,
+  authorizeRelease,
 } from "../services/projectService";
 
 import { Project } from "../models/Project";
 import { useToast } from "../components/ToastProvider";
 
 import AddIcon from "@mui/icons-material/Add";
+import { useUserStore } from "../store/userStore";
 
 const PAGE_SIZE = 6;
 
@@ -31,6 +33,7 @@ export default function ProjectPage() {
 
   const navigate = useNavigate();
   const toast = useToast();
+  const user = useUserStore((s) => s.user);
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [search, setSearch] = useState("");
@@ -99,16 +102,60 @@ export default function ProjectPage() {
   /* --------------------------------------------------- */
 
   function navigateToSecurityScan(projectId: string) {
-    console.log("hi sc")
+    alert("hi sc" + projectId)
     navigate(`/project/${projectId}/security-scan`);
   }
 
   function navigateToRelease(projectId: string) {
-    console.log("hi")
+    alert("hi")
     navigate(`/project/${projectId}/releases`);
   }
 
   /* --------------------------------------------------- */
+
+  function openSecurityScanClick(p: Project) {
+    const canScan = authorizeApprove(user, p);
+    // Case 1: Unauthorized user → show warning modal
+    if (!canScan) {
+      confirmAndExec(
+        "Restricted Access",
+        "You can view this page but are not authorized to run security scans or approve/reject. Security review actions can only be performed by Cyber-Security Head or an Admin.",
+        () => {
+          navigateToSecurityScan(p.id);
+        }
+      )
+    } else {
+      navigateToSecurityScan(p.id)
+    }
+  }
+  function openReleaseWorkflowClick(p: Project) {
+    const canRelease = authorizeRelease(user, p);
+    if (p.status !== "Approved") {
+      confirmAndExec(
+        "Release Restricted",
+        "Project is not yet Approved!",
+        () => {
+          return;
+        }
+      )
+    }
+
+    if (!canRelease) {
+      confirmAndExec(
+        "Restricted Access",
+        "You can view this page but are not authorized to make release. Release activity can only be performed by assigned Release Engineer or an Admin.",
+        () => {
+          navigateToRelease(p.id);
+        }
+      )
+    } else {
+      navigateToRelease(p.id);
+    }
+
+  }
+
+ /* --------------------------------------------------- */
+
 
   return (
     <Box sx={{ pt: 8, pb: 6, minHeight: "80vh" }}>
@@ -202,33 +249,9 @@ export default function ProjectPage() {
                 )
               }
 
-              onSecurityScan={() =>
-                confirmAndExec(
-                  "Security Scan",
-                  "Do you want to proceed for security-scan of this project?",
-                  () => {
-                    // updateStatus(p.id, "Approved", "system");
-                    // toast("Approved", "success");
-                    // load();
+              onSecurityScan={() =>openSecurityScanClick(p)}
 
-                    toast("Security Scan started", "success");
-                    navigateToSecurityScan(p.id);
-                  }
-                )
-              }
-
-              onRelease={() =>
-                confirmAndExec(
-                  "Start Release",
-                  "Proceed to release workflow for this project?",
-                  () => {
-                    updateStatus(p.id, "Released", "system");
-                    toast("Release workflow started", "success");
-
-                    navigateToRelease(p.id);
-                  }
-                )
-              }
+              onRelease={() => openReleaseWorkflowClick(p)}
             />
           ))}
         </Box>
