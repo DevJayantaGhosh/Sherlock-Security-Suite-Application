@@ -37,6 +37,70 @@ let projectDB: Project[] = [
       },
     ],
   },
+  {
+    id: "2",
+    name: "Sherlock App",
+    version: "1.2.0",
+    description:
+      "Automated threat detection and sandboxing engine.",
+    projectDirector: "u1",
+    securityHead: "u2",
+    releaseEngineers: ["u3"],
+    repos: [
+      {
+        repoUrl:
+          "https://github.com/DevJayantaGhosh/Sherlock-Security-Suite-Services.git",
+        branch: "main",
+        gpgKey: "",
+      },
+    ],
+    dependencies: ["Node", "Express", "Docker"],
+    createdBy: "u1",
+    createdAt: new Date().toISOString(),
+    status: "Pending",
+    history: [
+      {
+        status: "Pending",
+        by: "u1",
+        at: new Date().toISOString(),
+        note: "Created",
+      },
+    ],
+  },
+
+  {
+    id: "3",
+    name: "Fileupload App",
+    version: "1.2.0",
+    description:
+      "Automated threat detection and sandboxing engine.",
+    projectDirector: "u1",
+    securityHead: "u2",
+    releaseEngineers: ["u3"],
+    repos: [
+      {
+        repoUrl:
+          "https://github.com/DevJayantaGhosh/large-fileupload-poc.git",
+        branch: "main",
+        gpgKey: "",
+      },
+    ],
+    dependencies: ["Node", "Express", "Docker"],
+    createdBy: "u1",
+    createdAt: new Date().toISOString(),
+    status: "Pending",
+    history: [
+      {
+        status: "Pending",
+        by: "u1",
+        at: new Date().toISOString(),
+        note: "Created",
+      },
+    ],
+  },
+
+
+  
 ];
 
 /* ======================================================

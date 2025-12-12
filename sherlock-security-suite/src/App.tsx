@@ -34,7 +34,10 @@ export default function App() {
           <Route
             path="/project/:id/security-scan"
             element={
+              <ProtectedRoute>
                 <ProjectSecurityScanPage />
+              </ProtectedRoute>
+
             }
           />
 
