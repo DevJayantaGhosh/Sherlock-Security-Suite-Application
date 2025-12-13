@@ -1,3 +1,4 @@
+// electron/preload.ts
 import { ipcRenderer, contextBridge } from "electron";
 
 // --------- IPC Wrapper ----------
@@ -22,36 +23,35 @@ contextBridge.exposeInMainWorld("electronWindow", {
   close: () => ipcRenderer.invoke("window:close"),
 });
 
-// --------- SECURITY API ----------
+// --------- SECURITY SCAN API ----------
 contextBridge.exposeInMainWorld("electronAPI", {
-  runRepoScan: (payload: {
-    projectId: string;
-    repoIndex: number;
-    repoUrl: string;
-    branch: string;
-  }) =>
-    ipcRenderer.invoke("scan:run", payload),
-
-  onScanProgress: (cb: (p: any) => void) => {
-    const listener = (_: any, data: any) => cb(data);
-    ipcRenderer.on("scan:progress", listener);
-
-    // ✅ Unsubscribe FIX
-    return () => {
-      ipcRenderer.off("scan:progress", listener);
-    };
+  verifyGPG: (payload: { repoUrl: string; branch: string; scanId: string }) =>
+    ipcRenderer.invoke("scan:verify-gpg", payload),
+  
+  runGitleaks: (payload: { repoUrl: string; branch: string; scanId: string }) =>
+    ipcRenderer.invoke("scan:gitleaks", payload),
+  
+  runTrivy: (payload: { repoUrl: string; branch: string; scanId: string }) =>
+    ipcRenderer.invoke("scan:trivy", payload),
+  
+  runCodeQL: (payload: { repoUrl: string; branch: string; scanId: string }) =>
+    ipcRenderer.invoke("scan:codeql", payload),
+  
+  // ✅ Non-blocking cancel - returns immediately
+  cancelScan: (payload: { scanId: string }) => {
+    ipcRenderer.send("scan:cancel-async", payload);
+    return Promise.resolve({ cancelled: true });
   },
-
-  llmQuery: (payload: { sessionId: string; prompt: string }) =>
-    ipcRenderer.invoke("llm:query", payload),
-
-  onLLMStream: (cb: (d: any) => void) => {
-    const listener = (_: any, data: any) => cb(data);
-    ipcRenderer.on("llm:stream", listener);
-
-    // ✅ Unsubscribe FIX
-    return () => {
-      ipcRenderer.off("llm:stream", listener);
-    };
+  
+  onScanLog: (scanId: string, callback: (data: any) => void) => {
+    const channel = `scan-log:${scanId}`;
+    ipcRenderer.on(channel, (_event, data) => callback(data));
+    return () => ipcRenderer.removeAllListeners(channel);
+  },
+  
+  onScanComplete: (scanId: string, callback: (data: any) => void) => {
+    const channel = `scan-complete:${scanId}`;
+    ipcRenderer.on(channel, (_event, data) => callback(data));
+    return () => ipcRenderer.removeAllListeners(channel);
   },
 });
