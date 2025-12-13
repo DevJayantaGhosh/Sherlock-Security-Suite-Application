@@ -38,6 +38,17 @@ interface Window {
       findings?: number;
     }>;
 
+    runTrivy(payload: { 
+      repoUrl: string; 
+      branch: string; 
+      scanId: string 
+    }): Promise<{
+      success: boolean;
+      cancelled?: boolean;
+      error?: string;
+      vulnerabilities?: number;
+    }>;
+
     cancelScan(payload: { scanId: string }): Promise<{ cancelled: boolean }>;
 
     onScanLog(
@@ -55,6 +66,7 @@ interface Window {
         totalCommits?: number;
         goodSignatures?: number;
         findings?: number;
+        vulnerabilities?: number;
         error?: string;
       }) => void
     ): () => void;

@@ -10,6 +10,8 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
   verifyGPG: (payload) => electron.ipcRenderer.invoke("scan:verify-gpg", payload),
   // Gitleaks Scan
   runGitleaks: (payload) => electron.ipcRenderer.invoke("scan:gitleaks", payload),
+  // Trivy Scan
+  runTrivy: (payload) => electron.ipcRenderer.invoke("scan:trivy", payload),
   // Cancel scan
   cancelScan: (payload) => electron.ipcRenderer.invoke("scan:cancel", payload),
   // Listen to logs
