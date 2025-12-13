@@ -18,6 +18,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   runGitleaks: (payload: { repoUrl: string; branch: string; scanId: string }) =>
     ipcRenderer.invoke("scan:gitleaks", payload),
   
+  // Trivy Scan
+  runTrivy: (payload: { repoUrl: string; branch: string; scanId: string }) =>
+    ipcRenderer.invoke("scan:trivy", payload),
+  
   // Cancel scan
   cancelScan: (payload: { scanId: string }) =>
     ipcRenderer.invoke("scan:cancel", payload),

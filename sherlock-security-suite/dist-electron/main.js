@@ -450,6 +450,135 @@ Status            : ${findings > 0 ? "⚠️ SECRETS DETECTED" : "✅ CLEAN"}
       });
     });
   });
+  ipcMain.handle("scan:trivy", async (event, { repoUrl, branch, scanId }) => {
+    debugLog(`[TRIVY] Starting SBOM scan for ${repoUrl}`);
+    const trivyPath = validateTool("trivy");
+    if (!trivyPath) {
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `
+❌ Trivy tool not found
+   Expected: ${toolPath("trivy")}
+
+`,
+        progress: 0
+      });
+      event.sender.send(`scan-complete:${scanId}`, {
+        success: false,
+        error: "Tool not found"
+      });
+      return { success: false, error: "Tool not found" };
+    }
+    const repoPath = await cloneRepository(event, repoUrl, branch, scanId);
+    if (!repoPath) {
+      event.sender.send(`scan-complete:${scanId}`, {
+        success: false,
+        error: "Clone failed"
+      });
+      return { success: false, error: "Clone failed" };
+    }
+    return new Promise((resolve) => {
+      var _a, _b;
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `
+${"═".repeat(60)}
+🔍 TRIVY SBOM & VULNERABILITY SCAN
+${"═".repeat(60)}
+`,
+        progress: 55
+      });
+      const child = spawn(
+        trivyPath,
+        ["fs", "--security-checks", "vuln,config", "--format", "json", repoPath],
+        {
+          detached: true,
+          stdio: ["ignore", "pipe", "pipe"],
+          windowsHide: true
+        }
+      );
+      child.unref();
+      activeProcesses.set(scanId, child);
+      let jsonBuffer = "";
+      let cancelled = false;
+      (_a = child.stdout) == null ? void 0 : _a.on("data", (chunk) => {
+        if (cancelled) return;
+        jsonBuffer += chunk.toString();
+        event.sender.send(`scan-log:${scanId}`, {
+          log: "🔍 Analyzing dependencies and vulnerabilities...\n",
+          progress: 70
+        });
+      });
+      (_b = child.stderr) == null ? void 0 : _b.on("data", (data) => {
+        if (cancelled) return;
+        event.sender.send(`scan-log:${scanId}`, {
+          log: data.toString(),
+          progress: 85
+        });
+      });
+      child.on("close", (code) => {
+        var _a2;
+        activeProcesses.delete(scanId);
+        if (cancelled) {
+          resolve({ success: false, cancelled: true });
+          return;
+        }
+        if (code === 0) {
+          try {
+            const results = JSON.parse(jsonBuffer);
+            const vulns = ((_a2 = results.Results) == null ? void 0 : _a2.reduce(
+              (acc, r) => {
+                var _a3;
+                return acc + (((_a3 = r.Vulnerabilities) == null ? void 0 : _a3.length) || 0);
+              },
+              0
+            )) || 0;
+            const summary = `
+╔═══════════════════════════════════════════════════════════╗
+║                 TRIVY SBOM SUMMARY                        ║
+╚═══════════════════════════════════════════════════════════╝
+Vulnerabilities : ${vulns}
+Status          : ${vulns > 0 ? "⚠️ VULNERABILITIES DETECTED" : "✅ NO VULNERABILITIES"}
+`;
+            event.sender.send(`scan-log:${scanId}`, {
+              log: summary,
+              progress: 100
+            });
+            event.sender.send(`scan-complete:${scanId}`, {
+              success: true,
+              vulnerabilities: vulns
+            });
+            resolve({ success: true, vulnerabilities: vulns });
+          } catch (err) {
+            event.sender.send(`scan-complete:${scanId}`, {
+              success: false,
+              error: "Failed to parse Trivy results"
+            });
+            resolve({ success: false, error: "Failed to parse Trivy results" });
+          }
+        } else {
+          event.sender.send(`scan-complete:${scanId}`, {
+            success: false,
+            error: `Trivy exited with code ${code}`
+          });
+          resolve({ success: false, error: `Trivy exited with code ${code}` });
+        }
+      });
+      child.on("error", (err) => {
+        activeProcesses.delete(scanId);
+        event.sender.send(`scan-complete:${scanId}`, {
+          success: false,
+          error: err.message
+        });
+        resolve({ success: false, error: err.message });
+      });
+      ipcMain.once(`scan:cancel-${scanId}`, () => {
+        cancelled = true;
+        debugLog(`Cancelling Trivy scan: ${scanId}`);
+        killProcess(child, scanId);
+        activeProcesses.delete(scanId);
+        resolve({ success: false, cancelled: true });
+      });
+    });
+  });
   ipcMain.handle("scan:cancel", async (event, { scanId }) => {
     debugLog(`Cancel requested: ${scanId}`);
     return new Promise((resolve) => {
