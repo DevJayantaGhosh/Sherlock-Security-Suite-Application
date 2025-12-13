@@ -8,11 +8,10 @@ electron.contextBridge.exposeInMainWorld("electronWindow", {
 electron.contextBridge.exposeInMainWorld("electronAPI", {
   // GPG Verification
   verifyGPG: (payload) => electron.ipcRenderer.invoke("scan:verify-gpg", payload),
-  // Cancel scan (non-blocking)
-  cancelScan: (payload) => {
-    electron.ipcRenderer.send("scan:cancel-async", payload);
-    return Promise.resolve({ cancelled: true });
-  },
+  // Gitleaks Scan
+  runGitleaks: (payload) => electron.ipcRenderer.invoke("scan:gitleaks", payload),
+  // Cancel scan
+  cancelScan: (payload) => electron.ipcRenderer.invoke("scan:cancel", payload),
   // Listen to logs
   onScanLog: (scanId, callback) => {
     const channel = `scan-log:${scanId}`;

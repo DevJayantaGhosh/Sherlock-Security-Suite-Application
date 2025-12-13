@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { spawn } from "child_process";
 import fs from "fs/promises";
+import fsSync from "fs";
 const __dirname$1 = path.dirname(fileURLToPath(import.meta.url));
 process.env.APP_ROOT = path.join(__dirname$1, "..");
 const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
@@ -15,6 +16,45 @@ const activeProcesses = /* @__PURE__ */ new Map();
 const repoCache = /* @__PURE__ */ new Map();
 function debugLog(msg) {
   console.log(`[ELECTRON][${(/* @__PURE__ */ new Date()).toISOString()}] ${msg}`);
+}
+function getOsFolder() {
+  if (process.platform === "win32") return "win";
+  if (process.platform === "darwin") return "darwin";
+  return "linux";
+}
+function toolPath(tool) {
+  const ext = process.platform === "win32" ? ".exe" : "";
+  const toolFile = tool + ext;
+  return path.join(
+    process.env.APP_ROOT,
+    "tools",
+    getOsFolder(),
+    tool,
+    toolFile
+  );
+}
+function validateTool(tool) {
+  const fullPath = toolPath(tool);
+  if (!fsSync.existsSync(fullPath)) {
+    debugLog(`Tool not found: ${fullPath}`);
+    return null;
+  }
+  try {
+    fsSync.accessSync(fullPath, fsSync.constants.X_OK);
+  } catch (err) {
+    debugLog(`${tool} not executable: ${fullPath}`);
+    if (process.platform !== "win32") {
+      try {
+        fsSync.chmodSync(fullPath, 493);
+        debugLog(`Set execute permission on ${fullPath}`);
+      } catch (chmodErr) {
+        debugLog(`Failed to set permissions: ${chmodErr.message}`);
+        return null;
+      }
+    }
+  }
+  debugLog(`Found ${tool} at: ${fullPath}`);
+  return fullPath;
 }
 function killProcess(child, processId) {
   if (!child || !child.pid) {
@@ -299,20 +339,147 @@ Status           : ${code === 0 ? "✅ COMPLETE" : "❌ FAILED"}
       });
     });
   });
-  ipcMain.on("scan:cancel-async", (event, { scanId }) => {
+  ipcMain.handle("scan:gitleaks", async (event, { repoUrl, branch, scanId }) => {
+    debugLog(`[GITLEAKS] Starting scan for ${repoUrl}`);
+    const gitleaksPath = validateTool("gitleaks");
+    if (!gitleaksPath) {
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `
+❌ Gitleaks tool not found
+   Expected: ${toolPath("gitleaks")}
+
+`,
+        progress: 0
+      });
+      event.sender.send(`scan-complete:${scanId}`, {
+        success: false,
+        error: "Tool not found"
+      });
+      return { success: false, error: "Tool not found" };
+    }
+    const repoPath = await cloneRepository(event, repoUrl, branch, scanId);
+    if (!repoPath) {
+      event.sender.send(`scan-complete:${scanId}`, {
+        success: false,
+        error: "Clone failed"
+      });
+      return { success: false, error: "Clone failed" };
+    }
+    const reportPath = path.join(repoPath, "gitleaks-report.json");
+    return new Promise((resolve) => {
+      var _a, _b;
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `
+${"═".repeat(60)}
+🔍 GITLEAKS SECRETS SCAN
+${"═".repeat(60)}
+`,
+        progress: 55
+      });
+      const child = spawn(
+        gitleaksPath,
+        ["detect", "--source", repoPath, "--report-path", reportPath, "--verbose"],
+        {
+          detached: true,
+          stdio: ["ignore", "pipe", "pipe"],
+          windowsHide: true
+        }
+      );
+      child.unref();
+      activeProcesses.set(scanId, child);
+      let cancelled = false;
+      (_a = child.stdout) == null ? void 0 : _a.on("data", (data) => {
+        if (cancelled) return;
+        event.sender.send(`scan-log:${scanId}`, {
+          log: data.toString(),
+          progress: 70
+        });
+      });
+      (_b = child.stderr) == null ? void 0 : _b.on("data", (data) => {
+        if (cancelled) return;
+        event.sender.send(`scan-log:${scanId}`, {
+          log: data.toString(),
+          progress: 85
+        });
+      });
+      child.on("close", async (code) => {
+        activeProcesses.delete(scanId);
+        if (cancelled) {
+          resolve({ success: false, cancelled: true });
+          return;
+        }
+        let findings = 0;
+        if (fsSync.existsSync(reportPath)) {
+          try {
+            const report = JSON.parse(await fs.readFile(reportPath, "utf-8"));
+            findings = report.length || 0;
+          } catch {
+          }
+        }
+        const summary = `
+╔═══════════════════════════════════════════════════════════╗
+║                GITLEAKS SECRETS SUMMARY                   ║
+╚═══════════════════════════════════════════════════════════╝
+Potential Secrets : ${findings}
+Status            : ${findings > 0 ? "⚠️ SECRETS DETECTED" : "✅ CLEAN"}
+`;
+        event.sender.send(`scan-log:${scanId}`, {
+          log: summary,
+          progress: 100
+        });
+        event.sender.send(`scan-complete:${scanId}`, {
+          success: true,
+          findings
+        });
+        resolve({ success: true, findings });
+      });
+      child.on("error", (err) => {
+        activeProcesses.delete(scanId);
+        event.sender.send(`scan-complete:${scanId}`, {
+          success: false,
+          error: err.message
+        });
+        resolve({ success: false, error: err.message });
+      });
+      ipcMain.once(`scan:cancel-${scanId}`, () => {
+        cancelled = true;
+        debugLog(`Cancelling Gitleaks scan: ${scanId}`);
+        killProcess(child, scanId);
+        activeProcesses.delete(scanId);
+        resolve({ success: false, cancelled: true });
+      });
+    });
+  });
+  ipcMain.handle("scan:cancel", async (event, { scanId }) => {
     debugLog(`Cancel requested: ${scanId}`);
-    const child = activeProcesses.get(scanId);
-    if (child) {
-      killProcess(child, scanId);
-      activeProcesses.delete(scanId);
-    }
-    const cloneId = `${scanId}-clone`;
-    const cloneChild = activeProcesses.get(cloneId);
-    if (cloneChild) {
-      killProcess(cloneChild, cloneId);
-      activeProcesses.delete(cloneId);
-    }
-    ipcMain.emit(`scan:cancel-${scanId}`);
+    return new Promise((resolve) => {
+      let cleaned = false;
+      const child = activeProcesses.get(scanId);
+      if (child) {
+        debugLog(`Killing main process: ${scanId}`);
+        killProcess(child, scanId);
+        activeProcesses.delete(scanId);
+        cleaned = true;
+      }
+      const cloneId = `${scanId}-clone`;
+      const cloneChild = activeProcesses.get(cloneId);
+      if (cloneChild) {
+        debugLog(`Killing clone process: ${cloneId}`);
+        killProcess(cloneChild, cloneId);
+        activeProcesses.delete(cloneId);
+        cleaned = true;
+      }
+      ipcMain.emit(`scan:cancel-${scanId}`);
+      if (cleaned) {
+        setTimeout(() => {
+          debugLog(`Cancel complete: ${scanId}`);
+          resolve({ cancelled: true });
+        }, 500);
+      } else {
+        debugLog(`No active process found for: ${scanId}`);
+        resolve({ cancelled: false });
+      }
+    });
   });
   ipcMain.handle("window:minimize", () => win == null ? void 0 : win.minimize());
   ipcMain.handle(

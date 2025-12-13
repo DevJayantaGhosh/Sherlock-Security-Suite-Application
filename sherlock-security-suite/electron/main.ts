@@ -34,6 +34,57 @@ function debugLog(msg: string) {
 }
 
 /* ============================================================
+   TOOL PATHS
+============================================================ */
+function getOsFolder() {
+  if (process.platform === "win32") return "win";
+  if (process.platform === "darwin") return "darwin";
+  return "linux";
+}
+
+function toolPath(tool: "gitleaks"): string {
+  const ext = process.platform === "win32" ? ".exe" : "";
+  const toolFile = tool + ext;
+  return path.join(
+    process.env.APP_ROOT!,
+    "tools",
+    getOsFolder(),
+    tool,
+    toolFile
+  );
+}
+
+function validateTool(tool: "gitleaks"): string | null {
+  const fullPath = toolPath(tool);
+  
+  if (!fsSync.existsSync(fullPath)) {
+    debugLog(`Tool not found: ${fullPath}`);
+    return null;
+  }
+  
+  // Check file permissions
+  try {
+    fsSync.accessSync(fullPath, fsSync.constants.X_OK);
+  } catch (err: any) {
+    debugLog(`${tool} not executable: ${fullPath}`);
+    
+    // Try to fix permissions on Unix
+    if (process.platform !== "win32") {
+      try {
+        fsSync.chmodSync(fullPath, 0o755);
+        debugLog(`Set execute permission on ${fullPath}`);
+      } catch (chmodErr: any) {
+        debugLog(`Failed to set permissions: ${chmodErr.message}`);
+        return null;
+      }
+    }
+  }
+  
+  debugLog(`Found ${tool} at: ${fullPath}`);
+  return fullPath;
+}
+
+/* ============================================================
    KILL PROCESS
 ============================================================ */
 function killProcess(child: ChildProcess, processId: string) {
@@ -359,28 +410,173 @@ Status           : ${code === 0 ? "✅ COMPLETE" : "❌ FAILED"}
   });
 
   /* --------------------------------------------------------
+     GITLEAKS
+  -------------------------------------------------------- */
+  ipcMain.handle("scan:gitleaks", async (event, { repoUrl, branch, scanId }) => {
+    debugLog(`[GITLEAKS] Starting scan for ${repoUrl}`);
+    
+    const gitleaksPath = validateTool("gitleaks");
+    if (!gitleaksPath) {
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `\n❌ Gitleaks tool not found\n   Expected: ${toolPath("gitleaks")}\n\n`,
+        progress: 0,
+      });
+      
+      event.sender.send(`scan-complete:${scanId}`, {
+        success: false,
+        error: "Tool not found",
+      });
+      
+      return { success: false, error: "Tool not found" };
+    }
+    
+    // Clone repo first
+    const repoPath = await cloneRepository(event, repoUrl, branch, scanId);
+    if (!repoPath) {
+      event.sender.send(`scan-complete:${scanId}`, {
+        success: false,
+        error: "Clone failed",
+      });
+      return { success: false, error: "Clone failed" };
+    }
+
+    const reportPath = path.join(repoPath, "gitleaks-report.json");
+
+    return new Promise((resolve) => {
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `\n${"═".repeat(60)}\n🔍 GITLEAKS SECRETS SCAN\n${"═".repeat(60)}\n`,
+        progress: 55,
+      });
+
+      const child = spawn(
+        gitleaksPath,
+        ["detect", "--source", repoPath, "--report-path", reportPath, "--verbose"],
+        { 
+          detached: true, 
+          stdio: ["ignore", "pipe", "pipe"],
+          windowsHide: true,
+        }
+      );
+
+      child.unref();
+      activeProcesses.set(scanId, child);
+      
+      let cancelled = false;
+
+      child.stdout?.on("data", (data) => {
+        if (cancelled) return;
+        event.sender.send(`scan-log:${scanId}`, {
+          log: data.toString(),
+          progress: 70,
+        });
+      });
+
+      child.stderr?.on("data", (data) => {
+        if (cancelled) return;
+        event.sender.send(`scan-log:${scanId}`, {
+          log: data.toString(),
+          progress: 85,
+        });
+      });
+
+      child.on("close", async (code) => {
+        activeProcesses.delete(scanId);
+        
+        if (cancelled) {
+          resolve({ success: false, cancelled: true });
+          return;
+        }
+
+        let findings = 0;
+        if (fsSync.existsSync(reportPath)) {
+          try {
+            const report = JSON.parse(await fs.readFile(reportPath, "utf-8"));
+            findings = report.length || 0;
+          } catch {}
+        }
+
+        const summary = `
+╔═══════════════════════════════════════════════════════════╗
+║                GITLEAKS SECRETS SUMMARY                   ║
+╚═══════════════════════════════════════════════════════════╝
+Potential Secrets : ${findings}
+Status            : ${findings > 0 ? "⚠️ SECRETS DETECTED" : "✅ CLEAN"}
+`;
+
+        event.sender.send(`scan-log:${scanId}`, {
+          log: summary,
+          progress: 100,
+        });
+
+        event.sender.send(`scan-complete:${scanId}`, {
+          success: true,
+          findings,
+        });
+
+        resolve({ success: true, findings });
+      });
+
+      child.on("error", (err) => {
+        activeProcesses.delete(scanId);
+        event.sender.send(`scan-complete:${scanId}`, {
+          success: false,
+          error: err.message,
+        });
+        resolve({ success: false, error: err.message });
+      });
+
+      // Cancel handler
+      ipcMain.once(`scan:cancel-${scanId}`, () => {
+        cancelled = true;
+        debugLog(`Cancelling Gitleaks scan: ${scanId}`);
+        killProcess(child, scanId);
+        activeProcesses.delete(scanId);
+        resolve({ success: false, cancelled: true });
+      });
+    });
+  });
+
+  /* --------------------------------------------------------
      CANCEL HANDLER
   -------------------------------------------------------- */
-  ipcMain.on("scan:cancel-async", (event, { scanId }) => {
+  ipcMain.handle("scan:cancel", async (event, { scanId }) => {
     debugLog(`Cancel requested: ${scanId}`);
     
-    // Cancel main process
-    const child = activeProcesses.get(scanId);
-    if (child) {
-      killProcess(child, scanId);
-      activeProcesses.delete(scanId);
-    }
-    
-    // Cancel clone process
-    const cloneId = `${scanId}-clone`;
-    const cloneChild = activeProcesses.get(cloneId);
-    if (cloneChild) {
-      killProcess(cloneChild, cloneId);
-      activeProcesses.delete(cloneId);
-    }
-    
-    // Emit cancel events
-    ipcMain.emit(`scan:cancel-${scanId}`);
+    return new Promise<{ cancelled: boolean }>((resolve) => {
+      let cleaned = false;
+      
+      // Cancel main process
+      const child = activeProcesses.get(scanId);
+      if (child) {
+        debugLog(`Killing main process: ${scanId}`);
+        killProcess(child, scanId);
+        activeProcesses.delete(scanId);
+        cleaned = true;
+      }
+      
+      // Cancel clone process
+      const cloneId = `${scanId}-clone`;
+      const cloneChild = activeProcesses.get(cloneId);
+      if (cloneChild) {
+        debugLog(`Killing clone process: ${cloneId}`);
+        killProcess(cloneChild, cloneId);
+        activeProcesses.delete(cloneId);
+        cleaned = true;
+      }
+      
+      // Emit cancel events
+      ipcMain.emit(`scan:cancel-${scanId}`);
+      
+      if (cleaned) {
+        setTimeout(() => {
+          debugLog(`Cancel complete: ${scanId}`);
+          resolve({ cancelled: true });
+        }, 500);
+      } else {
+        debugLog(`No active process found for: ${scanId}`);
+        resolve({ cancelled: false });
+      }
+    });
   });
 
   /* --------------------------------------------------------
@@ -441,13 +637,11 @@ function createWindow() {
     splash = null;
     win?.show();
     
-    // Open DevTools in development
     if (VITE_DEV_SERVER_URL) {
       win?.webContents.openDevTools({ mode: "detach" });
     }
   });
   
-  // F12 to toggle DevTools
   win.webContents.on("before-input-event", (event, input) => {
     if (input.type === "keyDown") {
       if (input.key === "F12" || (input.control && input.shift && input.key === "I")) {
