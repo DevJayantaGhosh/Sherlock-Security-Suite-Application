@@ -14,11 +14,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
   verifyGPG: (payload: { repoUrl: string; branch: string; scanId: string }) =>
     ipcRenderer.invoke("scan:verify-gpg", payload),
   
-  // Cancel scan (non-blocking)
-  cancelScan: (payload: { scanId: string }) => {
-    ipcRenderer.send("scan:cancel-async", payload);
-    return Promise.resolve({ cancelled: true });
-  },
+  // Gitleaks Scan
+  runGitleaks: (payload: { repoUrl: string; branch: string; scanId: string }) =>
+    ipcRenderer.invoke("scan:gitleaks", payload),
+  
+  // Cancel scan
+  cancelScan: (payload: { scanId: string }) =>
+    ipcRenderer.invoke("scan:cancel", payload),
   
   // Listen to logs
   onScanLog: (scanId: string, callback: (data: any) => void) => {
