@@ -17,20 +17,23 @@ electron.contextBridge.exposeInMainWorld("electronWindow", {
   close: () => electron.ipcRenderer.invoke("window:close")
 });
 electron.contextBridge.exposeInMainWorld("electronAPI", {
-  runRepoScan: (payload) => electron.ipcRenderer.invoke("scan:run", payload),
-  onScanProgress: (cb) => {
-    const listener = (_, data) => cb(data);
-    electron.ipcRenderer.on("scan:progress", listener);
-    return () => {
-      electron.ipcRenderer.off("scan:progress", listener);
-    };
+  verifyGPG: (payload) => electron.ipcRenderer.invoke("scan:verify-gpg", payload),
+  runGitleaks: (payload) => electron.ipcRenderer.invoke("scan:gitleaks", payload),
+  runTrivy: (payload) => electron.ipcRenderer.invoke("scan:trivy", payload),
+  runCodeQL: (payload) => electron.ipcRenderer.invoke("scan:codeql", payload),
+  // ✅ Non-blocking cancel - returns immediately
+  cancelScan: (payload) => {
+    electron.ipcRenderer.send("scan:cancel-async", payload);
+    return Promise.resolve({ cancelled: true });
   },
-  llmQuery: (payload) => electron.ipcRenderer.invoke("llm:query", payload),
-  onLLMStream: (cb) => {
-    const listener = (_, data) => cb(data);
-    electron.ipcRenderer.on("llm:stream", listener);
-    return () => {
-      electron.ipcRenderer.off("llm:stream", listener);
-    };
+  onScanLog: (scanId, callback) => {
+    const channel = `scan-log:${scanId}`;
+    electron.ipcRenderer.on(channel, (_event, data) => callback(data));
+    return () => electron.ipcRenderer.removeAllListeners(channel);
+  },
+  onScanComplete: (scanId, callback) => {
+    const channel = `scan-complete:${scanId}`;
+    electron.ipcRenderer.on(channel, (_event, data) => callback(data));
+    return () => electron.ipcRenderer.removeAllListeners(channel);
   }
 });

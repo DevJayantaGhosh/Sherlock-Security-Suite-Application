@@ -8,26 +8,10 @@ declare namespace NodeJS {
 }
 
 interface Window {
-  electronAPI: {
-    runRepoScan: (payload: {
-      projectId: string;
-      repoIndex: number;
-      repoUrl: string;
-      branch: string;
-    }) => Promise<{ ok: boolean }>;
-
-    onScanProgress: (
-      cb: (data: any) => void
-    ) => () => void;
-
-    llmQuery: (payload: {
-      sessionId: string;
-      prompt: string;
-    }) => Promise<any>;
-
-    onLLMStream: (
-      cb: (data: any) => void
-    ) => () => void;
+  ipcRenderer: {
+    on(channel: string, fn: (...args: any[]) => void): void;
+    off(channel: string, fn: (...args: any[]) => void): void;
+    invoke(channel: string, payload?: any): Promise<any>;
   };
 
   electronWindow: {
@@ -36,9 +20,77 @@ interface Window {
     close(): void;
   };
 
-  ipcRenderer: {
-    on(channel: string, fn: (...args: any[]) => void): void;
-    off(channel: string, fn: (...args: any[]) => void): void;
-    invoke(channel: string, payload?: any): Promise<any>;
+  electronAPI: {
+    verifyGPG(payload: { 
+      repoUrl: string; 
+      branch: string; 
+      scanId: string 
+    }): Promise<{
+      success: boolean;
+      cancelled?: boolean;
+      error?: string;
+      totalCommits?: number;
+      goodSignatures?: number;
+    }>;
+
+    runGitleaks(payload: { 
+      repoUrl: string; 
+      branch: string; 
+      scanId: string 
+    }): Promise<{
+      success: boolean;
+      cancelled?: boolean;
+      error?: string;
+      findings?: number;
+    }>;
+
+    runTrivy(payload: { 
+      repoUrl: string; 
+      branch: string; 
+      scanId: string 
+    }): Promise<{
+      success: boolean;
+      cancelled?: boolean;
+      error?: string;
+      vulns?: number;
+    }>;
+
+    runCodeQL(payload: { 
+      repoUrl: string; 
+      branch: string; 
+      scanId: string 
+    }): Promise<{
+      success: boolean;
+      cancelled?: boolean;
+      error?: string;
+    }>;
+
+    // ✅ Non-blocking - returns immediately
+    cancelScan(payload: { scanId: string }): Promise<{ cancelled: boolean }>;
+
+    onScanLog(
+      scanId: string,
+      callback: (data: {
+        tool: string;
+        log: string;
+        progress: number;
+        repoUrl?: string;
+        step?: string;
+      }) => void
+    ): () => void;
+
+    onScanComplete(
+      scanId: string,
+      callback: (data: {
+        tool: string;
+        success: boolean;
+        findings?: number;
+        vulns?: number;
+        totalCommits?: number;
+        goodSignatures?: number;
+        repoUrl?: string;
+        step?: string;
+      }) => void
+    ): () => void;
   };
 }

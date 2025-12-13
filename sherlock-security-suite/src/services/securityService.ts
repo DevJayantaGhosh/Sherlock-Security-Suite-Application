@@ -5,25 +5,6 @@ export type ScanProgress = {
   logs: string[];
 };
 
-export function runRepoScan(
-  projectId: string,
-  repoIndex: number,
-  repoUrl: string,
-  branch: string
-) {
-  return window.electronAPI.runRepoScan({
-    projectId,
-    repoIndex,
-    repoUrl,
-    branch,
-  });
-}
-
-export function onScanProgress(cb: (p: ScanProgress) => void): () => void {
-  return window.electronAPI.onScanProgress(cb);
-}
-
-// ----- LLM -----
 
 export type LLMStreamChunk = {
   sessionId: string;
@@ -31,12 +12,16 @@ export type LLMStreamChunk = {
   done: boolean;
 };
 
-export function llmQuery(sessionId: string, prompt: string) {
-  return window.electronAPI.llmQuery({ sessionId, prompt });
+export async function llmQuery(sessionId: string, prompt: string) {
+  return fetch("/api/llm", {
+    method: "POST",
+    body: JSON.stringify({ sessionId, prompt }),
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
-export function onLLMStream(
-  cb: (d: LLMStreamChunk) => void
-): () => void {
-  return window.electronAPI.onLLMStream(cb);
+export function onLLMStream(cb: (d: LLMStreamChunk) => void) {
+  const es = new EventSource("/api/llm/stream");
+  es.onmessage = e => cb(JSON.parse(e.data));
+  return () => es.close();
 }
