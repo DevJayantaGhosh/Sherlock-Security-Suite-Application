@@ -1,6 +1,5 @@
 // src/components/security/RepoScanAccordion.tsx
-import { useEffect, useRef, useState, useCallback } from "react";
-import { useLocation } from "react-router-dom";
+import { useState, useRef, useEffect } from "react";
 import {
   Accordion,
   AccordionSummary,
@@ -8,71 +7,30 @@ import {
   Box,
   Button,
   Stack,
-  Stepper,
-  Step,
-  StepLabel,
   Typography,
-  Divider,
-  Collapse,
-  CircularProgress,
-  Paper,
-  IconButton,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
   LinearProgress,
-  Snackbar,
   Alert,
+  IconButton,
+  CircularProgress,
 } from "@mui/material";
 
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
-import ReplayIcon from "@mui/icons-material/Replay";
 import DownloadIcon from "@mui/icons-material/Download";
-import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
-import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
+import CloseIcon from "@mui/icons-material/Close";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
-import VisibilityIcon from "@mui/icons-material/Visibility";
 
 import { Project } from "../../models/Project";
 import { useUserStore } from "../../store/userStore";
 import { authorizeApprove } from "../../services/projectService";
 
-type StepStatus = "idle" | "running" | "success" | "failed";
-
-export const ALL_STEPS = [
-  { id: "verify-gpg", label: "GPG Signature Verification" },
-  { id: "gitleaks", label: "Secrets Scan – Gitleaks" },
-  { id: "sbom-trivy", label: "SBOM Scan – Trivy" },
-  { id: "sast-codeql", label: "SAST – CodeQL" },
-];
-
-function StepIcon({ state, idx }: { state: StepStatus; idx: number }) {
-  if (state === "running") return <CircularProgress size={18} />;
-  if (state === "success") return <CheckCircleIcon color="success" fontSize="small" />;
-  if (state === "failed") return <ErrorIcon color="error" fontSize="small" />;
-
-  return (
-    <Box
-      sx={{
-        width: 22,
-        height: 22,
-        borderRadius: "50%",
-        border: "1px solid #7c3aed",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontSize: 12,
-        color: "#7c3aed",
-      }}
-    >
-      {idx + 1}
-    </Box>
-  );
-}
+type ScanStatus = "idle" | "running" | "success" | "failed";
 
 export default function RepoScanAccordion({
   project,
@@ -85,507 +43,410 @@ export default function RepoScanAccordion({
 }) {
   const user = useUserStore((s) => s.user);
   const isAuthorized = authorizeApprove(user, project);
-  const location = useLocation();
+  const logEndRef = useRef<HTMLDivElement>(null);
 
-  // Refs
-  const scanIdsRef = useRef<Record<string, string>>({});
-  const cleanupFunctionsRef = useRef<Record<string, (() => void)[]>>({});
-  const isMountedRef = useRef(true);
-  
+  // Refs for cleanup
+  const scanIdRef = useRef<string | null>(null);
+  const logCleanupRef = useRef<(() => void) | null>(null);
+  const completeCleanupRef = useRef<(() => void) | null>(null);
+
   // State
-  const [statuses, setStatuses] = useState<Record<string, StepStatus>>(
-    Object.fromEntries(ALL_STEPS.map((s) => [s.id, "idle"]))
-  );
-  const [logs, setLogs] = useState<Record<string, string[]>>({});
-  const [progress, setProgress] = useState<Record<string, number>>({});
-  const [expanded, setExpanded] = useState<Record<string, boolean>>(
-    Object.fromEntries(ALL_STEPS.map((s) => [s.id, true]))
-  );
-  
+  const [status, setStatus] = useState<ScanStatus>("idle");
+  const [logs, setLogs] = useState<string[]>([]);
+  const [progress, setProgress] = useState(0);
+  const [result, setResult] = useState<{
+    totalCommits?: number;
+    goodSignatures?: number;
+  } | null>(null);
+
   const [modalOpen, setModalOpen] = useState(false);
-  const [modalStep, setModalStep] = useState<string | null>(null);
-  const [showCancelToast, setShowCancelToast] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
 
-  // ✅ Non-blocking cleanup
-  const cleanupAllScans = useCallback(() => {
-    console.log("[CLEANUP] Starting cleanup");
-    
-    isMountedRef.current = false;
-    
-    // Show brief notification if there are active scans
-    const hasActiveScans = Object.values(statuses).some(s => s === "running");
-    if (hasActiveScans) {
-      setShowCancelToast(true);
-      setTimeout(() => setShowCancelToast(false), 500);
+  // Auto-scroll logs
+  useEffect(() => {
+    if (modalOpen && logs.length > 0) {
+      setTimeout(() => {
+        logEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
     }
-    
-    // Cancel all scans (fire and forget - non-blocking)
-    Object.entries(scanIdsRef.current).forEach(([stepId, scanId]) => {
-      console.log(`[CLEANUP] Cancelling ${stepId}: ${scanId}`);
-      window.electronAPI.cancelScan({ scanId }); // Returns immediately
-    });
-
-    // Cleanup listeners
-    Object.entries(cleanupFunctionsRef.current).forEach(([stepId, cleanups]) => {
-      cleanups.forEach((cleanup) => {
-        try {
-          cleanup();
-        } catch (err) {
-          console.error(`[CLEANUP] Error cleaning ${stepId}:`, err);
-        }
-      });
-    });
-
-    // Clear refs
-    cleanupFunctionsRef.current = {};
-    scanIdsRef.current = {};
-    
-    console.log("[CLEANUP] Cleanup complete");
-  }, [statuses]);
+  }, [logs, modalOpen]);
 
   // Cleanup on unmount
   useEffect(() => {
-    console.log(`[MOUNT] RepoScanAccordion mounted for ${repoUrl}`);
-    isMountedRef.current = true;
-    
     return () => {
-      console.log(`[UNMOUNT] RepoScanAccordion unmounting for ${repoUrl}`);
-      cleanupAllScans();
+      // Cleanup listeners
+      if (logCleanupRef.current) logCleanupRef.current();
+      if (completeCleanupRef.current) completeCleanupRef.current();
+
+      // Cancel active scan
+      if (scanIdRef.current) {
+        window.electronAPI.cancelScan({ scanId: scanIdRef.current });
+      }
     };
-  }, [repoUrl, cleanupAllScans]);
-
-  // Cleanup on route change
-  useEffect(() => {
-    console.log(`[ROUTE] Current route: ${location.pathname}`);
-    
-    return () => {
-      console.log(`[ROUTE] Leaving route: ${location.pathname}`);
-      cleanupAllScans();
-    };
-  }, [location.pathname, cleanupAllScans]);
-
-  // Cancel individual step
-  const cancelStep = useCallback(async (stepId: string) => {
-    const scanId = scanIdsRef.current[stepId];
-    if (!scanId) {
-      console.log(`[CANCEL] No scanId for ${stepId}`);
-      return;
-    }
-
-    console.log(`[CANCEL] Cancelling step: ${stepId} (${scanId})`);
-    
-    // Update UI immediately
-    if (isMountedRef.current) {
-      setStatuses((prev) => ({ ...prev, [stepId]: "failed" }));
-      setLogs((prev) => ({
-        ...prev,
-        [stepId]: [...(prev[stepId] || []), "\n❌ Cancelled by user\n"],
-      }));
-    }
-    
-    // Cancel scan (non-blocking)
-    await window.electronAPI.cancelScan({ scanId });
-    
-    // Cleanup
-    cleanupFunctionsRef.current[stepId]?.forEach((cleanup) => cleanup());
-    delete cleanupFunctionsRef.current[stepId];
-    delete scanIdsRef.current[stepId];
   }, []);
 
-  // Run step
-  const runStep = useCallback(async (stepId: string, showModal: boolean = false) => {
-    if (!isAuthorized || !isMountedRef.current) {
-      console.log(`[RUN] Blocked - authorized: ${isAuthorized}, mounted: ${isMountedRef.current}`);
-      return;
-    }
+  // Run GPG verification
+  async function runGPGVerification() {
+    if (!isAuthorized) return;
 
-    console.log(`[RUN] Starting ${stepId}, showModal: ${showModal}`);
-
-    // Cancel previous scan if running
-    if (statuses[stepId] === "running") {
-      await cancelStep(stepId);
-      // Small delay to allow cleanup
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
+    console.log("[RUN] Starting GPG verification");
 
     const scanId = crypto.randomUUID();
-    scanIdsRef.current[stepId] = scanId;
+    scanIdRef.current = scanId;
 
-    console.log(`[RUN] Scan ID for ${stepId}: ${scanId}`);
-
-    setLogs((prev) => ({ ...prev, [stepId]: [] }));
-    setProgress((prev) => ({ ...prev, [stepId]: 0 }));
-    setStatuses((prev) => ({ ...prev, [stepId]: "running" }));
-
-    if (showModal) {
-      setModalStep(stepId);
-      setModalOpen(true);
-    }
+    // Reset state
+    setLogs([]);
+    setProgress(0);
+    setStatus("running");
+    setResult(null);
+    setModalOpen(true);
 
     // Subscribe to logs
     const logCleanup = window.electronAPI.onScanLog(scanId, (data) => {
-      if (!isMountedRef.current) {
-        console.log(`[LOG] Ignoring log for ${scanId} - unmounted`);
-        return;
-      }
-      
-      setLogs((prev) => ({
-        ...prev,
-        [stepId]: [...(prev[stepId] || []), data.log],
-      }));
-      setProgress((prev) => ({ 
-        ...prev, 
-        [stepId]: data.progress || 0 
-      }));
+      setLogs((prev) => [...prev, data.log]);
+      setProgress(data.progress || 0);
     });
+    logCleanupRef.current = logCleanup;
 
     // Subscribe to completion
     const completeCleanup = window.electronAPI.onScanComplete(scanId, (data) => {
-      if (!isMountedRef.current) {
-        console.log(`[COMPLETE] Ignoring complete for ${scanId} - unmounted`);
-        return;
-      }
-      
-      console.log(`[COMPLETE] Scan complete for ${stepId}:`, data);
-      
-      setStatuses((prev) => ({
-        ...prev,
-        [stepId]: data.success ? "success" : "failed",
-      }));
-      setProgress((prev) => ({ ...prev, [stepId]: 100 }));
+      console.log("[COMPLETE] Scan complete", data);
 
-      // Cleanup after delay
-      setTimeout(() => {
-        logCleanup();
-        completeCleanup();
-        delete cleanupFunctionsRef.current[stepId];
-        delete scanIdsRef.current[stepId];
-      }, 100);
+      setStatus(data.success ? "success" : "failed");
+      setProgress(100);
+
+      if (data.totalCommits !== undefined) {
+        setResult({
+          totalCommits: data.totalCommits,
+          goodSignatures: data.goodSignatures,
+        });
+      }
+
+      // Cleanup listeners
+      if (logCleanupRef.current) logCleanupRef.current();
+      if (completeCleanupRef.current) completeCleanupRef.current();
+      logCleanupRef.current = null;
+      completeCleanupRef.current = null;
+      scanIdRef.current = null;
     });
+    completeCleanupRef.current = completeCleanup;
 
-    // Store cleanup functions
-    cleanupFunctionsRef.current[stepId] = [logCleanup, completeCleanup];
-
-    // Run scan
+    // Call Electron API
     try {
-      let result;
-      switch (stepId) {
-        case "verify-gpg":
-          result = await window.electronAPI.verifyGPG({ repoUrl, branch, scanId });
-          break;
-        case "gitleaks":
-          result = await window.electronAPI.runGitleaks({ repoUrl, branch, scanId });
-          break;
-        case "sbom-trivy":
-          result = await window.electronAPI.runTrivy({ repoUrl, branch, scanId });
-          break;
-        case "sast-codeql":
-          result = await window.electronAPI.runCodeQL({ repoUrl, branch, scanId });
-          break;
-      }
+      const result = await window.electronAPI.verifyGPG({
+        repoUrl,
+        branch,
+        scanId,
+      });
 
-      console.log(`[RUN] Scan result for ${stepId}:`, result);
-
-      if (result?.cancelled && isMountedRef.current) {
-        setStatuses((prev) => ({ ...prev, [stepId]: "failed" }));
-        setLogs((prev) => ({
-          ...prev,
-          [stepId]: [...(prev[stepId] || []), "\n❌ Scan was cancelled\n"],
-        }));
+      if (result?.cancelled) {
+        setStatus("failed");
+        setLogs((prev) => [...prev, "\n❌ Scan was cancelled\n"]);
       }
     } catch (err: any) {
-      console.error(`[RUN] Scan ${stepId} failed:`, err);
-      
-      if (isMountedRef.current) {
-        setStatuses((prev) => ({ ...prev, [stepId]: "failed" }));
-        setLogs((prev) => ({
-          ...prev,
-          [stepId]: [...(prev[stepId] || []), `\n❌ Error: ${err.message}\n`],
-        }));
-      }
+      console.error("[RUN] Error:", err);
+      setStatus("failed");
+      setLogs((prev) => [...prev, `\n❌ Error: ${err.message}\n`]);
     }
-  }, [isAuthorized, statuses, repoUrl, branch, cancelStep]);
+  }
+
+  // Cancel scan
+  async function cancelScan() {
+    if (!scanIdRef.current) return;
+
+    console.log("[CANCEL] Cancelling scan");
+    setIsCancelling(true);
+    setLogs((prev) => [...prev, "\n⏳ Cancelling scan...\n"]);
+
+    try {
+      const result = await window.electronAPI.cancelScan({
+        scanId: scanIdRef.current,
+      });
+
+      console.log("[CANCEL] Result:", result);
+
+      if (result.cancelled) {
+        setStatus("failed");
+        setLogs((prev) => [...prev, "✅ Scan cancelled successfully\n"]);
+      } else {
+        setLogs((prev) => [...prev, "⚠️ No active scan found\n"]);
+      }
+    } catch (err: any) {
+      console.error("[CANCEL] Error:", err);
+      setLogs((prev) => [...prev, `❌ Cancel error: ${err.message}\n`]);
+    } finally {
+      // Cleanup listeners
+      if (logCleanupRef.current) logCleanupRef.current();
+      if (completeCleanupRef.current) completeCleanupRef.current();
+      logCleanupRef.current = null;
+      completeCleanupRef.current = null;
+      scanIdRef.current = null;
+
+      setIsCancelling(false);
+
+      // Close modal after cancel
+      setTimeout(() => {
+        setModalOpen(false);
+      }, 800);
+    }
+  }
 
   // Download logs
-  function downloadStep(stepId: string) {
-    const logText = (logs[stepId] || []).join("");
+  function downloadLogs() {
+    const logText = logs.join("");
     const blob = new Blob([logText], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${stepId}-${Date.now()}.log`;
+    a.download = `gpg-verification-${Date.now()}.log`;
     a.click();
     URL.revokeObjectURL(url);
   }
 
-  const currentModalStep = modalStep ? ALL_STEPS.find(s => s.id === modalStep) : null;
+  const isRunning = status === "running";
+  const canClose = !isRunning && !isCancelling;
 
   return (
     <>
+      {/* Accordion */}
       <Accordion defaultExpanded>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Stack width="100%" spacing={1}>
             <Typography textAlign="center" fontWeight={700} fontSize={18}>
-              Security Scanning of Repository
+              GPG Signature Verification
             </Typography>
-
-            <Stepper alternativeLabel activeStep={-1}>
-              {ALL_STEPS.map((s, i) => (
-                <Step key={s.id}>
-                  <StepLabel icon={<StepIcon state={statuses[s.id]} idx={i} />}>
-                    {s.label}
-                  </StepLabel>
-                </Step>
-              ))}
-            </Stepper>
+            <Typography
+              textAlign="center"
+              variant="body2"
+              color="text.secondary"
+            >
+              {repoUrl} • {branch}
+            </Typography>
           </Stack>
         </AccordionSummary>
 
         <AccordionDetails>
-          <Stack spacing={2}>
-            {ALL_STEPS.map((s) => (
-              <Box key={s.id}>
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <Typography fontWeight={600}>{s.label}</Typography>
-                    {statuses[s.id] === "running" && (
-                      <Typography variant="caption" color="primary">
-                        {progress[s.id] || 0}%
-                      </Typography>
-                    )}
-                    {statuses[s.id] === "success" && (
-                      <Typography variant="caption" color="success.main">
-                        Complete
-                      </Typography>
-                    )}
-                    {statuses[s.id] === "failed" && (
-                      <Typography variant="caption" color="error.main">
-                        Failed
-                      </Typography>
-                    )}
-                  </Stack>
+          <Stack spacing={3}>
+            {/* Status Row */}
+            <Stack
+              direction="row"
+              justifyContent="space-between"
+              alignItems="center"
+            >
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Typography fontWeight={600}>Status:</Typography>
 
-                  <Stack direction="row" spacing={1}>
-                    {/* Run Button */}
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      startIcon={<PlayArrowIcon />}
-                      disabled={!isAuthorized || statuses[s.id] === "running"}
-                      onClick={() => runStep(s.id, false)}
-                    >
-                      Run
-                    </Button>
-
-                    {/* View in Modal Button */}
-                    <IconButton
-                      size="small"
-                      color="primary"
-                      onClick={() => {
-                        if (statuses[s.id] === "running") {
-                          setModalStep(s.id);
-                          setModalOpen(true);
-                        } else {
-                          runStep(s.id, true);
-                        }
-                      }}
-                      disabled={!isAuthorized}
-                      title="View in modal"
-                    >
-                      <VisibilityIcon fontSize="small" />
-                    </IconButton>
-
-                    {/* Cancel Button */}
-                    {statuses[s.id] === "running" && (
-                      <Button
-                        size="small"
-                        color="error"
-                        startIcon={<CancelIcon />}
-                        onClick={() => cancelStep(s.id)}
-                      >
-                        Cancel
-                      </Button>
-                    )}
-
-                    {/* Retry Button */}
-                    {statuses[s.id] === "failed" && (
-                      <Button
-                        size="small"
-                        startIcon={<ReplayIcon />}
-                        onClick={() => runStep(s.id, false)}
-                      >
-                        Retry
-                      </Button>
-                    )}
-
-                    {/* Download Logs */}
-                    <Button
-                      size="small"
-                      startIcon={<DownloadIcon />}
-                      onClick={() => downloadStep(s.id)}
-                      disabled={!logs[s.id]?.length}
-                    >
-                      Logs
-                    </Button>
-
-                    {/* Expand/Collapse */}
-                    <IconButton
-                      size="small"
-                      onClick={() =>
-                        setExpanded((p) => ({ ...p, [s.id]: !p[s.id] }))
-                      }
-                    >
-                      {expanded[s.id] ? (
-                        <KeyboardArrowUpIcon />
-                      ) : (
-                        <KeyboardArrowDownIcon />
-                      )}
-                    </IconButton>
-                  </Stack>
-                </Stack>
-
-                {/* Progress Bar */}
-                {statuses[s.id] === "running" && (
-                  <LinearProgress
-                    variant="determinate"
-                    value={progress[s.id] || 0}
-                    sx={{ mt: 1 }}
-                  />
+                {status === "idle" && (
+                  <Typography variant="body2" color="text.secondary">
+                    Ready to run
+                  </Typography>
                 )}
 
-                {/* Inline Logs */}
-                <Collapse in={expanded[s.id]}>
-                  <Paper
-                    sx={{
-                      p: 2,
-                      mt: 1,
-                      maxHeight: 300,
-                      overflow: "auto",
-                      fontFamily: "JetBrains Mono, monospace",
-                      fontSize: 12,
-                      backgroundColor: "#0a0a0a",
-                      color: "#00ff00",
-                      border: "1px solid #333",
-                    }}
-                  >
-                    {logs[s.id]?.length > 0 ? (
-                      logs[s.id].map((log, i) => (
-                        <Typography
-                          key={i}
-                          component="pre"
-                          sx={{
-                            margin: 0,
-                            fontFamily: "inherit",
-                            fontSize: "inherit",
-                            whiteSpace: "pre-wrap",
-                            wordBreak: "break-word",
-                          }}
-                        >
-                          {log}
-                        </Typography>
-                      ))
-                    ) : (
-                      <Typography color="text.secondary" fontStyle="italic">
-                        No logs yet. Click "Run" to start the scan.
-                      </Typography>
-                    )}
-                  </Paper>
-                </Collapse>
+                {status === "running" && (
+                  <>
+                    <CircularProgress size={16} />
+                    <Typography variant="body2" color="primary">
+                      Running... {progress}%
+                    </Typography>
+                  </>
+                )}
 
-                <Divider sx={{ my: 1 }} />
-              </Box>
-            ))}
+                {status === "success" && (
+                  <>
+                    <CheckCircleIcon color="success" fontSize="small" />
+                    <Typography variant="body2" color="success.main">
+                      Complete
+                    </Typography>
+                  </>
+                )}
+
+                {status === "failed" && (
+                  <>
+                    <ErrorIcon color="error" fontSize="small" />
+                    <Typography variant="body2" color="error.main">
+                      Failed
+                    </Typography>
+                  </>
+                )}
+              </Stack>
+
+              {/* Action Buttons */}
+              <Stack direction="row" spacing={1}>
+                <Button
+                  variant="contained"
+                  startIcon={<PlayArrowIcon />}
+                  disabled={!isAuthorized || isRunning}
+                  onClick={runGPGVerification}
+                >
+                  Run Verification
+                </Button>
+
+                {logs.length > 0 && (
+                  <Button startIcon={<DownloadIcon />} onClick={downloadLogs}>
+                    Download Logs
+                  </Button>
+                )}
+              </Stack>
+            </Stack>
+
+            {/* Results Summary */}
+            {result && (
+              <Alert
+                severity={
+                  result.goodSignatures === result.totalCommits
+                    ? "success"
+                    : "warning"
+                }
+              >
+                <Typography variant="body2">
+                  <strong>Total Commits:</strong> {result.totalCommits} |{" "}
+                  <strong>Good Signatures:</strong> {result.goodSignatures} |{" "}
+                  <strong>Success Rate:</strong>{" "}
+                  {result.totalCommits
+                    ? Math.round(
+                        (result.goodSignatures! / result.totalCommits) * 100
+                      )
+                    : 0}
+                  %
+                </Typography>
+              </Alert>
+            )}
           </Stack>
         </AccordionDetails>
       </Accordion>
 
-      {/* Modal for Full Screen Logs */}
+      {/* Modal */}
       <Dialog
         open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        maxWidth="lg"
+        onClose={() => canClose && setModalOpen(false)}
+        maxWidth="md"
         fullWidth
+        disableEscapeKeyDown={!canClose}
       >
+        {/* Header */}
         <DialogTitle>
-          {currentModalStep?.label || "Scan Logs"}
-          {modalStep && statuses[modalStep] === "running" && (
-            <LinearProgress
-              variant="determinate"
-              value={progress[modalStep] || 0}
-              sx={{ mt: 1 }}
-            />
+          <Stack
+            direction="row"
+            justifyContent="space-between"
+            alignItems="center"
+          >
+            <Typography variant="h6" fontWeight={600}>
+              GPG Signature Verification
+            </Typography>
+
+            {canClose && (
+              <IconButton onClick={() => setModalOpen(false)} size="small">
+                <CloseIcon />
+              </IconButton>
+            )}
+          </Stack>
+
+          {/* Progress Bar */}
+          {isRunning && (
+            <Box sx={{ mt: 2 }}>
+              <Stack direction="row" spacing={2} alignItems="center" mb={1}>
+                <Box flex={1}>
+                  <LinearProgress variant="determinate" value={progress} />
+                </Box>
+                <Typography variant="body2" color="text.secondary">
+                  {progress}%
+                </Typography>
+              </Stack>
+            </Box>
+          )}
+
+          {/* Cancelling Alert */}
+          {isCancelling && (
+            <Alert severity="warning" sx={{ mt: 2 }}>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <CircularProgress size={16} />
+                <Typography variant="body2">
+                  Cancelling scan and cleaning up processes...
+                </Typography>
+              </Stack>
+            </Alert>
           )}
         </DialogTitle>
 
-        <DialogContent sx={{ height: "60vh", backgroundColor: "#0a0a0a", overflow: "auto" }}>
+        {/* Logs Content */}
+        <DialogContent
+          sx={{
+            height: "70vh",
+            backgroundColor: "#0a0a0a",
+            overflow: "auto",
+            p: 3,
+          }}
+        >
           <Box
             sx={{
               fontFamily: "JetBrains Mono, monospace",
               fontSize: 13,
-              color: "#00ff00",
+              color: "#107b10ff",
               whiteSpace: "pre-wrap",
               wordBreak: "break-word",
             }}
           >
-            {modalStep && logs[modalStep]?.length > 0 ? (
-              logs[modalStep].map((log, i) => (
-                <Typography
-                  key={i}
-                  component="pre"
-                  sx={{
-                    margin: 0,
-                    fontFamily: "inherit",
-                    fontSize: "inherit",
-                  }}
-                >
-                  {log}
-                </Typography>
-              ))
+            {logs.length > 0 ? (
+              <>
+                {logs.map((log, i) => (
+                  <Typography
+                    key={i}
+                    component="pre"
+                    sx={{
+                      margin: 0,
+                      fontFamily: "inherit",
+                      fontSize: "inherit",
+                    }}
+                  >
+                    {log}
+                  </Typography>
+                ))}
+                <div ref={logEndRef} />
+              </>
             ) : (
-              <Typography color="text.secondary">No logs available</Typography>
+              <Typography color="text.secondary" textAlign="center" py={4}>
+                {isRunning ? "Initializing scan..." : "No logs available"}
+              </Typography>
             )}
           </Box>
         </DialogContent>
 
-        <DialogActions>
-          {modalStep && statuses[modalStep] === "running" && (
+        {/* Footer Actions */}
+        <DialogActions sx={{ p: 2 }}>
+          {/* Cancel Button */}
+          {isRunning && (
             <Button
-              onClick={() => {
-                if (modalStep) cancelStep(modalStep);
-                setModalOpen(false);
-              }}
+              onClick={cancelScan}
               color="error"
-              startIcon={<CancelIcon />}
+              variant="contained"
+              startIcon={
+                isCancelling ? (
+                  <CircularProgress size={16} color="inherit" />
+                ) : (
+                  <CancelIcon />
+                )
+              }
+              disabled={isCancelling}
             >
-              Cancel & Close
+              {isCancelling ? "Cancelling..." : "Cancel Scan"}
             </Button>
           )}
-          <Button onClick={() => setModalOpen(false)}>Close</Button>
-          {modalStep && (
-            <Button
-              startIcon={<DownloadIcon />}
-              onClick={() => modalStep && downloadStep(modalStep)}
-            >
-              Download
+
+          {/* Download Button */}
+          {logs.length > 0 && (
+            <Button startIcon={<DownloadIcon />} onClick={downloadLogs}>
+              Download Logs
+            </Button>
+          )}
+
+          {/* Close Button */}
+          {canClose && (
+            <Button onClick={() => setModalOpen(false)} variant="outlined">
+              Close
             </Button>
           )}
         </DialogActions>
       </Dialog>
-
-      {/* Cancel Toast - Brief notification */}
-      <Snackbar
-        open={showCancelToast}
-        autoHideDuration={500}
-        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-        sx={{ pointerEvents: "none" }}
-      >
-        <Alert severity="info" sx={{ pointerEvents: "auto" }}>
-          <Stack direction="row" spacing={1} alignItems="center">
-            <CircularProgress size={16} />
-            <Typography variant="body2">Stopping scans...</Typography>
-          </Stack>
-        </Alert>
-      </Snackbar>
     </>
   );
 }

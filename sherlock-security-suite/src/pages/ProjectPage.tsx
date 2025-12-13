@@ -102,7 +102,6 @@ export default function ProjectPage() {
   /* --------------------------------------------------- */
 
   function navigateToSecurityScan(projectId: string) {
-    alert("hi sc" + projectId)
     navigate(`/project/${projectId}/security-scan`);
   }
 
