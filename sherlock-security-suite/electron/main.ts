@@ -278,11 +278,8 @@ function registerIPC() {
   /* --------------------------------------------------------
      GPG VERIFICATION
   -------------------------------------------------------- */
-    /* --------------------------------------------------------
-     GPG VERIFICATION
-  -------------------------------------------------------- */
   ipcMain.handle("scan:verify-gpg", async (event, { repoUrl, branch, scanId }) => {
-    debugLog(`[GPG] Starting verification for ${repoUrl}`);
+    debugLog(`[GPG] Starting verification for ${repoUrl} on branch ${branch}`);
     
     // Clone repo first
     const repoPath = await cloneRepository(event, repoUrl, branch, scanId);
@@ -301,10 +298,11 @@ function registerIPC() {
       });
 
       event.sender.send(`scan-log:${scanId}`, {
-        log: `🔍 Analyzing commit signatures...\n\n`,
+        log: `🔍 Analyzing ALL commit signatures on branch: ${branch}...\n\n`,
         progress: 55,
       });
 
+      //check all commits on the branch
       const child = spawn(
         "git",
         ["log", "--show-signature", "--pretty=format:%H|%an|%aI|%s", branch],
@@ -319,7 +317,7 @@ function registerIPC() {
       activeProcesses.set(scanId, child);
 
       let buffer = "";
-      let stderrBuffer = ""; // Separate buffer for stderr (GPG output)
+      let stderrBuffer = "";
       let commitCount = 0;
       let goodSignatures = 0;
       let cancelled = false;
@@ -396,7 +394,7 @@ GPG     : ${isGoodSig ? "✅ GOOD SIGNATURE" : "❌ MISSING/INVALID"}
 
             event.sender.send(`scan-log:${scanId}`, {
               log,
-              progress: 55 + Math.min(commitCount, 35),
+              progress: 55 + Math.min((commitCount / Math.max(commitCount, 1)) * 35, 35),
             });
 
             // Clear signature block for next commit
@@ -415,6 +413,7 @@ GPG     : ${isGoodSig ? "✅ GOOD SIGNATURE" : "❌ MISSING/INVALID"}
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 
+Branch           : ${branch}
 Total Commits    : ${commitCount}
 Good Signatures  : ${goodSignatures}
 Missing/Invalid  : ${commitCount - goodSignatures}

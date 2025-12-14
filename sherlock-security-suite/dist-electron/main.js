@@ -231,7 +231,7 @@ ${"═".repeat(60)}
 }
 function registerIPC() {
   ipcMain.handle("scan:verify-gpg", async (event, { repoUrl, branch, scanId }) => {
-    debugLog(`[GPG] Starting verification for ${repoUrl}`);
+    debugLog(`[GPG] Starting verification for ${repoUrl} on branch ${branch}`);
     const repoPath = await cloneRepository(event, repoUrl, branch, scanId);
     if (!repoPath) {
       event.sender.send(`scan-complete:${scanId}`, {
@@ -252,7 +252,7 @@ ${"═".repeat(60)}
         progress: 52
       });
       event.sender.send(`scan-log:${scanId}`, {
-        log: `🔍 Analyzing commit signatures...
+        log: `🔍 Analyzing ALL commit signatures on branch: ${branch}...
 
 `,
         progress: 55
@@ -321,7 +321,7 @@ GPG     : ${isGoodSig ? "✅ GOOD SIGNATURE" : "❌ MISSING/INVALID"}
 `;
             event.sender.send(`scan-log:${scanId}`, {
               log,
-              progress: 55 + Math.min(commitCount, 35)
+              progress: 55 + Math.min(commitCount / Math.max(commitCount, 1) * 35, 35)
             });
             signatureBlock = "";
           }
@@ -336,6 +336,7 @@ GPG     : ${isGoodSig ? "✅ GOOD SIGNATURE" : "❌ MISSING/INVALID"}
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 
+Branch           : ${branch}
 Total Commits    : ${commitCount}
 Good Signatures  : ${goodSignatures}
 Missing/Invalid  : ${commitCount - goodSignatures}
