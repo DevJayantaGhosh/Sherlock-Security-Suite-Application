@@ -4,10 +4,10 @@ export type ProjectStatus =
   | "Rejected"
   | "Released";
 
-export interface RepoConfig {
+export interface RepoDetails {
   repoUrl: string;
   branch: string;
-  gpgKey: string;
+  languages: string[];
 }
 
 export interface Project {
@@ -21,7 +21,7 @@ export interface Project {
   securityHead?: string | null;
   releaseEngineers: string[];
 
-  repos: RepoConfig[];
+  repos: RepoDetails[];
 
   dependencies?: string[];
 

@@ -21,7 +21,7 @@ let projectDB: Project[] = [
         repoUrl:
           "https://github.com/example/threat-scanner",
         branch: "main",
-        gpgKey: "",
+        languages: ["java","C++"],
       },
     ],
     dependencies: ["Node", "Express", "Docker"],
@@ -51,7 +51,7 @@ let projectDB: Project[] = [
         repoUrl:
           "https://github.com/DevJayantaGhosh/Sherlock-Security-Suite-Services.git",
         branch: "main",
-        gpgKey: "",
+        languages: ["java"],
       },
     ],
     dependencies: ["Node", "Express", "Docker"],
@@ -82,7 +82,7 @@ let projectDB: Project[] = [
         repoUrl:
           "https://github.com/DevJayantaGhosh/large-fileupload-poc.git",
         branch: "main",
-        gpgKey: "",
+        languages: ["javascript","typescript"],
       },
     ],
     dependencies: ["Node", "Express", "Docker"],
