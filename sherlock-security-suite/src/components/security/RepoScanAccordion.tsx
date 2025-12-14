@@ -16,9 +16,12 @@ import {
   Alert,
   IconButton,
   CircularProgress,
+  Collapse,
+  Paper,
 } from "@mui/material";
 
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import DownloadIcon from "@mui/icons-material/Download";
 import CancelIcon from "@mui/icons-material/Cancel";
@@ -64,7 +67,6 @@ export default function RepoScanAccordion({
         branch={branch}
         isAuthorized={isAuthorized}
       />
-
       <CodeQLPanel
         project={project}
         repoUrl={repoUrl}
@@ -104,6 +106,7 @@ function GPGVerificationPanel({
 
   const [modalOpen, setModalOpen] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [showLogs, setShowLogs] = useState(false);
 
   // Auto-scroll logs
   useEffect(() => {
@@ -138,6 +141,7 @@ function GPGVerificationPanel({
     setProgress(0);
     setStatus("running");
     setResult(null);
+    setShowLogs(false);
     setModalOpen(true);
 
     const logCleanup = window.electronAPI.onScanLog(scanId, (data) => {
@@ -254,6 +258,7 @@ function GPGVerificationPanel({
 
         <AccordionDetails>
           <Stack spacing={3}>
+            {/* Status Row */}
             <Stack
               direction="row"
               justifyContent="space-between"
@@ -314,6 +319,7 @@ function GPGVerificationPanel({
               </Stack>
             </Stack>
 
+            {/* Results Summary */}
             {result && (
               <Alert
                 severity={
@@ -335,18 +341,94 @@ function GPGVerificationPanel({
                 </Typography>
               </Alert>
             )}
+
+            {/* Logs Section */}
+            {logs.length > 0 && !isRunning && (
+              <Box>
+                <Button
+                  onClick={() => setShowLogs(!showLogs)}
+                  endIcon={showLogs ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                  variant="outlined"
+                  size="small"
+                  fullWidth
+                >
+                  {showLogs ? "Hide Logs" : "Show Logs"}
+                </Button>
+
+                <Collapse in={showLogs}>
+                  <Paper
+                    elevation={0}
+                    sx={{
+                      mt: 2,
+                      maxHeight: "400px",
+                      overflow: "auto",
+                      backgroundColor: "#1a1a1a",
+                      border: "1px solid #333",
+                      p: 2,
+                      "&::-webkit-scrollbar": {
+                        width: "8px",
+                      },
+                      "&::-webkit-scrollbar-track": {
+                        background: "#2d2d2d",
+                      },
+                      "&::-webkit-scrollbar-thumb": {
+                        background: "#555",
+                        borderRadius: "4px",
+                      },
+                      "&::-webkit-scrollbar-thumb:hover": {
+                        background: "#777",
+                      },
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
+                        fontSize: 12,
+                        lineHeight: 1.6,
+                        color: "#e0e0e0",
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {logs.map((log, i) => (
+                        <Typography
+                          key={i}
+                          component="pre"
+                          sx={{
+                            margin: 0,
+                            fontFamily: "inherit",
+                            fontSize: "inherit",
+                            lineHeight: "inherit",
+                            color: "inherit",
+                          }}
+                        >
+                          {log}
+                        </Typography>
+                      ))}
+                    </Box>
+                  </Paper>
+                </Collapse>
+              </Box>
+            )}
           </Stack>
         </AccordionDetails>
       </Accordion>
 
+      {/* Modal */}
       <Dialog
         open={modalOpen}
         onClose={() => canClose && setModalOpen(false)}
         maxWidth="md"
         fullWidth
         disableEscapeKeyDown={!canClose}
+        PaperProps={{
+          sx: {
+            backgroundColor: "#1e1e1e",
+            backgroundImage: "none",
+          },
+        }}
       >
-        <DialogTitle>
+        <DialogTitle sx={{ backgroundColor: "#2d2d2d", borderBottom: "1px solid #404040" }}>
           <Stack
             direction="row"
             justifyContent="space-between"
@@ -391,16 +473,30 @@ function GPGVerificationPanel({
         <DialogContent
           sx={{
             height: "70vh",
-            backgroundColor: "#0a0a0a",
+            backgroundColor: "#1a1a1a",
             overflow: "auto",
             p: 3,
+            "&::-webkit-scrollbar": {
+              width: "8px",
+            },
+            "&::-webkit-scrollbar-track": {
+              background: "#2d2d2d",
+            },
+            "&::-webkit-scrollbar-thumb": {
+              background: "#555",
+              borderRadius: "4px",
+            },
+            "&::-webkit-scrollbar-thumb:hover": {
+              background: "#777",
+            },
           }}
         >
           <Box
             sx={{
-              fontFamily: "JetBrains Mono, monospace",
+              fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
               fontSize: 13,
-              color: "#107b10ff",
+              lineHeight: 1.6,
+              color: "#e0e0e0",
               whiteSpace: "pre-wrap",
               wordBreak: "break-word",
             }}
@@ -415,6 +511,8 @@ function GPGVerificationPanel({
                       margin: 0,
                       fontFamily: "inherit",
                       fontSize: "inherit",
+                      lineHeight: "inherit",
+                      color: "inherit",
                     }}
                   >
                     {log}
@@ -430,7 +528,7 @@ function GPGVerificationPanel({
           </Box>
         </DialogContent>
 
-        <DialogActions sx={{ p: 2 }}>
+        <DialogActions sx={{ p: 2, backgroundColor: "#2d2d2d", borderTop: "1px solid #404040" }}>
           {isRunning && (
             <Button
               onClick={cancelScan}
@@ -494,6 +592,7 @@ function GitleaksPanel({
 
   const [modalOpen, setModalOpen] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [showLogs, setShowLogs] = useState(false);
 
   // Auto-scroll logs
   useEffect(() => {
@@ -528,6 +627,7 @@ function GitleaksPanel({
     setProgress(0);
     setStatus("running");
     setResult(null);
+    setShowLogs(false);
     setModalOpen(true);
 
     const logCleanup = window.electronAPI.onScanLog(scanId, (data) => {
@@ -718,18 +818,94 @@ function GitleaksPanel({
                 </Typography>
               </Alert>
             )}
+
+            {/* Logs Section */}
+            {logs.length > 0 && !isRunning && (
+              <Box>
+                <Button
+                  onClick={() => setShowLogs(!showLogs)}
+                  endIcon={showLogs ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                  variant="outlined"
+                  size="small"
+                  fullWidth
+                >
+                  {showLogs ? "Hide Logs" : "Show Logs"}
+                </Button>
+
+                <Collapse in={showLogs}>
+                  <Paper
+                    elevation={0}
+                    sx={{
+                      mt: 2,
+                      maxHeight: "400px",
+                      overflow: "auto",
+                      backgroundColor: "#1a1a1a",
+                      border: "1px solid #333",
+                      p: 2,
+                      "&::-webkit-scrollbar": {
+                        width: "8px",
+                      },
+                      "&::-webkit-scrollbar-track": {
+                        background: "#2d2d2d",
+                      },
+                      "&::-webkit-scrollbar-thumb": {
+                        background: "#555",
+                        borderRadius: "4px",
+                      },
+                      "&::-webkit-scrollbar-thumb:hover": {
+                        background: "#777",
+                      },
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
+                        fontSize: 12,
+                        lineHeight: 1.6,
+                        color: "#e0e0e0",
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {logs.map((log, i) => (
+                        <Typography
+                          key={i}
+                          component="pre"
+                          sx={{
+                            margin: 0,
+                            fontFamily: "inherit",
+                            fontSize: "inherit",
+                            lineHeight: "inherit",
+                            color: "inherit",
+                          }}
+                        >
+                          {log}
+                        </Typography>
+                      ))}
+                    </Box>
+                  </Paper>
+                </Collapse>
+              </Box>
+            )}
           </Stack>
         </AccordionDetails>
       </Accordion>
 
+      {/* Modal */}
       <Dialog
         open={modalOpen}
         onClose={() => canClose && setModalOpen(false)}
         maxWidth="md"
         fullWidth
         disableEscapeKeyDown={!canClose}
+        PaperProps={{
+          sx: {
+            backgroundColor: "#1e1e1e",
+            backgroundImage: "none",
+          },
+        }}
       >
-        <DialogTitle>
+        <DialogTitle sx={{ backgroundColor: "#2d2d2d", borderBottom: "1px solid #404040" }}>
           <Stack
             direction="row"
             justifyContent="space-between"
@@ -774,16 +950,30 @@ function GitleaksPanel({
         <DialogContent
           sx={{
             height: "70vh",
-            backgroundColor: "#0a0a0a",
+            backgroundColor: "#1a1a1a",
             overflow: "auto",
             p: 3,
+            "&::-webkit-scrollbar": {
+              width: "8px",
+            },
+            "&::-webkit-scrollbar-track": {
+              background: "#2d2d2d",
+            },
+            "&::-webkit-scrollbar-thumb": {
+              background: "#555",
+              borderRadius: "4px",
+            },
+            "&::-webkit-scrollbar-thumb:hover": {
+              background: "#777",
+            },
           }}
         >
           <Box
             sx={{
-              fontFamily: "JetBrains Mono, monospace",
+              fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
               fontSize: 13,
-              color: "#107b10ff",
+              lineHeight: 1.6,
+              color: "#e0e0e0",
               whiteSpace: "pre-wrap",
               wordBreak: "break-word",
             }}
@@ -798,6 +988,8 @@ function GitleaksPanel({
                       margin: 0,
                       fontFamily: "inherit",
                       fontSize: "inherit",
+                      lineHeight: "inherit",
+                      color: "inherit",
                     }}
                   >
                     {log}
@@ -813,7 +1005,7 @@ function GitleaksPanel({
           </Box>
         </DialogContent>
 
-        <DialogActions sx={{ p: 2 }}>
+        <DialogActions sx={{ p: 2, backgroundColor: "#2d2d2d", borderTop: "1px solid #404040" }}>
           {isRunning && (
             <Button
               onClick={cancelScan}
@@ -849,7 +1041,6 @@ function GitleaksPanel({
   );
 }
 
-
 /* ============================================================
    TRIVY PANEL
 ============================================================ */
@@ -878,6 +1069,7 @@ function TrivyPanel({
 
   const [modalOpen, setModalOpen] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [showLogs, setShowLogs] = useState(false);
 
   // Auto-scroll logs
   useEffect(() => {
@@ -912,6 +1104,7 @@ function TrivyPanel({
     setProgress(0);
     setStatus("running");
     setResult(null);
+    setShowLogs(false);
     setModalOpen(true);
 
     const logCleanup = window.electronAPI.onScanLog(scanId, (data) => {
@@ -1102,18 +1295,94 @@ function TrivyPanel({
                 </Typography>
               </Alert>
             )}
+
+            {/* Logs Section */}
+            {logs.length > 0 && !isRunning && (
+              <Box>
+                <Button
+                  onClick={() => setShowLogs(!showLogs)}
+                  endIcon={showLogs ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                  variant="outlined"
+                  size="small"
+                  fullWidth
+                >
+                  {showLogs ? "Hide Logs" : "Show Logs"}
+                </Button>
+
+                <Collapse in={showLogs}>
+                  <Paper
+                    elevation={0}
+                    sx={{
+                      mt: 2,
+                      maxHeight: "400px",
+                      overflow: "auto",
+                      backgroundColor: "#1a1a1a",
+                      border: "1px solid #333",
+                      p: 2,
+                      "&::-webkit-scrollbar": {
+                        width: "8px",
+                      },
+                      "&::-webkit-scrollbar-track": {
+                        background: "#2d2d2d",
+                      },
+                      "&::-webkit-scrollbar-thumb": {
+                        background: "#555",
+                        borderRadius: "4px",
+                      },
+                      "&::-webkit-scrollbar-thumb:hover": {
+                        background: "#777",
+                      },
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
+                        fontSize: 12,
+                        lineHeight: 1.6,
+                        color: "#e0e0e0",
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {logs.map((log, i) => (
+                        <Typography
+                          key={i}
+                          component="pre"
+                          sx={{
+                            margin: 0,
+                            fontFamily: "inherit",
+                            fontSize: "inherit",
+                            lineHeight: "inherit",
+                            color: "inherit",
+                          }}
+                        >
+                          {log}
+                        </Typography>
+                      ))}
+                    </Box>
+                  </Paper>
+                </Collapse>
+              </Box>
+            )}
           </Stack>
         </AccordionDetails>
       </Accordion>
 
+      {/* Modal */}
       <Dialog
         open={modalOpen}
         onClose={() => canClose && setModalOpen(false)}
         maxWidth="md"
         fullWidth
         disableEscapeKeyDown={!canClose}
+        PaperProps={{
+          sx: {
+            backgroundColor: "#1e1e1e",
+            backgroundImage: "none",
+          },
+        }}
       >
-        <DialogTitle>
+        <DialogTitle sx={{ backgroundColor: "#2d2d2d", borderBottom: "1px solid #404040" }}>
           <Stack
             direction="row"
             justifyContent="space-between"
@@ -1158,16 +1427,30 @@ function TrivyPanel({
         <DialogContent
           sx={{
             height: "70vh",
-            backgroundColor: "#0a0a0a",
+            backgroundColor: "#1a1a1a",
             overflow: "auto",
             p: 3,
+            "&::-webkit-scrollbar": {
+              width: "8px",
+            },
+            "&::-webkit-scrollbar-track": {
+              background: "#2d2d2d",
+            },
+            "&::-webkit-scrollbar-thumb": {
+              background: "#555",
+              borderRadius: "4px",
+            },
+            "&::-webkit-scrollbar-thumb:hover": {
+              background: "#777",
+            },
           }}
         >
           <Box
             sx={{
-              fontFamily: "JetBrains Mono, monospace",
+              fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
               fontSize: 13,
-              color: "#107b10ff",
+              lineHeight: 1.6,
+              color: "#e0e0e0",
               whiteSpace: "pre-wrap",
               wordBreak: "break-word",
             }}
@@ -1182,6 +1465,8 @@ function TrivyPanel({
                       margin: 0,
                       fontFamily: "inherit",
                       fontSize: "inherit",
+                      lineHeight: "inherit",
+                      color: "inherit",
                     }}
                   >
                     {log}
@@ -1197,7 +1482,7 @@ function TrivyPanel({
           </Box>
         </DialogContent>
 
-        <DialogActions sx={{ p: 2 }}>
+        <DialogActions sx={{ p: 2, backgroundColor: "#2d2d2d", borderTop: "1px solid #404040" }}>
           {isRunning && (
             <Button
               onClick={cancelScan}
@@ -1233,7 +1518,6 @@ function TrivyPanel({
   );
 }
 
-
 /* ============================================================
    CODEQL PANEL
 ============================================================ */
@@ -1262,6 +1546,7 @@ function CodeQLPanel({
 
   const [modalOpen, setModalOpen] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [showLogs, setShowLogs] = useState(false);
 
   // Auto-scroll logs
   useEffect(() => {
@@ -1296,6 +1581,7 @@ function CodeQLPanel({
     setProgress(0);
     setStatus("running");
     setResult(null);
+    setShowLogs(false);
     setModalOpen(true);
 
     const logCleanup = window.electronAPI.onScanLog(scanId, (data) => {
@@ -1486,18 +1772,94 @@ function CodeQLPanel({
                 </Typography>
               </Alert>
             )}
+
+            {/* Logs Section */}
+            {logs.length > 0 && !isRunning && (
+              <Box>
+                <Button
+                  onClick={() => setShowLogs(!showLogs)}
+                  endIcon={showLogs ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                  variant="outlined"
+                  size="small"
+                  fullWidth
+                >
+                  {showLogs ? "Hide Logs" : "Show Logs"}
+                </Button>
+
+                <Collapse in={showLogs}>
+                  <Paper
+                    elevation={0}
+                    sx={{
+                      mt: 2,
+                      maxHeight: "400px",
+                      overflow: "auto",
+                      backgroundColor: "#1a1a1a",
+                      border: "1px solid #333",
+                      p: 2,
+                      "&::-webkit-scrollbar": {
+                        width: "8px",
+                      },
+                      "&::-webkit-scrollbar-track": {
+                        background: "#2d2d2d",
+                      },
+                      "&::-webkit-scrollbar-thumb": {
+                        background: "#555",
+                        borderRadius: "4px",
+                      },
+                      "&::-webkit-scrollbar-thumb:hover": {
+                        background: "#777",
+                      },
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
+                        fontSize: 12,
+                        lineHeight: 1.6,
+                        color: "#e0e0e0",
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {logs.map((log, i) => (
+                        <Typography
+                          key={i}
+                          component="pre"
+                          sx={{
+                            margin: 0,
+                            fontFamily: "inherit",
+                            fontSize: "inherit",
+                            lineHeight: "inherit",
+                            color: "inherit",
+                          }}
+                        >
+                          {log}
+                        </Typography>
+                      ))}
+                    </Box>
+                  </Paper>
+                </Collapse>
+              </Box>
+            )}
           </Stack>
         </AccordionDetails>
       </Accordion>
 
+      {/* Modal */}
       <Dialog
         open={modalOpen}
         onClose={() => canClose && setModalOpen(false)}
         maxWidth="md"
         fullWidth
         disableEscapeKeyDown={!canClose}
+        PaperProps={{
+          sx: {
+            backgroundColor: "#1e1e1e",
+            backgroundImage: "none",
+          },
+        }}
       >
-        <DialogTitle>
+        <DialogTitle sx={{ backgroundColor: "#2d2d2d", borderBottom: "1px solid #404040" }}>
           <Stack
             direction="row"
             justifyContent="space-between"
@@ -1542,16 +1904,30 @@ function CodeQLPanel({
         <DialogContent
           sx={{
             height: "70vh",
-            backgroundColor: "#0a0a0a",
+            backgroundColor: "#1a1a1a",
             overflow: "auto",
             p: 3,
+            "&::-webkit-scrollbar": {
+              width: "8px",
+            },
+            "&::-webkit-scrollbar-track": {
+              background: "#2d2d2d",
+            },
+            "&::-webkit-scrollbar-thumb": {
+              background: "#555",
+              borderRadius: "4px",
+            },
+            "&::-webkit-scrollbar-thumb:hover": {
+              background: "#777",
+            },
           }}
         >
           <Box
             sx={{
-              fontFamily: "JetBrains Mono, monospace",
+              fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
               fontSize: 13,
-              color: "#107b10ff",
+              lineHeight: 1.6,
+              color: "#e0e0e0",
               whiteSpace: "pre-wrap",
               wordBreak: "break-word",
             }}
@@ -1566,6 +1942,8 @@ function CodeQLPanel({
                       margin: 0,
                       fontFamily: "inherit",
                       fontSize: "inherit",
+                      lineHeight: "inherit",
+                      color: "inherit",
                     }}
                   >
                     {log}
@@ -1581,7 +1959,7 @@ function CodeQLPanel({
           </Box>
         </DialogContent>
 
-        <DialogActions sx={{ p: 2 }}>
+        <DialogActions sx={{ p: 2, backgroundColor: "#2d2d2d", borderTop: "1px solid #404040" }}>
           {isRunning && (
             <Button
               onClick={cancelScan}
