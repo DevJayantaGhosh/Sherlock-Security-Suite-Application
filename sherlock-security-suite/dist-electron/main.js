@@ -242,9 +242,24 @@ function registerIPC() {
     }
     return new Promise((resolve) => {
       var _a, _b;
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `
+${"═".repeat(60)}
+🔐 GPG SIGNATURE VERIFICATION
+${"═".repeat(60)}
+
+`,
+        progress: 52
+      });
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `🔍 Analyzing commit signatures...
+
+`,
+        progress: 55
+      });
       const child = spawn(
         "git",
-        ["log", "--show-signature", "--pretty=format:%H|%an|%aI|%s", "-n", "50"],
+        ["log", "--show-signature", "--pretty=format:%H|%an|%aI|%s", branch],
         {
           cwd: repoPath,
           detached: true,
@@ -254,20 +269,44 @@ function registerIPC() {
       child.unref();
       activeProcesses.set(scanId, child);
       let buffer = "";
+      let stderrBuffer = "";
       let commitCount = 0;
       let goodSignatures = 0;
       let cancelled = false;
       (_a = child.stdout) == null ? void 0 : _a.on("data", (chunk) => {
         if (cancelled) return;
         buffer += chunk.toString();
-        const lines = buffer.split("\n");
-        for (let i = 0; i < lines.length - 1; i++) {
-          const line = lines[i];
+      });
+      (_b = child.stderr) == null ? void 0 : _b.on("data", (chunk) => {
+        if (cancelled) return;
+        stderrBuffer += chunk.toString();
+      });
+      child.on("close", (code) => {
+        activeProcesses.delete(scanId);
+        if (cancelled) {
+          resolve({ success: false, cancelled: true });
+          return;
+        }
+        const fullOutput = buffer + "\n" + stderrBuffer;
+        const lines = fullOutput.split("\n");
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i].trim();
           if (line.includes("|")) {
             commitCount++;
             const [sha, author, date, subject] = line.split("|");
-            const isGoodSig = buffer.includes("Good signature") || buffer.includes("gpg: Good");
-            if (isGoodSig) goodSignatures++;
+            let isGoodSig = false;
+            let signatureBlock = "";
+            for (let j = Math.max(0, i - 20); j < i; j++) {
+              signatureBlock += lines[j] + "\n";
+            }
+            if (signatureBlock.includes("Good signature from") || signatureBlock.includes("gpg: Good signature") || signatureBlock.includes("Signature made") || signatureBlock.includes("using RSA key") && signatureBlock.includes("Good") || signatureBlock.includes("using ECDSA key") && signatureBlock.includes("Good")) {
+              isGoodSig = true;
+              goodSignatures++;
+            }
+            if (signatureBlock.includes("Verified") && !isGoodSig) {
+              isGoodSig = true;
+              goodSignatures++;
+            }
             const log = `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📝 Commit ${commitCount}
@@ -282,34 +321,28 @@ GPG     : ${isGoodSig ? "✅ GOOD SIGNATURE" : "❌ MISSING/INVALID"}
 `;
             event.sender.send(`scan-log:${scanId}`, {
               log,
-              progress: 50 + Math.min(commitCount, 50)
+              progress: 55 + Math.min(commitCount, 35)
             });
+            signatureBlock = "";
           }
         }
-        buffer = lines[lines.length - 1];
-      });
-      (_b = child.stderr) == null ? void 0 : _b.on("data", (data) => {
-        if (cancelled) return;
-        event.sender.send(`scan-log:${scanId}`, {
-          log: data.toString(),
-          progress: 60
-        });
-      });
-      child.on("close", (code) => {
-        activeProcesses.delete(scanId);
-        if (cancelled) {
-          resolve({ success: false, cancelled: true });
-          return;
-        }
+        const successRate = commitCount > 0 ? Math.round(goodSignatures / commitCount * 100) : 0;
         const summary = `
-╔═══════════════════════════════════════════════════════════╗
-║              GPG VERIFICATION SUMMARY                     ║
-╚═══════════════════════════════════════════════════════════╝
+
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                                                                               ║
+║              🛡️  GPG SIGNED COMMITS VERIFICATION SUMMARY  🛡️                 ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
 Total Commits    : ${commitCount}
 Good Signatures  : ${goodSignatures}
 Missing/Invalid  : ${commitCount - goodSignatures}
-Success Rate     : ${commitCount > 0 ? Math.round(goodSignatures / commitCount * 100) : 0}%
+Success Rate     : ${successRate}%
 Status           : ${code === 0 ? "✅ COMPLETE" : "❌ FAILED"}
+
+${"═".repeat(79)}
 `;
         event.sender.send(`scan-log:${scanId}`, {
           log: summary,
@@ -371,8 +404,15 @@ Status           : ${code === 0 ? "✅ COMPLETE" : "❌ FAILED"}
       event.sender.send(`scan-log:${scanId}`, {
         log: `
 ${"═".repeat(60)}
-🔍 GITLEAKS SECRETS SCAN
+🔐 SECRETS & CREDENTIALS DETECTION
 ${"═".repeat(60)}
+
+`,
+        progress: 52
+      });
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `🔍 Scanning for hardcoded secrets and credentials...
+
 `,
         progress: 55
       });
@@ -417,11 +457,18 @@ ${"═".repeat(60)}
           }
         }
         const summary = `
-╔═══════════════════════════════════════════════════════════╗
-║                GITLEAKS SECRETS SUMMARY                   ║
-╚═══════════════════════════════════════════════════════════╝
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                                                                               ║
+║                🔐  SECRETS & CREDENTIALS LEAKAGE SUMMARY  🔐                 ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
 Potential Secrets : ${findings}
-Status            : ${findings > 0 ? "⚠️ SECRETS DETECTED" : "✅ CLEAN"}
+Status            : ${findings > 0 ? "🚨 SECRETS DETECTED" : "✅ CLEAN"}
+Severity          : ${findings > 0 ? "HIGH - Immediate action required" : "NONE"}
+
+${"═".repeat(79)}
 `;
         event.sender.send(`scan-log:${scanId}`, {
           log: summary,
@@ -481,8 +528,16 @@ Status            : ${findings > 0 ? "⚠️ SECRETS DETECTED" : "✅ CLEAN"}
       event.sender.send(`scan-log:${scanId}`, {
         log: `
 ${"═".repeat(60)}
-🔍 TRIVY SBOM & VULNERABILITY SCAN
+🛡️ TRIVY SBOM & VULNERABILITY SCAN
 ${"═".repeat(60)}
+
+`,
+        progress: 52
+      });
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `🔍 Analyzing dependencies and security vulnerabilities...
+📦 Building Software Bill of Materials (SBOM)...
+
 `,
         progress: 55
       });
@@ -532,11 +587,18 @@ ${"═".repeat(60)}
               0
             )) || 0;
             const summary = `
-╔═══════════════════════════════════════════════════════════╗
-║                 TRIVY SBOM SUMMARY                        ║
-╚═══════════════════════════════════════════════════════════╝
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                                                                               ║
+║                 🚨  SBOM & VULNERABILITY SCAN SUMMARY  🚨                    ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
 Vulnerabilities : ${vulns}
 Status          : ${vulns > 0 ? "🚨 VULNERABILITIES DETECTED" : "✅ NO VULNERABILITIES"}
+Risk Level      : ${vulns > 10 ? "CRITICAL" : vulns > 5 ? "HIGH" : vulns > 0 ? "MEDIUM" : "NONE"}
+
+${"═".repeat(79)}
 `;
             event.sender.send(`scan-log:${scanId}`, {
               log: summary,
@@ -579,8 +641,8 @@ Status          : ${vulns > 0 ? "🚨 VULNERABILITIES DETECTED" : "✅ NO VULNER
       });
     });
   });
-  ipcMain.handle("scan:codeql", async (event, { repoUrl, branch, scanId }) => {
-    debugLog(`[CODEQL] Starting SAST analysis for ${repoUrl}`);
+  ipcMain.handle("scan:codeql", async (event, { repoUrl, branch, scanId, languages = "javascript-typescript" }) => {
+    debugLog(`[CODEQL] Starting SAST analysis for ${repoUrl} with languages: ${languages}`);
     const codeqlPath = validateTool("codeql");
     if (!codeqlPath) {
       event.sender.send(`scan-log:${scanId}`, {
@@ -616,16 +678,20 @@ Status          : ${vulns > 0 ? "🚨 VULNERABILITIES DETECTED" : "✅ NO VULNER
 ${"═".repeat(60)}
 🔬 CODEQL SAST ANALYSIS
 ${"═".repeat(60)}
+
+`,
+        progress: 52
+      });
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `📊 Step 1/2: Creating CodeQL database...
+🔧 Languages: ${languages}
+
 `,
         progress: 55
       });
-      event.sender.send(`scan-log:${scanId}`, {
-        log: "📊 Step 1/2: Creating CodeQL database...\n",
-        progress: 60
-      });
       const createDb = spawn(
         codeqlPath,
-        ["database", "create", dbPath, "--language=javascript", "--source-root", repoPath],
+        ["database", "create", dbPath, `--language=${languages}`, "--source-root", repoPath],
         {
           detached: true,
           stdio: ["ignore", "pipe", "pipe"],
@@ -638,14 +704,14 @@ ${"═".repeat(60)}
         if (cancelled) return;
         event.sender.send(`scan-log:${scanId}`, {
           log: data.toString(),
-          progress: 65
+          progress: 60
         });
       });
       (_b = createDb.stderr) == null ? void 0 : _b.on("data", (data) => {
         if (cancelled) return;
         event.sender.send(`scan-log:${scanId}`, {
           log: data.toString(),
-          progress: 70
+          progress: 65
         });
       });
       createDb.on("close", (code) => {
@@ -670,8 +736,8 @@ ${"═".repeat(60)}
           return;
         }
         event.sender.send(`scan-log:${scanId}`, {
-          log: "\n✅ Database created successfully!\n\n🔬 Step 2/2: Running CodeQL analysis...\n",
-          progress: 75
+          log: "\n✅ Database created successfully!\n\n🔬 Step 2/2: Running CodeQL analysis...\n🧪 Detecting security patterns and vulnerabilities...\n\n",
+          progress: 70
         });
         const analyze = spawn(
           codeqlPath,
@@ -695,7 +761,7 @@ ${"═".repeat(60)}
           if (cancelled) return;
           event.sender.send(`scan-log:${scanId}`, {
             log: data.toString(),
-            progress: 85
+            progress: 80
           });
         });
         (_b2 = analyze.stderr) == null ? void 0 : _b2.on("data", (data) => {
@@ -721,12 +787,19 @@ ${"═".repeat(60)}
             }
           }
           const summary = `
-╔═══════════════════════════════════════════════════════════╗
-║                CODEQL SAST SUMMARY                        ║
-╚═══════════════════════════════════════════════════════════╝
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                                                                               ║
+║     📊  STATIC APPLICATION SECURITY TESTING (SAST) ANALYSIS SUMMARY  📊      ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
 Analysis Status : ${analyzeCode === 0 ? "✅ COMPLETE" : "❌ FAILED"}
 Issues Found    : ${issues}
+Languages       : ${languages}
 SARIF Report    : ${sarifPath}
+
+${"═".repeat(79)}
 `;
           event.sender.send(`scan-log:${scanId}`, {
             log: summary,
