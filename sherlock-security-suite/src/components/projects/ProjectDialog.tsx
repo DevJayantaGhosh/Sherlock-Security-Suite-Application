@@ -19,7 +19,7 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 
 import { useEffect, useState } from "react";
 
-import { Project, RepoConfig } from "../../models/Project";
+import { Project, RepoDetails } from "../../models/Project";
 import { createProject, updateProject } from "../../services/projectService";
 import { useUserStore } from "../../store/userStore";
 import { getUsers } from "../../services/userService";
@@ -43,6 +43,20 @@ const DEPENDENCIES = [
   "Redis",
   "Kubernetes",
 ];
+
+const LANGUAGES = [
+  "c-cpp",
+  "csharp",
+  "actions",
+  "go",
+  "java-kotlin",
+  "javascript-typescript",
+  "python",
+  "ruby",
+  "rust",
+  "swift"
+];
+
 
 // ✅ SEMVER regex (no leading v)
 const SEMVER_REGEX = /^(\d+)\.(\d+)\.(\d+)(-(alpha|beta|rc))?$/;
@@ -84,7 +98,7 @@ export default function ProjectDialog({
     projectDirector: null,
     securityHead: null,
     releaseEngineers: [],
-    repos: [{ repoUrl: "", branch: "", gpgKey: "" }],
+    repos: [{ repoUrl: "", branch: "", languages: [] }],
     dependencies: [],
     createdBy: "",
     status: "Pending",
@@ -106,7 +120,7 @@ export default function ProjectDialog({
         ...rest,
         repos: rest.repos.length
           ? rest.repos
-          : [{ repoUrl: "", branch: "", gpgKey: "" }],
+          : [{ repoUrl: "", branch: "", languages: [] }],
       });
     } else {
       setForm(emptyForm);
@@ -148,7 +162,7 @@ export default function ProjectDialog({
     form.repos.forEach((r, i) => {
       if (!r.repoUrl) e[`repo-${i}`] = "Repo required";
       if (!r.branch) e[`branch-${i}`] = "Branch required";
-      if (!r.gpgKey) e[`gpg-${i}`] = "GPG key required";
+      if (!r.languages?.length) e[`languages-${i}`] = "Select at least one language";
     });
 
     setErrors(e);
@@ -159,10 +173,10 @@ export default function ProjectDialog({
      REPO EDIT
   ----------------------------------------------------- */
 
-  function setRepoField<K extends keyof RepoConfig>(
+  function setRepoField<K extends keyof RepoDetails>(
     idx: number,
     key: K,
-    value: string
+    value: any
   ) {
     const arr = [...form.repos];
     arr[idx] = { ...arr[idx], [key]: value };
@@ -172,7 +186,7 @@ export default function ProjectDialog({
   function addRepoRow() {
     setForm({
       ...form,
-      repos: [...form.repos, { repoUrl: "", branch: "", gpgKey: "" }],
+      repos: [...form.repos, { repoUrl: "", branch: "", languages: [] }],
     });
   }
 
@@ -206,7 +220,7 @@ export default function ProjectDialog({
       // ✅ SHOW ALERT BEFORE INSERT
       alert(
         "Creating project:\n\n" +
-          JSON.stringify(payload, null, 2)
+        JSON.stringify(payload, null, 2)
       );
 
       createProject(payload);
@@ -235,8 +249,8 @@ export default function ProjectDialog({
         {mode === "view"
           ? "Project Details"
           : project
-          ? "Edit Project"
-          : "Create Project"}
+            ? "Edit Project"
+            : "Create Project"}
       </DialogTitle>
 
       <DialogContent dividers>
@@ -401,32 +415,32 @@ export default function ProjectDialog({
                 }
               />
 
+
+              {/* Languages */}
               <Box sx={{ display: "flex", gap: 0.5 }}>
                 <TextField
+                  select
+                  label="Languages"
                   fullWidth
-                  label="GPG Key"
-                  value={r.gpgKey}
-                  error={!!errors[`gpg-${i}`]}
-                  helperText={errors[`gpg-${i}`]}
+                  SelectProps={{ multiple: true }}
+                  value={r.languages}
+                  error={!!errors[`languages-${i}`]}
+                  helperText={errors[`languages-${i}`]}
                   disabled={isView}
                   onChange={(e) =>
                     setRepoField(
                       i,
-                      "gpgKey",
-                      e.target.value
+                      "languages",
+                      e.target.value as unknown as string[]
                     )
                   }
-                />
-
-                <Tooltip title="Copy GPG key">
-                  <IconButton
-                    onClick={() =>
-                      copy(r.gpgKey)
-                    }
-                  >
-                    <ContentCopyIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
+                >
+                {LANGUAGES.map((d) => (
+                    <MenuItem key={d} value={d}>
+                      <Chip label={d} size="small" />
+                    </MenuItem>
+                  ))}
+                </TextField>
               </Box>
 
               {!isView && (

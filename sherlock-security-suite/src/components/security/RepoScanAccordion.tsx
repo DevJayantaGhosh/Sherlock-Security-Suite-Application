@@ -29,7 +29,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
 
-import { Project } from "../../models/Project";
+import { Project , RepoDetails} from "../../models/Project";
 import { useUserStore } from "../../store/userStore";
 import { authorizeApprove } from "../../services/projectService";
 
@@ -37,12 +37,10 @@ type ScanStatus = "idle" | "running" | "success" | "failed";
 
 export default function RepoScanAccordion({
   project,
-  repoUrl,
-  branch = "main",
+  repoDetails
 }: {
   project: Project;
-  repoUrl: string;
-  branch?: string;
+  repoDetails:RepoDetails
 }) {
   const user = useUserStore((s) => s.user);
   const isAuthorized = authorizeApprove(user, project);
@@ -51,26 +49,22 @@ export default function RepoScanAccordion({
     <Stack spacing={2}>
       <GPGVerificationPanel
         project={project}
-        repoUrl={repoUrl}
-        branch={branch}
+        repoDetails={repoDetails}
         isAuthorized={isAuthorized}
       />
       <GitleaksPanel
         project={project}
-        repoUrl={repoUrl}
-        branch={branch}
+        repoDetails={repoDetails}
         isAuthorized={isAuthorized}
       />
       <TrivyPanel
         project={project}
-        repoUrl={repoUrl}
-        branch={branch}
+        repoDetails={repoDetails}
         isAuthorized={isAuthorized}
       />
       <CodeQLPanel
         project={project}
-        repoUrl={repoUrl}
-        branch={branch}
+        repoDetails={repoDetails}
         isAuthorized={isAuthorized}
       />
     </Stack>
@@ -82,13 +76,11 @@ export default function RepoScanAccordion({
 ============================================================ */
 function GPGVerificationPanel({
   project,
-  repoUrl,
-  branch,
+  repoDetails,
   isAuthorized,
 }: {
   project: Project;
-  repoUrl: string;
-  branch: string;
+  repoDetails:RepoDetails;
   isAuthorized: boolean;
 }) {
   const logEndRef = useRef<HTMLDivElement>(null);
@@ -173,8 +165,8 @@ function GPGVerificationPanel({
 
     try {
       const result = await window.electronAPI.verifyGPG({
-        repoUrl,
-        branch,
+        repoUrl: repoDetails.repoUrl,
+        branch: repoDetails.branch,
         scanId,
       });
 
@@ -251,7 +243,7 @@ function GPGVerificationPanel({
               variant="body2"
               color="text.secondary"
             >
-              {repoUrl} • {branch}
+              {repoDetails.repoUrl} • {repoDetails.branch}
             </Typography>
           </Stack>
         </AccordionSummary>
@@ -569,13 +561,11 @@ function GPGVerificationPanel({
 ============================================================ */
 function GitleaksPanel({
   project,
-  repoUrl,
-  branch,
+  repoDetails,
   isAuthorized,
 }: {
   project: Project;
-  repoUrl: string;
-  branch: string;
+  repoDetails:RepoDetails;
   isAuthorized: boolean;
 }) {
   const logEndRef = useRef<HTMLDivElement>(null);
@@ -658,8 +648,8 @@ function GitleaksPanel({
 
     try {
       const result = await window.electronAPI.runGitleaks({
-        repoUrl,
-        branch,
+        repoUrl:repoDetails.repoUrl,
+        branch:repoDetails.branch,
         scanId,
       });
 
@@ -736,7 +726,7 @@ function GitleaksPanel({
               variant="body2"
               color="text.secondary"
             >
-              {repoUrl} • {branch}
+              {repoDetails.repoUrl} • {repoDetails.branch}
             </Typography>
           </Stack>
         </AccordionSummary>
@@ -1046,13 +1036,11 @@ function GitleaksPanel({
 ============================================================ */
 function TrivyPanel({
   project,
-  repoUrl,
-  branch,
+  repoDetails,
   isAuthorized,
 }: {
   project: Project;
-  repoUrl: string;
-  branch: string;
+  repoDetails:RepoDetails
   isAuthorized: boolean;
 }) {
   const logEndRef = useRef<HTMLDivElement>(null);
@@ -1135,8 +1123,8 @@ function TrivyPanel({
 
     try {
       const result = await window.electronAPI.runTrivy({
-        repoUrl,
-        branch,
+        repoUrl:repoDetails.repoUrl,
+        branch:repoDetails.branch,
         scanId,
       });
 
@@ -1213,7 +1201,7 @@ function TrivyPanel({
               variant="body2"
               color="text.secondary"
             >
-              {repoUrl} • {branch}
+              {repoDetails.repoUrl} • {repoDetails.branch}
             </Typography>
           </Stack>
         </AccordionSummary>
@@ -1523,13 +1511,11 @@ function TrivyPanel({
 ============================================================ */
 function CodeQLPanel({
   project,
-  repoUrl,
-  branch,
+  repoDetails,
   isAuthorized,
 }: {
   project: Project;
-  repoUrl: string;
-  branch: string;
+  repoDetails:RepoDetails
   isAuthorized: boolean;
 }) {
   const logEndRef = useRef<HTMLDivElement>(null);
@@ -1612,8 +1598,8 @@ function CodeQLPanel({
 
     try {
       const result = await window.electronAPI.runCodeQL({
-        repoUrl,
-        branch,
+        repoUrl:repoDetails.repoUrl,
+        branch:repoDetails.branch,
         scanId,
       });
 
@@ -1690,7 +1676,7 @@ function CodeQLPanel({
               variant="body2"
               color="text.secondary"
             >
-              {repoUrl} • {branch}
+              {repoDetails.repoUrl} • {repoDetails.branch}
             </Typography>
           </Stack>
         </AccordionSummary>

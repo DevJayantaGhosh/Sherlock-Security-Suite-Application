@@ -132,8 +132,7 @@ export default function ProjectSecurityScanPage() {
             <RepoScanAccordion
               key={`${repo.repoUrl}-${idx}`}
               project={project}
-              repoUrl={repo.repoUrl}
-              branch={repo.branch}
+              repoDetails={repo}
             />
           ))}
         </Stack>
