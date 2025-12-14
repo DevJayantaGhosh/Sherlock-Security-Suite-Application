@@ -52,7 +52,8 @@ interface Window {
     runCodeQL(payload: { 
       repoUrl: string; 
       branch: string; 
-      scanId: string 
+      scanId: string;
+      languages?: string; // Optional: "javascript-typescript,python,c-cpp"
     }): Promise<{
       success: boolean;
       cancelled?: boolean;

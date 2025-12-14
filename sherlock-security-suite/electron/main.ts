@@ -278,6 +278,9 @@ function registerIPC() {
   /* --------------------------------------------------------
      GPG VERIFICATION
   -------------------------------------------------------- */
+    /* --------------------------------------------------------
+     GPG VERIFICATION
+  -------------------------------------------------------- */
   ipcMain.handle("scan:verify-gpg", async (event, { repoUrl, branch, scanId }) => {
     debugLog(`[GPG] Starting verification for ${repoUrl}`);
     
@@ -292,9 +295,19 @@ function registerIPC() {
     }
 
     return new Promise((resolve) => {
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `\n${"═".repeat(60)}\n🔐 GPG SIGNATURE VERIFICATION\n${"═".repeat(60)}\n\n`,
+        progress: 52,
+      });
+
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `🔍 Analyzing commit signatures...\n\n`,
+        progress: 55,
+      });
+
       const child = spawn(
         "git",
-        ["log", "--show-signature", "--pretty=format:%H|%an|%aI|%s", "-n", "50"],
+        ["log", "--show-signature", "--pretty=format:%H|%an|%aI|%s", branch],
         {
           cwd: repoPath,
           detached: true,
@@ -306,24 +319,67 @@ function registerIPC() {
       activeProcesses.set(scanId, child);
 
       let buffer = "";
+      let stderrBuffer = ""; // Separate buffer for stderr (GPG output)
       let commitCount = 0;
       let goodSignatures = 0;
       let cancelled = false;
 
       child.stdout?.on("data", (chunk) => {
         if (cancelled) return;
-        
         buffer += chunk.toString();
-        const lines = buffer.split("\n");
+      });
 
-        for (let i = 0; i < lines.length - 1; i++) {
-          const line = lines[i];
+      child.stderr?.on("data", (chunk) => {
+        if (cancelled) return;
+        stderrBuffer += chunk.toString();
+      });
+
+      child.on("close", (code) => {
+        activeProcesses.delete(scanId);
+        
+        if (cancelled) {
+          resolve({ success: false, cancelled: true });
+          return;
+        }
+
+        // Combine both outputs for analysis
+        const fullOutput = buffer + "\n" + stderrBuffer;
+        const lines = fullOutput.split("\n");
+
+        // Parse commits and their signatures
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i].trim();
 
           if (line.includes("|")) {
             commitCount++;
             const [sha, author, date, subject] = line.split("|");
-            const isGoodSig = buffer.includes("Good signature") || buffer.includes("gpg: Good");
-            if (isGoodSig) goodSignatures++;
+
+            // Look backwards from current line to find signature info
+            let isGoodSig = false;
+            let signatureBlock = "";
+            
+            // Check previous 20 lines for GPG signature (signature comes before commit)
+            for (let j = Math.max(0, i - 20); j < i; j++) {
+              signatureBlock += lines[j] + "\n";
+            }
+
+            // Check multiple GPG signature patterns
+            if (
+              signatureBlock.includes("Good signature from") ||
+              signatureBlock.includes("gpg: Good signature") ||
+              signatureBlock.includes("Signature made") ||
+              (signatureBlock.includes("using RSA key") && signatureBlock.includes("Good")) ||
+              (signatureBlock.includes("using ECDSA key") && signatureBlock.includes("Good"))
+            ) {
+              isGoodSig = true;
+              goodSignatures++;
+            }
+
+            // Also check if commit has "Verified" badge (GitHub web signed)
+            if (signatureBlock.includes("Verified") && !isGoodSig) {
+              isGoodSig = true;
+              goodSignatures++;
+            }
 
             const log = `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -340,39 +396,32 @@ GPG     : ${isGoodSig ? "✅ GOOD SIGNATURE" : "❌ MISSING/INVALID"}
 
             event.sender.send(`scan-log:${scanId}`, {
               log,
-              progress: 50 + Math.min(commitCount, 50),
+              progress: 55 + Math.min(commitCount, 35),
             });
+
+            // Clear signature block for next commit
+            signatureBlock = "";
           }
         }
-
-        buffer = lines[lines.length - 1];
-      });
-
-      child.stderr?.on("data", (data) => {
-        if (cancelled) return;
-        event.sender.send(`scan-log:${scanId}`, {
-          log: data.toString(),
-          progress: 60,
-        });
-      });
-
-      child.on("close", (code) => {
-        activeProcesses.delete(scanId);
         
-        if (cancelled) {
-          resolve({ success: false, cancelled: true });
-          return;
-        }
+        const successRate = commitCount > 0 ? Math.round((goodSignatures / commitCount) * 100) : 0;
         
         const summary = `
-╔═══════════════════════════════════════════════════════════╗
-║              GPG VERIFICATION SUMMARY                     ║
-╚═══════════════════════════════════════════════════════════╝
+
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                                                                               ║
+║              🛡️  GPG SIGNED COMMITS VERIFICATION SUMMARY  🛡️                 ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
 Total Commits    : ${commitCount}
 Good Signatures  : ${goodSignatures}
 Missing/Invalid  : ${commitCount - goodSignatures}
-Success Rate     : ${commitCount > 0 ? Math.round((goodSignatures / commitCount) * 100) : 0}%
+Success Rate     : ${successRate}%
 Status           : ${code === 0 ? "✅ COMPLETE" : "❌ FAILED"}
+
+${"═".repeat(79)}
 `;
         
         event.sender.send(`scan-log:${scanId}`, {
@@ -444,7 +493,12 @@ Status           : ${code === 0 ? "✅ COMPLETE" : "❌ FAILED"}
 
     return new Promise((resolve) => {
       event.sender.send(`scan-log:${scanId}`, {
-        log: `\n${"═".repeat(60)}\n🔍 GITLEAKS SECRETS SCAN\n${"═".repeat(60)}\n`,
+        log: `\n${"═".repeat(60)}\n🔐 SECRETS & CREDENTIALS DETECTION\n${"═".repeat(60)}\n\n`,
+        progress: 52,
+      });
+
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `🔍 Scanning for hardcoded secrets and credentials...\n\n`,
         progress: 55,
       });
 
@@ -496,11 +550,18 @@ Status           : ${code === 0 ? "✅ COMPLETE" : "❌ FAILED"}
         }
 
         const summary = `
-╔═══════════════════════════════════════════════════════════╗
-║                GITLEAKS SECRETS SUMMARY                   ║
-╚═══════════════════════════════════════════════════════════╝
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                                                                               ║
+║                🔐  SECRETS & CREDENTIALS LEAKAGE SUMMARY  🔐                 ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
 Potential Secrets : ${findings}
-Status            : ${findings > 0 ? "⚠️ SECRETS DETECTED" : "✅ CLEAN"}
+Status            : ${findings > 0 ? "🚨 SECRETS DETECTED" : "✅ CLEAN"}
+Severity          : ${findings > 0 ? "HIGH - Immediate action required" : "NONE"}
+
+${"═".repeat(79)}
 `;
 
         event.sender.send(`scan-log:${scanId}`, {
@@ -536,7 +597,6 @@ Status            : ${findings > 0 ? "⚠️ SECRETS DETECTED" : "✅ CLEAN"}
     });
   });
 
-
   /* --------------------------------------------------------
      TRIVY
   -------------------------------------------------------- */
@@ -570,7 +630,12 @@ Status            : ${findings > 0 ? "⚠️ SECRETS DETECTED" : "✅ CLEAN"}
 
     return new Promise((resolve) => {
       event.sender.send(`scan-log:${scanId}`, {
-        log: `\n${"═".repeat(60)}\n🔍 TRIVY SBOM & VULNERABILITY SCAN\n${"═".repeat(60)}\n`,
+        log: `\n${"═".repeat(60)}\n🛡️ TRIVY SBOM & VULNERABILITY SCAN\n${"═".repeat(60)}\n\n`,
+        progress: 52,
+      });
+
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `🔍 Analyzing dependencies and security vulnerabilities...\n📦 Building Software Bill of Materials (SBOM)...\n\n`,
         progress: 55,
       });
 
@@ -624,11 +689,18 @@ Status            : ${findings > 0 ? "⚠️ SECRETS DETECTED" : "✅ CLEAN"}
             ) || 0;
 
             const summary = `
-╔═══════════════════════════════════════════════════════════╗
-║                 TRIVY SBOM SUMMARY                        ║
-╚═══════════════════════════════════════════════════════════╝
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                                                                               ║
+║                 🚨  SBOM & VULNERABILITY SCAN SUMMARY  🚨                    ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
 Vulnerabilities : ${vulns}
 Status          : ${vulns > 0 ? "🚨 VULNERABILITIES DETECTED" : "✅ NO VULNERABILITIES"}
+Risk Level      : ${vulns > 10 ? "CRITICAL" : vulns > 5 ? "HIGH" : vulns > 0 ? "MEDIUM" : "NONE"}
+
+${"═".repeat(79)}
 `;
 
             event.sender.send(`scan-log:${scanId}`, {
@@ -678,12 +750,11 @@ Status          : ${vulns > 0 ? "🚨 VULNERABILITIES DETECTED" : "✅ NO VULNER
     });
   });
 
-
-    /* --------------------------------------------------------
+  /* --------------------------------------------------------
      CODEQL
   -------------------------------------------------------- */
-  ipcMain.handle("scan:codeql", async (event, { repoUrl, branch, scanId }) => {
-    debugLog(`[CODEQL] Starting SAST analysis for ${repoUrl}`);
+  ipcMain.handle("scan:codeql", async (event, { repoUrl, branch, scanId, languages = "javascript-typescript" }) => {
+    debugLog(`[CODEQL] Starting SAST analysis for ${repoUrl} with languages: ${languages}`);
     
     const codeqlPath = validateTool("codeql");
     if (!codeqlPath) {
@@ -716,19 +787,19 @@ Status          : ${vulns > 0 ? "🚨 VULNERABILITIES DETECTED" : "✅ NO VULNER
 
     return new Promise((resolve) => {
       event.sender.send(`scan-log:${scanId}`, {
-        log: `\n${"═".repeat(60)}\n🔬 CODEQL SAST ANALYSIS\n${"═".repeat(60)}\n`,
-        progress: 55,
+        log: `\n${"═".repeat(60)}\n🔬 CODEQL SAST ANALYSIS\n${"═".repeat(60)}\n\n`,
+        progress: 52,
       });
 
       event.sender.send(`scan-log:${scanId}`, {
-        log: "📊 Step 1/2: Creating CodeQL database...\n",
-        progress: 60,
+        log: `📊 Step 1/2: Creating CodeQL database...\n🔧 Languages: ${languages}\n\n`,
+        progress: 55,
       });
 
-      // Step 1: Create database
+      // Step 1: Create database with dynamic languages
       const createDb = spawn(
         codeqlPath,
-        ["database", "create", dbPath, "--language=javascript", "--source-root", repoPath],
+        ["database", "create", dbPath, `--language=${languages}`, "--source-root", repoPath],
         { 
           detached: true, 
           stdio: ["ignore", "pipe", "pipe"],
@@ -743,7 +814,7 @@ Status          : ${vulns > 0 ? "🚨 VULNERABILITIES DETECTED" : "✅ NO VULNER
         if (cancelled) return;
         event.sender.send(`scan-log:${scanId}`, {
           log: data.toString(),
-          progress: 65,
+          progress: 60,
         });
       });
 
@@ -751,7 +822,7 @@ Status          : ${vulns > 0 ? "🚨 VULNERABILITIES DETECTED" : "✅ NO VULNER
         if (cancelled) return;
         event.sender.send(`scan-log:${scanId}`, {
           log: data.toString(),
-          progress: 70,
+          progress: 65,
         });
       });
 
@@ -780,8 +851,8 @@ Status          : ${vulns > 0 ? "🚨 VULNERABILITIES DETECTED" : "✅ NO VULNER
 
         // Step 2: Analyze database
         event.sender.send(`scan-log:${scanId}`, {
-          log: "\n✅ Database created successfully!\n\n🔬 Step 2/2: Running CodeQL analysis...\n",
-          progress: 75,
+          log: "\n✅ Database created successfully!\n\n🔬 Step 2/2: Running CodeQL analysis...\n🧪 Detecting security patterns and vulnerabilities...\n\n",
+          progress: 70,
         });
 
         const analyze = spawn(
@@ -808,7 +879,7 @@ Status          : ${vulns > 0 ? "🚨 VULNERABILITIES DETECTED" : "✅ NO VULNER
           if (cancelled) return;
           event.sender.send(`scan-log:${scanId}`, {
             log: data.toString(),
-            progress: 85,
+            progress: 80,
           });
         });
 
@@ -837,12 +908,19 @@ Status          : ${vulns > 0 ? "🚨 VULNERABILITIES DETECTED" : "✅ NO VULNER
           }
 
           const summary = `
-╔═══════════════════════════════════════════════════════════╗
-║                CODEQL SAST SUMMARY                        ║
-╚═══════════════════════════════════════════════════════════╝
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                                                                               ║
+║     📊  STATIC APPLICATION SECURITY TESTING (SAST) ANALYSIS SUMMARY  📊      ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
 Analysis Status : ${analyzeCode === 0 ? "✅ COMPLETE" : "❌ FAILED"}
 Issues Found    : ${issues}
+Languages       : ${languages}
 SARIF Report    : ${sarifPath}
+
+${"═".repeat(79)}
 `;
 
           event.sender.send(`scan-log:${scanId}`, {
@@ -893,8 +971,6 @@ SARIF Report    : ${sarifPath}
       });
     });
   });
-
-
 
   /* --------------------------------------------------------
      CANCEL HANDLER
