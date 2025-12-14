@@ -579,6 +579,194 @@ Status          : ${vulns > 0 ? "⚠️ VULNERABILITIES DETECTED" : "✅ NO VULN
       });
     });
   });
+  ipcMain.handle("scan:codeql", async (event, { repoUrl, branch, scanId }) => {
+    debugLog(`[CODEQL] Starting SAST analysis for ${repoUrl}`);
+    const codeqlPath = validateTool("codeql");
+    if (!codeqlPath) {
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `
+❌ CodeQL tool not found
+   Expected: ${toolPath("codeql")}
+   Download from: https://github.com/github/codeql-cli-binaries/releases
+
+`,
+        progress: 0
+      });
+      event.sender.send(`scan-complete:${scanId}`, {
+        success: false,
+        error: "Tool not found"
+      });
+      return { success: false, error: "Tool not found" };
+    }
+    const repoPath = await cloneRepository(event, repoUrl, branch, scanId);
+    if (!repoPath) {
+      event.sender.send(`scan-complete:${scanId}`, {
+        success: false,
+        error: "Clone failed"
+      });
+      return { success: false, error: "Clone failed" };
+    }
+    const dbPath = path.join(repoPath, "codeql-db");
+    const sarifPath = path.join(repoPath, "codeql-results.sarif");
+    let cancelled = false;
+    return new Promise((resolve) => {
+      var _a, _b;
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `
+${"═".repeat(60)}
+🔬 CODEQL SAST ANALYSIS
+${"═".repeat(60)}
+`,
+        progress: 55
+      });
+      event.sender.send(`scan-log:${scanId}`, {
+        log: "📊 Step 1/2: Creating CodeQL database...\n",
+        progress: 60
+      });
+      const createDb = spawn(
+        codeqlPath,
+        ["database", "create", dbPath, "--language=javascript", "--source-root", repoPath],
+        {
+          detached: true,
+          stdio: ["ignore", "pipe", "pipe"],
+          windowsHide: true
+        }
+      );
+      createDb.unref();
+      activeProcesses.set(scanId, createDb);
+      (_a = createDb.stdout) == null ? void 0 : _a.on("data", (data) => {
+        if (cancelled) return;
+        event.sender.send(`scan-log:${scanId}`, {
+          log: data.toString(),
+          progress: 65
+        });
+      });
+      (_b = createDb.stderr) == null ? void 0 : _b.on("data", (data) => {
+        if (cancelled) return;
+        event.sender.send(`scan-log:${scanId}`, {
+          log: data.toString(),
+          progress: 70
+        });
+      });
+      createDb.on("close", (code) => {
+        var _a2, _b2;
+        activeProcesses.delete(scanId);
+        if (cancelled) {
+          resolve({ success: false, cancelled: true });
+          return;
+        }
+        if (code !== 0) {
+          event.sender.send(`scan-log:${scanId}`, {
+            log: `
+❌ Database creation failed with exit code ${code}
+`,
+            progress: 0
+          });
+          event.sender.send(`scan-complete:${scanId}`, {
+            success: false,
+            error: `Database creation failed with code ${code}`
+          });
+          resolve({ success: false, error: `Database creation failed with code ${code}` });
+          return;
+        }
+        event.sender.send(`scan-log:${scanId}`, {
+          log: "\n✅ Database created successfully!\n\n🔬 Step 2/2: Running CodeQL analysis...\n",
+          progress: 75
+        });
+        const analyze = spawn(
+          codeqlPath,
+          [
+            "database",
+            "analyze",
+            dbPath,
+            "--format=sarif-latest",
+            "--output",
+            sarifPath
+          ],
+          {
+            detached: true,
+            stdio: ["ignore", "pipe", "pipe"],
+            windowsHide: true
+          }
+        );
+        analyze.unref();
+        activeProcesses.set(scanId, analyze);
+        (_a2 = analyze.stdout) == null ? void 0 : _a2.on("data", (data) => {
+          if (cancelled) return;
+          event.sender.send(`scan-log:${scanId}`, {
+            log: data.toString(),
+            progress: 85
+          });
+        });
+        (_b2 = analyze.stderr) == null ? void 0 : _b2.on("data", (data) => {
+          if (cancelled) return;
+          event.sender.send(`scan-log:${scanId}`, {
+            log: data.toString(),
+            progress: 90
+          });
+        });
+        analyze.on("close", async (analyzeCode) => {
+          var _a3, _b3, _c;
+          activeProcesses.delete(scanId);
+          if (cancelled) {
+            resolve({ success: false, cancelled: true });
+            return;
+          }
+          let issues = 0;
+          if (fsSync.existsSync(sarifPath)) {
+            try {
+              const sarif = JSON.parse(await fs.readFile(sarifPath, "utf-8"));
+              issues = ((_c = (_b3 = (_a3 = sarif.runs) == null ? void 0 : _a3[0]) == null ? void 0 : _b3.results) == null ? void 0 : _c.length) || 0;
+            } catch {
+            }
+          }
+          const summary = `
+╔═══════════════════════════════════════════════════════════╗
+║                CODEQL SAST SUMMARY                        ║
+╚═══════════════════════════════════════════════════════════╝
+Analysis Status : ${analyzeCode === 0 ? "✅ COMPLETE" : "❌ FAILED"}
+Issues Found    : ${issues}
+SARIF Report    : ${sarifPath}
+`;
+          event.sender.send(`scan-log:${scanId}`, {
+            log: summary,
+            progress: 100
+          });
+          event.sender.send(`scan-complete:${scanId}`, {
+            success: analyzeCode === 0,
+            issues
+          });
+          resolve({ success: analyzeCode === 0, issues });
+        });
+        analyze.on("error", (err) => {
+          activeProcesses.delete(scanId);
+          event.sender.send(`scan-complete:${scanId}`, {
+            success: false,
+            error: err.message
+          });
+          resolve({ success: false, error: err.message });
+        });
+      });
+      createDb.on("error", (err) => {
+        activeProcesses.delete(scanId);
+        event.sender.send(`scan-complete:${scanId}`, {
+          success: false,
+          error: err.message
+        });
+        resolve({ success: false, error: err.message });
+      });
+      ipcMain.once(`scan:cancel-${scanId}`, () => {
+        cancelled = true;
+        debugLog(`Cancelling CodeQL scan: ${scanId}`);
+        const activeChild = activeProcesses.get(scanId);
+        if (activeChild) {
+          killProcess(activeChild, scanId);
+          activeProcesses.delete(scanId);
+        }
+        resolve({ success: false, cancelled: true });
+      });
+    });
+  });
   ipcMain.handle("scan:cancel", async (event, { scanId }) => {
     debugLog(`Cancel requested: ${scanId}`);
     return new Promise((resolve) => {

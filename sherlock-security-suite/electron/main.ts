@@ -42,7 +42,7 @@ function getOsFolder() {
   return "linux";
 }
 
-function toolPath(tool: "gitleaks" | "trivy"): string {
+function toolPath(tool: "gitleaks" | "trivy" | "codeql"): string {
   const ext = process.platform === "win32" ? ".exe" : "";
   const toolFile = tool + ext;
   return path.join(
@@ -54,7 +54,7 @@ function toolPath(tool: "gitleaks" | "trivy"): string {
   );
 }
 
-function validateTool(tool: "gitleaks" | "trivy"): string | null {
+function validateTool(tool: "gitleaks" | "trivy" | "codeql"): string | null {
   const fullPath = toolPath(tool);
   
   if (!fsSync.existsSync(fullPath)) {
@@ -679,6 +679,223 @@ Status          : ${vulns > 0 ? "⚠️ VULNERABILITIES DETECTED" : "✅ NO VULN
   });
 
 
+    /* --------------------------------------------------------
+     CODEQL
+  -------------------------------------------------------- */
+  ipcMain.handle("scan:codeql", async (event, { repoUrl, branch, scanId }) => {
+    debugLog(`[CODEQL] Starting SAST analysis for ${repoUrl}`);
+    
+    const codeqlPath = validateTool("codeql");
+    if (!codeqlPath) {
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `\n❌ CodeQL tool not found\n   Expected: ${toolPath("codeql")}\n   Download from: https://github.com/github/codeql-cli-binaries/releases\n\n`,
+        progress: 0,
+      });
+      
+      event.sender.send(`scan-complete:${scanId}`, {
+        success: false,
+        error: "Tool not found",
+      });
+      
+      return { success: false, error: "Tool not found" };
+    }
+    
+    // Clone repo first
+    const repoPath = await cloneRepository(event, repoUrl, branch, scanId);
+    if (!repoPath) {
+      event.sender.send(`scan-complete:${scanId}`, {
+        success: false,
+        error: "Clone failed",
+      });
+      return { success: false, error: "Clone failed" };
+    }
+
+    const dbPath = path.join(repoPath, "codeql-db");
+    const sarifPath = path.join(repoPath, "codeql-results.sarif");
+    let cancelled = false;
+
+    return new Promise((resolve) => {
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `\n${"═".repeat(60)}\n🔬 CODEQL SAST ANALYSIS\n${"═".repeat(60)}\n`,
+        progress: 55,
+      });
+
+      event.sender.send(`scan-log:${scanId}`, {
+        log: "📊 Step 1/2: Creating CodeQL database...\n",
+        progress: 60,
+      });
+
+      // Step 1: Create database
+      const createDb = spawn(
+        codeqlPath,
+        ["database", "create", dbPath, "--language=javascript", "--source-root", repoPath],
+        { 
+          detached: true, 
+          stdio: ["ignore", "pipe", "pipe"],
+          windowsHide: true,
+        }
+      );
+
+      createDb.unref();
+      activeProcesses.set(scanId, createDb);
+
+      createDb.stdout?.on("data", (data) => {
+        if (cancelled) return;
+        event.sender.send(`scan-log:${scanId}`, {
+          log: data.toString(),
+          progress: 65,
+        });
+      });
+
+      createDb.stderr?.on("data", (data) => {
+        if (cancelled) return;
+        event.sender.send(`scan-log:${scanId}`, {
+          log: data.toString(),
+          progress: 70,
+        });
+      });
+
+      createDb.on("close", (code) => {
+        activeProcesses.delete(scanId);
+        
+        if (cancelled) {
+          resolve({ success: false, cancelled: true });
+          return;
+        }
+        
+        if (code !== 0) {
+          event.sender.send(`scan-log:${scanId}`, {
+            log: `\n❌ Database creation failed with exit code ${code}\n`,
+            progress: 0,
+          });
+          
+          event.sender.send(`scan-complete:${scanId}`, {
+            success: false,
+            error: `Database creation failed with code ${code}`,
+          });
+          
+          resolve({ success: false, error: `Database creation failed with code ${code}` });
+          return;
+        }
+
+        // Step 2: Analyze database
+        event.sender.send(`scan-log:${scanId}`, {
+          log: "\n✅ Database created successfully!\n\n🔬 Step 2/2: Running CodeQL analysis...\n",
+          progress: 75,
+        });
+
+        const analyze = spawn(
+          codeqlPath,
+          [
+            "database",
+            "analyze",
+            dbPath,
+            "--format=sarif-latest",
+            "--output",
+            sarifPath,
+          ],
+          { 
+            detached: true, 
+            stdio: ["ignore", "pipe", "pipe"],
+            windowsHide: true,
+          }
+        );
+
+        analyze.unref();
+        activeProcesses.set(scanId, analyze);
+
+        analyze.stdout?.on("data", (data) => {
+          if (cancelled) return;
+          event.sender.send(`scan-log:${scanId}`, {
+            log: data.toString(),
+            progress: 85,
+          });
+        });
+
+        analyze.stderr?.on("data", (data) => {
+          if (cancelled) return;
+          event.sender.send(`scan-log:${scanId}`, {
+            log: data.toString(),
+            progress: 90,
+          });
+        });
+
+        analyze.on("close", async (analyzeCode) => {
+          activeProcesses.delete(scanId);
+          
+          if (cancelled) {
+            resolve({ success: false, cancelled: true });
+            return;
+          }
+
+          let issues = 0;
+          if (fsSync.existsSync(sarifPath)) {
+            try {
+              const sarif = JSON.parse(await fs.readFile(sarifPath, "utf-8"));
+              issues = sarif.runs?.[0]?.results?.length || 0;
+            } catch {}
+          }
+
+          const summary = `
+╔═══════════════════════════════════════════════════════════╗
+║                CODEQL SAST SUMMARY                        ║
+╚═══════════════════════════════════════════════════════════╝
+Analysis Status : ${analyzeCode === 0 ? "✅ COMPLETE" : "❌ FAILED"}
+Issues Found    : ${issues}
+SARIF Report    : ${sarifPath}
+`;
+
+          event.sender.send(`scan-log:${scanId}`, {
+            log: summary,
+            progress: 100,
+          });
+
+          event.sender.send(`scan-complete:${scanId}`, {
+            success: analyzeCode === 0,
+            issues,
+          });
+
+          resolve({ success: analyzeCode === 0, issues });
+        });
+
+        analyze.on("error", (err) => {
+          activeProcesses.delete(scanId);
+          event.sender.send(`scan-complete:${scanId}`, {
+            success: false,
+            error: err.message,
+          });
+          resolve({ success: false, error: err.message });
+        });
+      });
+
+      createDb.on("error", (err) => {
+        activeProcesses.delete(scanId);
+        event.sender.send(`scan-complete:${scanId}`, {
+          success: false,
+          error: err.message,
+        });
+        resolve({ success: false, error: err.message });
+      });
+
+      // Cancel handler
+      ipcMain.once(`scan:cancel-${scanId}`, () => {
+        cancelled = true;
+        debugLog(`Cancelling CodeQL scan: ${scanId}`);
+        
+        // Kill whichever process is active
+        const activeChild = activeProcesses.get(scanId);
+        if (activeChild) {
+          killProcess(activeChild, scanId);
+          activeProcesses.delete(scanId);
+        }
+        
+        resolve({ success: false, cancelled: true });
+      });
+    });
+  });
+
+
+  
   /* --------------------------------------------------------
      CANCEL HANDLER
   -------------------------------------------------------- */
