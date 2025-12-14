@@ -244,7 +244,7 @@ function GPGVerificationPanel({
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Stack width="100%" spacing={1}>
             <Typography textAlign="center" fontWeight={700} fontSize={18}>
-              GPG Signature Verification
+              🛡️ GPG Signed Commits Verification 🛡️
             </Typography>
             <Typography
               textAlign="center"
@@ -302,20 +302,19 @@ function GPGVerificationPanel({
               </Stack>
 
               <Stack direction="row" spacing={1}>
+                {logs.length > 0 && (
+                  <Button startIcon={<DownloadIcon />} onClick={downloadLogs}>
+                    Download Logs
+                  </Button>
+                )}
                 <Button
                   variant="contained"
                   startIcon={<PlayArrowIcon />}
                   disabled={!isAuthorized || isRunning}
                   onClick={runGPGVerification}
                 >
-                  Run Verification
+                🔍 Run
                 </Button>
-
-                {logs.length > 0 && (
-                  <Button startIcon={<DownloadIcon />} onClick={downloadLogs}>
-                    Download Logs
-                  </Button>
-                )}
               </Stack>
             </Stack>
 
@@ -435,7 +434,7 @@ function GPGVerificationPanel({
             alignItems="center"
           >
             <Typography variant="h6" fontWeight={600}>
-              GPG Signature Verification
+             🛡️ GPG Signed Commits Verification 🛡️
             </Typography>
 
             {canClose && (
@@ -472,7 +471,8 @@ function GPGVerificationPanel({
 
         <DialogContent
           sx={{
-            height: "70vh",
+            height: "60vh",
+             mt: 2,
             backgroundColor: "#1a1a1a",
             overflow: "auto",
             p: 3,
@@ -729,7 +729,7 @@ function GitleaksPanel({
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Stack width="100%" spacing={1}>
             <Typography textAlign="center" fontWeight={700} fontSize={18}>
-              Secrets Detection (Gitleaks)
+              🔐 Secrets & Credentials Leakage Scan 🔐 
             </Typography>
             <Typography
               textAlign="center"
@@ -786,20 +786,19 @@ function GitleaksPanel({
               </Stack>
 
               <Stack direction="row" spacing={1}>
+                {logs.length > 0 && (
+                  <Button startIcon={<DownloadIcon />} onClick={downloadLogs}>
+                    Download Logs
+                  </Button>
+                )}
                 <Button
                   variant="contained"
                   startIcon={<PlayArrowIcon />}
                   disabled={!isAuthorized || isRunning}
                   onClick={runGitleaksScan}
                 >
-                  Run Scan
+                🔍 Run
                 </Button>
-
-                {logs.length > 0 && (
-                  <Button startIcon={<DownloadIcon />} onClick={downloadLogs}>
-                    Download Logs
-                  </Button>
-                )}
               </Stack>
             </Stack>
 
@@ -912,7 +911,7 @@ function GitleaksPanel({
             alignItems="center"
           >
             <Typography variant="h6" fontWeight={600}>
-              Gitleaks Secrets Scan
+              🔐 Secrets & Credentials Leakage Scan 🔐
             </Typography>
 
             {canClose && (
@@ -949,7 +948,8 @@ function GitleaksPanel({
 
         <DialogContent
           sx={{
-            height: "70vh",
+            height: "60vh",
+             mt: 2,
             backgroundColor: "#1a1a1a",
             overflow: "auto",
             p: 3,
@@ -1206,7 +1206,7 @@ function TrivyPanel({
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Stack width="100%" spacing={1}>
             <Typography textAlign="center" fontWeight={700} fontSize={18}>
-              SBOM & Vulnerability Scan (Trivy)
+              🚨 SBOM & Vulnerability Scan 🚨
             </Typography>
             <Typography
               textAlign="center"
@@ -1263,20 +1263,19 @@ function TrivyPanel({
               </Stack>
 
               <Stack direction="row" spacing={1}>
+                {logs.length > 0 && (
+                  <Button startIcon={<DownloadIcon />} onClick={downloadLogs}>
+                    Download Logs
+                  </Button>
+                )}
                 <Button
                   variant="contained"
                   startIcon={<PlayArrowIcon />}
                   disabled={!isAuthorized || isRunning}
                   onClick={runTrivyScan}
                 >
-                  Run Scan
+                🔍 Run
                 </Button>
-
-                {logs.length > 0 && (
-                  <Button startIcon={<DownloadIcon />} onClick={downloadLogs}>
-                    Download Logs
-                  </Button>
-                )}
               </Stack>
             </Stack>
 
@@ -1389,7 +1388,7 @@ function TrivyPanel({
             alignItems="center"
           >
             <Typography variant="h6" fontWeight={600}>
-              Trivy SBOM & Vulnerability Scan
+            🚨 SBOM & Vulnerability Scan 🚨
             </Typography>
 
             {canClose && (
@@ -1426,7 +1425,8 @@ function TrivyPanel({
 
         <DialogContent
           sx={{
-            height: "70vh",
+            height: "60vh",
+             mt: 2,
             backgroundColor: "#1a1a1a",
             overflow: "auto",
             p: 3,
@@ -1683,7 +1683,7 @@ function CodeQLPanel({
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Stack width="100%" spacing={1}>
             <Typography textAlign="center" fontWeight={700} fontSize={18}>
-              SAST Analysis (CodeQL)
+            📊 Static Application Security Testing (SAST) Analysis 📊
             </Typography>
             <Typography
               textAlign="center"
@@ -1740,20 +1740,19 @@ function CodeQLPanel({
               </Stack>
 
               <Stack direction="row" spacing={1}>
+                {logs.length > 0 && (
+                  <Button startIcon={<DownloadIcon />} onClick={downloadLogs}>
+                    Download Logs
+                  </Button>
+                )}
                 <Button
                   variant="contained"
                   startIcon={<PlayArrowIcon />}
                   disabled={!isAuthorized || isRunning}
                   onClick={runCodeQLScan}
                 >
-                  Run Analysis
+                🔍 Run
                 </Button>
-
-                {logs.length > 0 && (
-                  <Button startIcon={<DownloadIcon />} onClick={downloadLogs}>
-                    Download Logs
-                  </Button>
-                )}
               </Stack>
             </Stack>
 
@@ -1866,7 +1865,7 @@ function CodeQLPanel({
             alignItems="center"
           >
             <Typography variant="h6" fontWeight={600}>
-              CodeQL SAST Analysis
+              📊 Static Application Security Testing (SAST) Analysis 📊
             </Typography>
 
             {canClose && (
@@ -1903,7 +1902,8 @@ function CodeQLPanel({
 
         <DialogContent
           sx={{
-            height: "70vh",
+            height: "60vh",
+             mt: 2,
             backgroundColor: "#1a1a1a",
             overflow: "auto",
             p: 3,

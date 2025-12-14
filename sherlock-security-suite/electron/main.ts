@@ -628,7 +628,7 @@ Status            : ${findings > 0 ? "⚠️ SECRETS DETECTED" : "✅ CLEAN"}
 ║                 TRIVY SBOM SUMMARY                        ║
 ╚═══════════════════════════════════════════════════════════╝
 Vulnerabilities : ${vulns}
-Status          : ${vulns > 0 ? "⚠️ VULNERABILITIES DETECTED" : "✅ NO VULNERABILITIES"}
+Status          : ${vulns > 0 ? "🚨 VULNERABILITIES DETECTED" : "✅ NO VULNERABILITIES"}
 `;
 
             event.sender.send(`scan-log:${scanId}`, {
@@ -895,7 +895,7 @@ SARIF Report    : ${sarifPath}
   });
 
 
-  
+
   /* --------------------------------------------------------
      CANCEL HANDLER
   -------------------------------------------------------- */

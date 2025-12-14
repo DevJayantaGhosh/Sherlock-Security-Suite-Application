@@ -536,7 +536,7 @@ ${"═".repeat(60)}
 ║                 TRIVY SBOM SUMMARY                        ║
 ╚═══════════════════════════════════════════════════════════╝
 Vulnerabilities : ${vulns}
-Status          : ${vulns > 0 ? "⚠️ VULNERABILITIES DETECTED" : "✅ NO VULNERABILITIES"}
+Status          : ${vulns > 0 ? "🚨 VULNERABILITIES DETECTED" : "✅ NO VULNERABILITIES"}
 `;
             event.sender.send(`scan-log:${scanId}`, {
               log: summary,
