@@ -49,6 +49,17 @@ interface Window {
       vulnerabilities?: number;
     }>;
 
+    runCodeQL(payload: { 
+      repoUrl: string; 
+      branch: string; 
+      scanId: string 
+    }): Promise<{
+      success: boolean;
+      cancelled?: boolean;
+      error?: string;
+      issues?: number;
+    }>;
+
     cancelScan(payload: { scanId: string }): Promise<{ cancelled: boolean }>;
 
     onScanLog(
@@ -67,6 +78,7 @@ interface Window {
         goodSignatures?: number;
         findings?: number;
         vulnerabilities?: number;
+        issues?: number;
         error?: string;
       }) => void
     ): () => void;

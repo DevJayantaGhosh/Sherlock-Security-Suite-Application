@@ -22,6 +22,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   runTrivy: (payload: { repoUrl: string; branch: string; scanId: string }) =>
     ipcRenderer.invoke("scan:trivy", payload),
   
+  // CodeQL Scan
+  runCodeQL: (payload: { repoUrl: string; branch: string; scanId: string }) =>
+    ipcRenderer.invoke("scan:codeql", payload),
+  
   // Cancel scan
   cancelScan: (payload: { scanId: string }) =>
     ipcRenderer.invoke("scan:cancel", payload),

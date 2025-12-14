@@ -12,6 +12,8 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
   runGitleaks: (payload) => electron.ipcRenderer.invoke("scan:gitleaks", payload),
   // Trivy Scan
   runTrivy: (payload) => electron.ipcRenderer.invoke("scan:trivy", payload),
+  // CodeQL Scan
+  runCodeQL: (payload) => electron.ipcRenderer.invoke("scan:codeql", payload),
   // Cancel scan
   cancelScan: (payload) => electron.ipcRenderer.invoke("scan:cancel", payload),
   // Listen to logs
