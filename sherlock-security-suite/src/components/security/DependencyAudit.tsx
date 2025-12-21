@@ -25,17 +25,17 @@ import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowDown";
 
 import { llmQuery, onLLMStream } from "../../services/securityService";
 import { useUserStore } from "../../store/userStore";
-import { authorizeApprove } from "../../services/projectService";
-import { Project } from "../../models/Project";
+import { authorizeApprove } from "../../services/productService";
+import { Product } from "../../models/Product";
 
 interface Props {
-  project: Project;
+  product: Product;
   dependencies: string[];
 }
 
-export default function DependencyAudit({ project, dependencies }: Props) {
+export default function DependencyAudit({ product, dependencies }: Props) {
   const user = useUserStore((s) => s.user);
-  const isAuthorized = authorizeApprove(user, project);
+  const isAuthorized = authorizeApprove(user, product);
   const location = useLocation();
 
   const tooltip = isAuthorized

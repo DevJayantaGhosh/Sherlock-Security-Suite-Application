@@ -7,14 +7,13 @@ import Footer from "./components/Footer";
 
 import Home from "./pages/HomePage";
 import About from "./pages/AboutPage";
-import Projects from "./pages/ProjectPage";
 import Login from "./pages/LoginPage";
 import AdminPage from "./pages/AdminPage";
-import ProjectReleasePage from "./pages/ProjectReleasePage";
-import ProjectSecurityScanPage from "./pages/ProjectSecurityScanPage";
-
 import ProtectedRoute from "./auth/ProtectedRoute";
 import RegisterPage from "./pages/RegisterPage";
+import ProductPage from "./pages/ProductPage";
+import ProductReleasePage from "./pages/ProductReleasePage";
+import ProductSecurityScanPage from "./pages/ProductSecurityScanPage";
 
 export default function App() {
   return (
@@ -38,28 +37,28 @@ export default function App() {
 
           {/* Protected and layouted pages */}
           <Route
-            path="/projects"
+            path="/products"
             element={
               <ProtectedRoute>
-                <Projects />
+                <ProductPage />
               </ProtectedRoute>
             }
           />
 
           <Route
-            path="/project/:id/security-scan"
+            path="/product/:id/security-scan"
             element={
               <ProtectedRoute>
-                <ProjectSecurityScanPage />
+                <ProductSecurityScanPage />
               </ProtectedRoute>
             }
           />
 
           <Route
-            path="/project/:id/releases"
+            path="/product/:id/releases"
             element={
               <ProtectedRoute>
-                <ProjectReleasePage />
+                <ProductReleasePage />
               </ProtectedRoute>
             }
           />

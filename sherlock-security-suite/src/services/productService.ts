@@ -1,6 +1,6 @@
 import { Product, ProductStatus } from "../models/Product";
 import { AppUser } from "../models/User";
-import { api } from "./project-service-api";
+import { api } from "./productServiceApi";
 
 /* ======================================================
    IN-MEMORY DB

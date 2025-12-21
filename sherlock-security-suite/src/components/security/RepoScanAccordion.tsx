@@ -29,41 +29,41 @@ import CloseIcon from "@mui/icons-material/Close";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
 
-import { Project , RepoDetails} from "../../models/Project";
+import { Product , RepoDetails} from "../../models/Product";
 import { useUserStore } from "../../store/userStore";
-import { authorizeApprove } from "../../services/projectService";
+import { authorizeApprove } from "../../services/productService";
 
 type ScanStatus = "idle" | "running" | "success" | "failed";
 
 export default function RepoScanAccordion({
-  project,
+  product,
   repoDetails
 }: {
-  project: Project;
+  product: Product;
   repoDetails:RepoDetails
 }) {
   const user = useUserStore((s) => s.user);
-  const isAuthorized = authorizeApprove(user, project);
+  const isAuthorized = authorizeApprove(user, product);
 
   return (
     <Stack spacing={2}>
       <GPGVerificationPanel
-        project={project}
+        product={product}
         repoDetails={repoDetails}
         isAuthorized={isAuthorized}
       />
       <GitleaksPanel
-        project={project}
+        product={product}
         repoDetails={repoDetails}
         isAuthorized={isAuthorized}
       />
       <TrivyPanel
-        project={project}
+        product={product}
         repoDetails={repoDetails}
         isAuthorized={isAuthorized}
       />
       <CodeQLPanel
-        project={project}
+        product={product}
         repoDetails={repoDetails}
         isAuthorized={isAuthorized}
       />
@@ -75,11 +75,11 @@ export default function RepoScanAccordion({
    GPG VERIFICATION PANEL
 ============================================================ */
 function GPGVerificationPanel({
-  project,
+  product,
   repoDetails,
   isAuthorized,
 }: {
-  project: Project;
+  product: Product;
   repoDetails:RepoDetails;
   isAuthorized: boolean;
 }) {
@@ -560,11 +560,11 @@ function GPGVerificationPanel({
    GITLEAKS PANEL
 ============================================================ */
 function GitleaksPanel({
-  project,
+  product,
   repoDetails,
   isAuthorized,
 }: {
-  project: Project;
+  product: Product;
   repoDetails:RepoDetails;
   isAuthorized: boolean;
 }) {
@@ -1035,11 +1035,11 @@ function GitleaksPanel({
    TRIVY PANEL
 ============================================================ */
 function TrivyPanel({
-  project,
+  product,
   repoDetails,
   isAuthorized,
 }: {
-  project: Project;
+  product: Product;
   repoDetails:RepoDetails
   isAuthorized: boolean;
 }) {
@@ -1510,11 +1510,11 @@ function TrivyPanel({
    CODEQL PANEL
 ============================================================ */
 function CodeQLPanel({
-  project,
+  product,
   repoDetails,
   isAuthorized,
 }: {
-  project: Project;
+  product: Product;
   repoDetails:RepoDetails
   isAuthorized: boolean;
 }) {
