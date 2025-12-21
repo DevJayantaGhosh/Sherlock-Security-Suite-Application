@@ -1,4 +1,3 @@
-// src/pages/AdminPage.tsx
 import { Box, Container, Typography, Fab } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import { useEffect, useState } from "react";
@@ -8,21 +7,18 @@ import AdminCharts from "../components/admin/AdminCharts";
 import UsersTable from "../components/admin/UsersTable";
 import AdminStats from "../components/admin/AdminStats";
 import AddEditUserDialog from "../components/admin/AddEditUserDialog";
-// src/pages/AdminPage.tsx
-
 import RepositoryManagement from "../components/admin/RepositoryManagement";
 import DependencyManagement from "../components/admin/DependencyManagement";
 
-
 import { getUsers } from "../services/userService";
-import { getProjects } from "../services/projectService";
+import { getProducts } from "../services/productService";
 
 import { AppUser } from "../models/User";
-import { Project } from "../models/Project";
+import { Product } from "../models/Product";
 
 export default function AdminPage() {
   const [users, setUsers] = useState<AppUser[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
 
   // dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -33,7 +29,7 @@ export default function AdminPage() {
   ---------------------------- */
   const loadData = async () => {
     setUsers(await getUsers());
-    setProjects(await getProjects());
+    setProducts(await getProducts());
   };
 
   useEffect(() => {
@@ -44,12 +40,12 @@ export default function AdminPage() {
         HANDLERS
   ---------------------------- */
   const openAdd = () => {
-    setEditUser(null);       // new user
+    setEditUser(null); // new user
     setDialogOpen(true);
   };
 
   const openEdit = (u: AppUser) => {
-    setEditUser(u);         // edit mode
+    setEditUser(u); // edit mode
     setDialogOpen(true);
   };
 
@@ -96,53 +92,54 @@ export default function AdminPage() {
 
           {/* STATS */}
           <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", mb: 4 }}>
-            <AdminStats title="Total Projects" value={projects.length} />
-            <AdminStats title="Approved" value={projects.filter(p => p.status === "Approved").length} />
-            <AdminStats title="Pending" value={projects.filter(p => p.status === "Pending").length} />
-            <AdminStats title="Rejected" value={projects.filter(p => p.status === "Rejected").length} />
+            <AdminStats title="Total Products" value={products.length} />
+            <AdminStats
+              title="Approved"
+              value={products.filter((p) => p.status === "Approved").length}
+            />
+            <AdminStats
+              title="Pending"
+              value={products.filter((p) => p.status === "Pending").length}
+            />
+            <AdminStats
+              title="Rejected"
+              value={products.filter((p) => p.status === "Rejected").length}
+            />
             <AdminStats title="Total Users" value={users.length} />
           </Box>
 
           {/* CHARTS */}
-          <AdminCharts projects={projects} users={users} />
+          <AdminCharts products={products} users={users} />
 
           {/* USERS TABLE */}
           <Box sx={{ mt: 4 }}>
-            <Typography variant="h5" sx={{ mb: 2 }}>
+            <Typography variant="h5" sx={{ mb: 2, fontWeight: 700 }}>
               User Management
             </Typography>
 
-            <UsersTable
-              users={users}
-              onEdit={openEdit}
-              refresh={loadData}
-            />
+            <UsersTable users={users} onEdit={openEdit} refresh={loadData} />
           </Box>
 
+          {/* ===================================================
+               REPOSITORY & DEPENDENCY MANAGEMENT (SIDE BY SIDE)
+          =================================================== */}
           <Box sx={{ mt: 6 }}>
-            <Typography variant="h5" sx={{ mb: 2 }}>
-              Repository Management
+            <Typography variant="h5" sx={{ mb: 2, fontWeight: 700 }}>
+              Configuration Management
             </Typography>
 
-            <Box sx={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
+            {/* ✅ GRID: 2 COLUMNS */}
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, 1fr)",
+                gap: 3,
+              }}
+            >
               <RepositoryManagement />
-            </Box>
-          </Box>
-
-            <Box sx={{ mt: 6 }}>
-            <Typography variant="h5" sx={{ mb: 2 }}>
-              Dependency Management
-            </Typography>
-
-            <Box sx={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
               <DependencyManagement />
             </Box>
           </Box>
-
-          
-
-
-
         </motion.div>
       </Container>
 
@@ -153,6 +150,10 @@ export default function AdminPage() {
           position: "fixed",
           bottom: 28,
           right: 28,
+          background: "linear-gradient(135deg,#7b5cff,#5ce1e6)",
+          "&:hover": {
+            background: "linear-gradient(135deg,#6a4de0,#4bc0c5)",
+          },
         }}
         onClick={openAdd}
       >
