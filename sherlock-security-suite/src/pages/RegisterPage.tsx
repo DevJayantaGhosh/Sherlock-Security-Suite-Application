@@ -14,7 +14,7 @@ export default function RegisterPage() {
   function handleRegister() {
     try {
       registerLocal(userName,email,password);
-      navigate("/projects");
+      navigate("/products");
     } catch (err) {
       alert((err as Error).message);
     }

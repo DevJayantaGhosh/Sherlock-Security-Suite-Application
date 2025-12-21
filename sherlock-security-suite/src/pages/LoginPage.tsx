@@ -13,7 +13,7 @@ export default function Login() {
   function handleSignIn() {
     try {
       loginLocal(email);
-      navigate("/projects");
+      navigate("/products");
     } catch (err) {
       alert((err as Error).message);
     }
