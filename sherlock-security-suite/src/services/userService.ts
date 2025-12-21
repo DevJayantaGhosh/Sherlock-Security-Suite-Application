@@ -114,3 +114,8 @@ export function loginLocal(email: string) {
 export function logoutLocal() {
   useUserStore.getState().clearUser();
 }
+
+export function registerLocal(userName:string,email: string,password:string) {
+
+  return ;
+}

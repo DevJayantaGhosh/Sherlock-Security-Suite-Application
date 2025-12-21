@@ -14,6 +14,7 @@ import ProjectReleasePage from "./pages/ProjectReleasePage";
 import ProjectSecurityScanPage from "./pages/ProjectSecurityScanPage";
 
 import ProtectedRoute from "./auth/ProtectedRoute";
+import RegisterPage from "./pages/RegisterPage";
 
 export default function App() {
   return (
@@ -30,6 +31,7 @@ export default function App() {
       >
         <Routes>
           {/* Public pages without layout interference */}
+           <Route path="/register" element={<RegisterPage />} />
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<Home />} />
           <Route path="/about" element={<About />} />

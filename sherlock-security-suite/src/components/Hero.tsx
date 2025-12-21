@@ -20,12 +20,19 @@ export default function Hero() {
 
           <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
             {!user ? (
-            <Button variant="contained" color="primary" size="large" component={Link} to="/login">Login</Button>
+              <>
+                <Button variant="contained" color="primary" size="large" component={Link} to="/login">Login</Button>
+                <Button variant="outlined" size="large" component={Link} to="/register" sx={{ color: "rgba(188,165,255,0.95)", borderColor: "rgba(188,165,255,0.16)" }}>Register</Button>
+              </>
+
             ) : (
-            <Button variant="contained" color="primary" size="large" component={Link} to="/projects">Get Started</Button>
+              <>
+                <Button variant="contained" color="primary" size="large" component={Link} to="/projects">Get Started</Button>
+                <Button variant="outlined" size="large" component={Link} to="/about" sx={{ color: "rgba(188,165,255,0.95)", borderColor: "rgba(188,165,255,0.16)" }}>Learn More</Button>
+              </>
+
             )}
 
-            <Button variant="outlined" size="large" component={Link} to="/about" sx={{ color: "rgba(188,165,255,0.95)", borderColor: "rgba(188,165,255,0.16)" }}>Learn More</Button>
           </Box>
         </motion.div>
 
