@@ -39,6 +39,70 @@ let productDB: Product[] = [
     status: "Pending",
   },
   {
+  id: "sherlock-001",
+  name: "Sherlock Security Suite Service With Build",
+  version: "1.0.0",
+  description: "Comprehensive security suite with multiple Spring Boot microservices.",
+  productDirector: "u1",
+  securityHead: "u2",
+  releaseEngineers: ["u3"],
+  repos: [
+    {
+      repoUrl: "https://github.com/DevJayantaGhosh/Sherlock-Security-Suite-Services.git",
+      branch: "main",
+      componentConfigs: [
+        {
+          language: "java",
+          buildCommand: "mvn clean compile -DskipTests",
+          workingDirectory: "project-management-service",
+        },
+        {
+          language: "java",
+          buildCommand: "mvn clean compile -DskipTests",
+          workingDirectory: "user-management-service",
+        },
+      ],
+    },
+  ],
+  dependencies: ["Spring Boot", "MySQL", "Spring Security"],
+  createdBy: "u1",
+  createdAt: new Date("2024-12-15").toISOString(),
+  status: "Pending",
+},
+{
+  id: "sherlock-001",
+  name: "Sherlock Security Suite No Build",
+  version: "1.0.0",
+  description: "Comprehensive security suite with multiple Spring Boot microservices.",
+  productDirector: "u1",
+  securityHead: "u2",
+  releaseEngineers: ["u3"],
+  repos: [
+    {
+      repoUrl: "https://github.com/DevJayantaGhosh/Sherlock-Security-Suite-Services.git",
+      branch: "main",
+      componentConfigs: [
+        {
+          language: "java",
+          buildCommand: "",
+          workingDirectory: "project-management-service",
+        },
+        {
+          language: "java",
+          buildCommand: "",
+          workingDirectory: "user-management-service",
+        },
+      ],
+    },
+  ],
+  dependencies: ["Spring Boot", "MySQL", "Spring Security"],
+  createdBy: "u1",
+  createdAt: new Date("2024-12-15").toISOString(),
+  status: "Pending",
+}
+,
+
+  {
     id: "2",
     name: "Sherlock Security Suite",
     version: "1.2.0",

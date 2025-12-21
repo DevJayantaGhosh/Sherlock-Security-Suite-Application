@@ -1,4 +1,3 @@
-// electron/preload.ts
 import { ipcRenderer, contextBridge } from "electron";
 
 // --------- WINDOW CONTROLS ----------
@@ -22,12 +21,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
   runTrivy: (payload: { repoUrl: string; branch: string; scanId: string }) =>
     ipcRenderer.invoke("scan:trivy", payload),
   
-  // CodeQL Scan (with languages parameter)
+  // CodeQL Scan with Component Configurations
   runCodeQL: (payload: { 
     repoUrl: string; 
     branch: string; 
     scanId: string;
-    languages?: string; // Comma-separated: "javascript-typescript,python,c-cpp"
+    componentConfigs?: Array<{
+      language: string;
+      buildCommand?: string;
+      workingDirectory?: string;
+    }>;
   }) =>
     ipcRenderer.invoke("scan:codeql", payload),
   
