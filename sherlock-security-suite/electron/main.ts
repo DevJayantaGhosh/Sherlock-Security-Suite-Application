@@ -457,98 +457,149 @@ ${"═".repeat(79)}
     });
   });
 
-  /* --------------------------------------------------------
-     GITLEAKS
-  -------------------------------------------------------- */
-  ipcMain.handle("scan:gitleaks", async (event, { repoUrl, branch, scanId }) => {
-    debugLog(`[GITLEAKS] Starting scan for ${repoUrl}`);
+/* --------------------------------------------------------
+   GITLEAKS
+-------------------------------------------------------- */
+ipcMain.handle("scan:gitleaks", async (event, { repoUrl, branch, scanId }) => {
+  debugLog(`[GITLEAKS] Starting scan for ${repoUrl}`);
+  
+  const gitleaksPath = validateTool("gitleaks");
+  if (!gitleaksPath) {
+    event.sender.send(`scan-log:${scanId}`, {
+      log: `\n❌ Gitleaks tool not found\n   Expected: ${toolPath("gitleaks")}\n\n`,
+      progress: 0,
+    });
     
-    const gitleaksPath = validateTool("gitleaks");
-    if (!gitleaksPath) {
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `\n❌ Gitleaks tool not found\n   Expected: ${toolPath("gitleaks")}\n\n`,
-        progress: 0,
-      });
-      
-      event.sender.send(`scan-complete:${scanId}`, {
-        success: false,
-        error: "Tool not found",
-      });
-      
-      return { success: false, error: "Tool not found" };
-    }
+    event.sender.send(`scan-complete:${scanId}`, {
+      success: false,
+      error: "Tool not found",
+    });
     
-    // Clone repo first
-    const repoPath = await cloneRepository(event, repoUrl, branch, scanId);
-    if (!repoPath) {
-      event.sender.send(`scan-complete:${scanId}`, {
-        success: false,
-        error: "Clone failed",
-      });
-      return { success: false, error: "Clone failed" };
+    return { success: false, error: "Tool not found" };
+  }
+  
+  // Clone repo first
+  const repoPath = await cloneRepository(event, repoUrl, branch, scanId);
+  if (!repoPath) {
+    event.sender.send(`scan-complete:${scanId}`, {
+      success: false,
+      error: "Clone failed",
+    });
+    return { success: false, error: "Clone failed" };
+  }
+
+  const reportPath = path.join(repoPath, "gitleaks-report.json");
+
+  return new Promise((resolve) => {
+    event.sender.send(`scan-log:${scanId}`, {
+      log: `\n${"═".repeat(60)}\n🔐 SECRETS & CREDENTIALS DETECTION\n${"═".repeat(60)}\n\n`,
+      progress: 52,
+    });
+
+    event.sender.send(`scan-log:${scanId}`, {
+      log: `🔍 Scanning for hardcoded secrets and credentials...\n\n`,
+      progress: 55,
+    });
+
+    // Windows-specific spawn options to prevent CMD popup
+    const spawnOptions: any = {
+      cwd: repoPath,
+      stdio: ["ignore", "pipe", "pipe"],
+      env: {
+        ...process.env,
+        NO_COLOR: '1', // Removed ANSI colors for cleaner parsing
+      }
+    };
+
+    // Prevent CMD window popup on Windows
+    if (process.platform === 'win32') {
+      spawnOptions.windowsHide = true;
+      spawnOptions.shell = false;
+      spawnOptions.detached = false; 
+    } else {
+      spawnOptions.detached = true;
     }
 
-    const reportPath = path.join(repoPath, "gitleaks-report.json");
+    const child = spawn(
+      gitleaksPath,
+      ["detect", "--source", repoPath, "--report-path", reportPath, "--verbose"],
+      spawnOptions
+    );
 
-    return new Promise((resolve) => {
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `\n${"═".repeat(60)}\n🔐 SECRETS & CREDENTIALS DETECTION\n${"═".repeat(60)}\n\n`,
-        progress: 52,
-      });
-
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `🔍 Scanning for hardcoded secrets and credentials...\n\n`,
-        progress: 55,
-      });
-
-      const child = spawn(
-        gitleaksPath,
-        ["detect", "--source", repoPath, "--report-path", reportPath, "--verbose"],
-        { 
-          detached: true, 
-          stdio: ["ignore", "pipe", "pipe"],
-          windowsHide: true,
-        }
-      );
-
+    // Only unref on Unix systems
+    if (process.platform !== 'win32') {
       child.unref();
-      activeProcesses.set(scanId, child);
+    }
+    activeProcesses.set(scanId, child);
+    
+    let cancelled = false;
+
+    child.stdout?.on("data", (data) => {
+      if (cancelled) return;
+      event.sender.send(`scan-log:${scanId}`, {
+        log: data.toString(),
+        progress: 70,
+      });
+    });
+
+    child.stderr?.on("data", (data) => {
+      if (cancelled) return;
+      event.sender.send(`scan-log:${scanId}`, {
+        log: data.toString(),
+        progress: 85,
+      });
+    });
+
+    child.on("close", async (code) => {
+      activeProcesses.delete(scanId);
       
-      let cancelled = false;
+      if (cancelled) {
+        resolve({ success: false, cancelled: true });
+        return;
+      }
 
-      child.stdout?.on("data", (data) => {
-        if (cancelled) return;
-        event.sender.send(`scan-log:${scanId}`, {
-          log: data.toString(),
-          progress: 70,
-        });
-      });
+      let findings = 0;
+      if (fsSync.existsSync(reportPath)) {
+        try {
+          const report = JSON.parse(await fs.readFile(reportPath, "utf-8"));
+          findings = report.length || 0;
+          
+          // Format and send detailed findings as logs
+          if (findings > 0) {
+            event.sender.send(`scan-log:${scanId}`, {
+              log: `\n🔍 DETAILED FINDINGS:\n${"═".repeat(79)}\n\n`,
+              progress: 90,
+            });
+            
+            report.forEach((finding: any, index: number) => {
+              const secretLog = `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🚨 Secret ${index + 1}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Type        : ${finding.RuleID || 'Unknown'}
+Description : ${finding.Description || finding.RuleID || 'N/A'}
+File        : ${finding.File || 'N/A'}
+Line        : ${finding.StartLine || 'N/A'}
+Commit      : ${finding.Commit?.substring(0, 8) || 'N/A'}
+Author      : ${finding.Author || 'N/A'}
+Date        : ${finding.Date || 'N/A'}
 
-      child.stderr?.on("data", (data) => {
-        if (cancelled) return;
-        event.sender.send(`scan-log:${scanId}`, {
-          log: data.toString(),
-          progress: 85,
-        });
-      });
-
-      child.on("close", async (code) => {
-        activeProcesses.delete(scanId);
-        
-        if (cancelled) {
-          resolve({ success: false, cancelled: true });
-          return;
+Match       : ${finding.Match?.substring(0, 80) || 'N/A'}${finding.Match?.length > 80 ? '...' : ''}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+`;
+              
+              event.sender.send(`scan-log:${scanId}`, {
+                log: secretLog,
+                progress: 90 + Math.floor((index / findings) * 5),
+              });
+            });
+          }
+        } catch (err) {
+          debugLog(`Error parsing Gitleaks report: ${err}`);
         }
+      }
 
-        let findings = 0;
-        if (fsSync.existsSync(reportPath)) {
-          try {
-            const report = JSON.parse(await fs.readFile(reportPath, "utf-8"));
-            findings = report.length || 0;
-          } catch {}
-        }
-
-        const summary = `
+      const summary = `
 
 ╔═══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                               ║
@@ -563,38 +614,38 @@ Severity          : ${findings > 0 ? "HIGH - Immediate action required" : "NONE"
 ${"═".repeat(79)}
 `;
 
-        event.sender.send(`scan-log:${scanId}`, {
-          log: summary,
-          progress: 100,
-        });
-
-        event.sender.send(`scan-complete:${scanId}`, {
-          success: true,
-          findings,
-        });
-
-        resolve({ success: true, findings });
+      event.sender.send(`scan-log:${scanId}`, {
+        log: summary,
+        progress: 100,
       });
 
-      child.on("error", (err) => {
-        activeProcesses.delete(scanId);
-        event.sender.send(`scan-complete:${scanId}`, {
-          success: false,
-          error: err.message,
-        });
-        resolve({ success: false, error: err.message });
+      event.sender.send(`scan-complete:${scanId}`, {
+        success: true,
+        findings,
       });
 
-      // Cancel handler
-      ipcMain.once(`scan:cancel-${scanId}`, () => {
-        cancelled = true;
-        debugLog(`Cancelling Gitleaks scan: ${scanId}`);
-        killProcess(child, scanId);
-        activeProcesses.delete(scanId);
-        resolve({ success: false, cancelled: true });
+      resolve({ success: true, findings });
+    });
+
+    child.on("error", (err) => {
+      activeProcesses.delete(scanId);
+      event.sender.send(`scan-complete:${scanId}`, {
+        success: false,
+        error: err.message,
       });
+      resolve({ success: false, error: err.message });
+    });
+
+    // Cancel handler
+    ipcMain.once(`scan:cancel-${scanId}`, () => {
+      cancelled = true;
+      debugLog(`Cancelling Gitleaks scan: ${scanId}`);
+      killProcess(child, scanId);
+      activeProcesses.delete(scanId);
+      resolve({ success: false, cancelled: true });
     });
   });
+});
 
   /* --------------------------------------------------------
      TRIVY
