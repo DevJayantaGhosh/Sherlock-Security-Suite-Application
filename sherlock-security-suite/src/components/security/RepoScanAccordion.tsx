@@ -18,6 +18,7 @@ import {
   CircularProgress,
   Collapse,
   Paper,
+  Chip,
 } from "@mui/material";
 
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
@@ -1515,7 +1516,7 @@ function CodeQLPanel({
   isAuthorized,
 }: {
   product: Product;
-  repoDetails:RepoDetails
+  repoDetails: RepoDetails;
   isAuthorized: boolean;
 }) {
   const logEndRef = useRef<HTMLDivElement>(null);
@@ -1527,7 +1528,13 @@ function CodeQLPanel({
   const [logs, setLogs] = useState<string[]>([]);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<{
-    issues?: number;
+    totalIssues?: number;
+    componentResults?: Array<{
+      language: string;
+      workingDirectory?: string;
+      issues: number;
+      success: boolean;
+    }>;
   } | null>(null);
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -1582,9 +1589,10 @@ function CodeQLPanel({
       setStatus(data.success ? "success" : "failed");
       setProgress(100);
 
-      if (data.issues !== undefined) {
+      if (data.totalIssues !== undefined) {
         setResult({
-          issues: data.issues,
+          totalIssues: data.totalIssues,
+          componentResults: data.componentResults,
         });
       }
 
@@ -1598,9 +1606,10 @@ function CodeQLPanel({
 
     try {
       const result = await window.electronAPI.runCodeQL({
-        repoUrl:repoDetails.repoUrl,
-        branch:repoDetails.branch,
+        repoUrl: repoDetails.repoUrl,
+        branch: repoDetails.branch,
         scanId,
+        componentConfigs: repoDetails.componentConfigs, // ✅ Pass component configs
       });
 
       if (result?.cancelled) {
@@ -1663,13 +1672,16 @@ function CodeQLPanel({
   const isRunning = status === "running";
   const canClose = !isRunning && !isCancelling;
 
+  // Component count display
+  const componentCount = repoDetails.componentConfigs?.length || 1;
+
   return (
     <>
       <Accordion defaultExpanded>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Stack width="100%" spacing={1}>
             <Typography textAlign="center" fontWeight={700} fontSize={18}>
-            📊 Static Application Security Testing (SAST) Analysis 📊
+              📊 Static Application Security Testing (SAST) Analysis 📊
             </Typography>
             <Typography
               textAlign="center"
@@ -1678,6 +1690,18 @@ function CodeQLPanel({
             >
               {repoDetails.repoUrl} • {repoDetails.branch}
             </Typography>
+            {repoDetails.componentConfigs && repoDetails.componentConfigs.length > 0 && (
+              <Stack direction="row" spacing={1} justifyContent="center" flexWrap="wrap">
+                {repoDetails.componentConfigs.map((config, idx) => (
+                  <Chip
+                    key={idx}
+                    label={`${config.language}${config.workingDirectory ? ` (${config.workingDirectory})` : ""}`}
+                    size="small"
+                    variant="outlined"
+                  />
+                ))}
+              </Stack>
+            )}
           </Stack>
         </AccordionSummary>
 
@@ -1693,7 +1717,7 @@ function CodeQLPanel({
 
                 {status === "idle" && (
                   <Typography variant="body2" color="text.secondary">
-                    Ready to run
+                    Ready to scan {componentCount} component{componentCount > 1 ? "s" : ""}
                   </Typography>
                 )}
 
@@ -1737,25 +1761,71 @@ function CodeQLPanel({
                   disabled={!isAuthorized || isRunning}
                   onClick={runCodeQLScan}
                 >
-                🔍 Run
+                  🔍 Run ({componentCount})
                 </Button>
               </Stack>
             </Stack>
 
+            {/* Results Summary */}
             {result && (
-              <Alert severity={result.issues! > 0 ? "warning" : "success"}>
-                <Typography variant="body2">
-                  {result.issues! > 0 ? (
-                    <>
-                      <strong>⚠️ {result.issues} security issues found</strong>
-                    </>
-                  ) : (
-                    <>
+              <Box>
+                <Alert severity={result.totalIssues! > 0 ? "warning" : "success"} sx={{ mb: 2 }}>
+                  <Typography variant="body2">
+                    {result.totalIssues! > 0 ? (
+                      <strong>⚠️ {result.totalIssues} total security issues found across {result.componentResults?.length} components</strong>
+                    ) : (
                       <strong>✅ No security issues detected</strong>
-                    </>
-                  )}
-                </Typography>
-              </Alert>
+                    )}
+                  </Typography>
+                </Alert>
+
+                {/* Component Results Table */}
+                {result.componentResults && result.componentResults.length > 1 && (
+                  <Paper sx={{ p: 2, bgcolor: "rgba(255,255,255,0.02)" }}>
+                    <Typography variant="subtitle2" fontWeight={700} mb={1}>
+                      Component Breakdown:
+                    </Typography>
+                    <Stack spacing={1}>
+                      {result.componentResults.map((comp, idx) => (
+                        <Stack
+                          key={idx}
+                          direction="row"
+                          justifyContent="space-between"
+                          alignItems="center"
+                          sx={{
+                            p: 1,
+                            bgcolor: "rgba(255,255,255,0.03)",
+                            borderRadius: 1,
+                          }}
+                        >
+                          <Stack>
+                            <Typography variant="body2" fontWeight={600}>
+                              {comp.language}
+                            </Typography>
+                            {comp.workingDirectory && (
+                              <Typography variant="caption" color="text.secondary">
+                                {comp.workingDirectory}
+                              </Typography>
+                            )}
+                          </Stack>
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <Chip
+                              label={`${comp.issues} issues`}
+                              size="small"
+                              color={comp.issues > 0 ? "warning" : "success"}
+                            />
+                            {comp.success ? (
+                              <CheckCircleIcon color="success" fontSize="small" />
+                            ) : (
+                              <ErrorIcon color="error" fontSize="small" />
+                            )}
+                          </Stack>
+                        </Stack>
+                      ))}
+                    </Stack>
+                  </Paper>
+                )}
+              </Box>
             )}
 
             {/* Logs Section */}
@@ -1830,7 +1900,7 @@ function CodeQLPanel({
         </AccordionDetails>
       </Accordion>
 
-      {/* Modal */}
+      {/* Modal - Same as before but with component count in title */}
       <Dialog
         open={modalOpen}
         onClose={() => canClose && setModalOpen(false)}
@@ -1851,7 +1921,7 @@ function CodeQLPanel({
             alignItems="center"
           >
             <Typography variant="h6" fontWeight={600}>
-              📊 Static Application Security Testing (SAST) Analysis 📊
+              📊 SAST Analysis ({componentCount} Component{componentCount > 1 ? "s" : ""})
             </Typography>
 
             {canClose && (
@@ -1889,7 +1959,7 @@ function CodeQLPanel({
         <DialogContent
           sx={{
             height: "60vh",
-             mt: 2,
+            mt: 2,
             backgroundColor: "#1a1a1a",
             overflow: "auto",
             p: 3,
@@ -1980,3 +2050,4 @@ function CodeQLPanel({
     </>
   );
 }
+

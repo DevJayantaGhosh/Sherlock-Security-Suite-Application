@@ -7,6 +7,12 @@ declare namespace NodeJS {
   }
 }
 
+interface ComponentConfig {
+  language: string;
+  buildCommand?: string;
+  workingDirectory?: string;
+}
+
 interface Window {
   electronWindow: {
     minimize(): void;
@@ -53,12 +59,18 @@ interface Window {
       repoUrl: string; 
       branch: string; 
       scanId: string;
-      languages?: string; // Optional: "javascript-typescript,python,c-cpp"
+      componentConfigs?: ComponentConfig[];
     }): Promise<{
       success: boolean;
       cancelled?: boolean;
       error?: string;
-      issues?: number;
+      totalIssues?: number;
+      componentResults?: Array<{
+        language: string;
+        workingDirectory?: string;
+        issues: number;
+        success: boolean;
+      }>;
     }>;
 
     cancelScan(payload: { scanId: string }): Promise<{ cancelled: boolean }>;
@@ -79,7 +91,13 @@ interface Window {
         goodSignatures?: number;
         findings?: number;
         vulnerabilities?: number;
-        issues?: number;
+        totalIssues?: number;
+        componentResults?: Array<{
+          language: string;
+          workingDirectory?: string;
+          issues: number;
+          success: boolean;
+        }>;
         error?: string;
       }) => void
     ): () => void;

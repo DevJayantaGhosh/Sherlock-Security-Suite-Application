@@ -803,161 +803,177 @@ ${"═".repeat(79)}
   /* --------------------------------------------------------
      CODEQL
   -------------------------------------------------------- */
-  ipcMain.handle("scan:codeql", async (event, { repoUrl, branch, scanId, languages = "javascript-typescript" }) => {
-    debugLog(`[CODEQL] Starting SAST analysis for ${repoUrl} with languages: ${languages}`);
+ipcMain.handle("scan:codeql", async (event, { repoUrl, branch, scanId, componentConfigs }) => {
+  debugLog(`[CODEQL] Starting SAST analysis for ${repoUrl}`);
+  
+  const codeqlPath = validateTool("codeql");
+  if (!codeqlPath) {
+    event.sender.send(`scan-log:${scanId}`, {
+      log: `\n❌ CodeQL tool not found\n   Expected: ${toolPath("codeql")}\n   Download from: https://github.com/github/codeql-cli-binaries/releases\n\n`,
+      progress: 0,
+    });
     
-    const codeqlPath = validateTool("codeql");
-    if (!codeqlPath) {
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `\n❌ CodeQL tool not found\n   Expected: ${toolPath("codeql")}\n   Download from: https://github.com/github/codeql-cli-binaries/releases\n\n`,
-        progress: 0,
-      });
-      
-      event.sender.send(`scan-complete:${scanId}`, {
-        success: false,
-        error: "Tool not found",
-      });
-      
-      return { success: false, error: "Tool not found" };
-    }
+    event.sender.send(`scan-complete:${scanId}`, {
+      success: false,
+      error: "Tool not found",
+    });
     
-    // Clone repo first
-    const repoPath = await cloneRepository(event, repoUrl, branch, scanId);
-    if (!repoPath) {
-      event.sender.send(`scan-complete:${scanId}`, {
-        success: false,
-        error: "Clone failed",
+    return { success: false, error: "Tool not found" };
+  }
+  
+  // Clone repo first
+  const repoPath = await cloneRepository(event, repoUrl, branch, scanId);
+  if (!repoPath) {
+    event.sender.send(`scan-complete:${scanId}`, {
+      success: false,
+      error: "Clone failed",
+    });
+    return { success: false, error: "Clone failed" };
+  }
+
+  let cancelled = false;
+  const componentResults: Array<{
+    language: string;
+    workingDirectory?: string;
+    issues: number;
+    success: boolean;
+    sarifPath?: string;
+  }> = [];
+
+  // Default to javascript-typescript if no configs provided
+  const configs = componentConfigs && componentConfigs.length > 0
+    ? componentConfigs
+    : [{ language: "javascript-typescript" }];
+
+  event.sender.send(`scan-log:${scanId}`, {
+    log: `\n${"═".repeat(79)}\n🔬 STATIC APPLICATION SECURITY TESTING (SAST) ANALYSIS\n${"═".repeat(79)}\n\n`,
+    progress: 52,
+  });
+
+  event.sender.send(`scan-log:${scanId}`, {
+    log: `📊 Total Components to Scan: ${configs.length}\n🔧 Repository: ${repoUrl}\n🌿 Branch: ${branch}\n\n`,
+    progress: 54,
+  });
+
+  // Process each component sequentially
+  for (let i = 0; i < configs.length; i++) {
+    if (cancelled) break;
+
+    const config = configs[i];
+    const componentNum = i + 1;
+    const baseProgress = 55 + (i * 40 / configs.length);
+
+    event.sender.send(`scan-log:${scanId}`, {
+      log: `\n${"─".repeat(79)}\n📦 COMPONENT ${componentNum} OF ${configs.length}\n${"─".repeat(79)}\n`,
+      progress: baseProgress,
+    });
+
+    event.sender.send(`scan-log:${scanId}`, {
+      log: `Language          : ${config.language}\n`,
+      progress: baseProgress + 1,
+    });
+
+    if (config.workingDirectory) {
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `Working Directory : ${config.workingDirectory}\n`,
+        progress: baseProgress + 2,
       });
-      return { success: false, error: "Clone failed" };
     }
 
-    const dbPath = path.join(repoPath, "codeql-db");
-    const sarifPath = path.join(repoPath, "codeql-results.sarif");
-    let cancelled = false;
-
-    return new Promise((resolve) => {
+    if (config.buildCommand) {
       event.sender.send(`scan-log:${scanId}`, {
-        log: `\n${"═".repeat(60)}\n🔬 CODEQL SAST ANALYSIS\n${"═".repeat(60)}\n\n`,
-        progress: 52,
+        log: `Build Command     : ${config.buildCommand}\n`,
+        progress: baseProgress + 3,
       });
+    }
 
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `📊 Step 1/2: Creating CodeQL database...\n🔧 Languages: ${languages}\n\n`,
-        progress: 55,
-      });
+    event.sender.send(`scan-log:${scanId}`, {
+      log: `\n`,
+      progress: baseProgress + 4,
+    });
 
-      // Step 1: Create database with dynamic languages
-      const createDb = spawn(
-        codeqlPath,
-        ["database", "create", dbPath, `--language=${languages}`, "--source-root", repoPath],
-        { 
-          detached: true, 
-          stdio: ["ignore", "pipe", "pipe"],
-          windowsHide: true,
-        }
-      );
+    // Scan this component
+    const result = await scanComponent(
+      event,
+      codeqlPath,
+      repoPath,
+      config,
+      scanId,
+      componentNum,
+      baseProgress
+    );
 
-      createDb.unref();
-      activeProcesses.set(scanId, createDb);
+    if (result.cancelled) {
+      cancelled = true;
+      break;
+    }
 
-      createDb.stdout?.on("data", (data) => {
-        if (cancelled) return;
-        event.sender.send(`scan-log:${scanId}`, {
-          log: data.toString(),
-          progress: 60,
-        });
-      });
+    componentResults.push({
+      language: config.language,
+      workingDirectory: config.workingDirectory,
+      issues: result.issues,
+      success: result.success,
+      sarifPath: result.sarifPath,
+    });
 
-      createDb.stderr?.on("data", (data) => {
-        if (cancelled) return;
-        event.sender.send(`scan-log:${scanId}`, {
-          log: data.toString(),
-          progress: 65,
-        });
-      });
+    // Show component completion
+    event.sender.send(`scan-log:${scanId}`, {
+      log: `\n${result.success ? "✅" : "❌"} Component ${componentNum} ${result.success ? "completed successfully" : "failed"} - ${result.success ? result.issues : "N/A"} issue${result.issues !== 1 ? "s" : ""} found\n`,
+      progress: baseProgress + 40,
+    });
+  }
 
-      createDb.on("close", (code) => {
-        activeProcesses.delete(scanId);
+  if (cancelled) {
+    return { success: false, cancelled: true };
+  }
+
+  // Calculate statistics
+  const totalIssues = componentResults.reduce((sum, r) => sum + r.issues, 0);
+  const allSuccessful = componentResults.every(r => r.success);
+  const successfulComponents = componentResults.filter(r => r.success).length;
+  const failedComponents = componentResults.length - successfulComponents;
+  
+  // ✅ Only make security claims if all components succeeded
+  const canMakeSecurityVerdict = allSuccessful;
+
+  // Detailed findings breakdown
+  if (totalIssues > 0 && canMakeSecurityVerdict) {
+    event.sender.send(`scan-log:${scanId}`, {
+      log: `\n\n🔍 DETAILED FINDINGS BREAKDOWN:\n${"═".repeat(79)}\n\n`,
+      progress: 95,
+    });
+
+    componentResults.forEach((comp, index) => {
+      if (comp.issues > 0) {
+        const findingLog = `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 Component ${index + 1}: ${comp.language}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Language         : ${comp.language}
+${comp.workingDirectory ? `Working Directory: ${comp.workingDirectory}\n` : ''}Issues Found     : ${comp.issues}
+Status           : ${comp.success ? "✅ Analysis Complete" : "❌ Analysis Failed"}
+${comp.sarifPath ? `SARIF Report     : ${comp.sarifPath}\n` : ''}
+Risk Level       : ${
+  comp.issues === 0 ? "✅ NONE" :
+  comp.issues <= 3 ? "🟡 LOW" :
+  comp.issues <= 10 ? "🟠 MEDIUM" :
+  comp.issues <= 20 ? "🔴 HIGH" :
+  "🚨 CRITICAL"
+}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+`;
         
-        if (cancelled) {
-          resolve({ success: false, cancelled: true });
-          return;
-        }
-        
-        if (code !== 0) {
-          event.sender.send(`scan-log:${scanId}`, {
-            log: `\n❌ Database creation failed with exit code ${code}\n`,
-            progress: 0,
-          });
-          
-          event.sender.send(`scan-complete:${scanId}`, {
-            success: false,
-            error: `Database creation failed with code ${code}`,
-          });
-          
-          resolve({ success: false, error: `Database creation failed with code ${code}` });
-          return;
-        }
-
-        // Step 2: Analyze database
         event.sender.send(`scan-log:${scanId}`, {
-          log: "\n✅ Database created successfully!\n\n🔬 Step 2/2: Running CodeQL analysis...\n🧪 Detecting security patterns and vulnerabilities...\n\n",
-          progress: 70,
+          log: findingLog,
+          progress: 95 + Math.floor(((index + 1) / componentResults.length) * 3),
         });
+      }
+    });
+  }
 
-        const analyze = spawn(
-          codeqlPath,
-          [
-            "database",
-            "analyze",
-            dbPath,
-            "--format=sarif-latest",
-            "--output",
-            sarifPath,
-          ],
-          { 
-            detached: true, 
-            stdio: ["ignore", "pipe", "pipe"],
-            windowsHide: true,
-          }
-        );
+  // ✅ Beautiful final summary with CORRECT logic
+  const summary = `
 
-        analyze.unref();
-        activeProcesses.set(scanId, analyze);
-
-        analyze.stdout?.on("data", (data) => {
-          if (cancelled) return;
-          event.sender.send(`scan-log:${scanId}`, {
-            log: data.toString(),
-            progress: 80,
-          });
-        });
-
-        analyze.stderr?.on("data", (data) => {
-          if (cancelled) return;
-          event.sender.send(`scan-log:${scanId}`, {
-            log: data.toString(),
-            progress: 90,
-          });
-        });
-
-        analyze.on("close", async (analyzeCode) => {
-          activeProcesses.delete(scanId);
-          
-          if (cancelled) {
-            resolve({ success: false, cancelled: true });
-            return;
-          }
-
-          let issues = 0;
-          if (fsSync.existsSync(sarifPath)) {
-            try {
-              const sarif = JSON.parse(await fs.readFile(sarifPath, "utf-8"));
-              issues = sarif.runs?.[0]?.results?.length || 0;
-            } catch {}
-          }
-
-          const summary = `
 
 ╔═══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                               ║
@@ -965,62 +981,399 @@ ${"═".repeat(79)}
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 
-Analysis Status : ${analyzeCode === 0 ? "✅ COMPLETE" : "❌ FAILED"}
-Issues Found    : ${issues}
-Languages       : ${languages}
-SARIF Report    : ${sarifPath}
+Repository        : ${repoUrl}
+Branch            : ${branch}
+Total Components  : ${componentResults.length}
+Successful Scans  : ${successfulComponents}
+Failed Scans      : ${failedComponents}
+Total Issues      : ${canMakeSecurityVerdict ? totalIssues : "N/A (Scan Failed)"}
+Overall Status    : ${allSuccessful ? "✅ ALL COMPONENTS ANALYZED SUCCESSFULLY" : "❌ ANALYSIS FAILED"}
 
+${componentResults.length > 1 || !allSuccessful ? `
+Component Breakdown:
+${"─".repeat(79)}
+${componentResults.map((r, i) => `
+  ${i + 1}. ${r.language}${r.workingDirectory ? ` (${r.workingDirectory})` : ""}
+     Status: ${r.success ? "✅ Success" : "❌ Failed"}
+     Issues: ${r.success ? r.issues : "N/A"}
+     Risk  : ${
+       !r.success ? "⚠️ Unable to assess" :
+       r.issues === 0 ? "✅ None" :
+       r.issues <= 3 ? "🟡 Low" :
+       r.issues <= 10 ? "🟠 Medium" :
+       r.issues <= 20 ? "🔴 High" :
+       "🚨 Critical"
+     }
+`).join('')}
+${"─".repeat(79)}
+` : ''}
+
+Security Verdict  : ${
+  !canMakeSecurityVerdict ? "❌ ANALYSIS INCOMPLETE - Cannot determine security status" :
+  totalIssues === 0 ? "✅ NO SECURITY ISSUES DETECTED - Code is secure" :
+  totalIssues <= 5 ? "🟡 LOW RISK - Minor issues require attention" :
+  totalIssues <= 15 ? "🟠 MEDIUM RISK - Security issues should be addressed" :
+  totalIssues <= 30 ? "🔴 HIGH RISK - Immediate security review recommended" :
+  "🚨 CRITICAL RISK - Urgent security remediation required"
+}
+
+Recommendation    : ${
+  !canMakeSecurityVerdict ? "⚠️ Fix build/analysis errors before proceeding. See troubleshooting section below." :
+  totalIssues === 0 ? "Code passes security analysis. Safe to proceed with release." :
+  totalIssues <= 5 ? "Review and fix minor issues before release." :
+  totalIssues <= 15 ? "Address security issues before deploying to production." :
+  totalIssues <= 30 ? "Mandatory security review required before release." :
+  "DO NOT RELEASE - Critical security vulnerabilities detected."
+}
+
+${!canMakeSecurityVerdict ? `
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                           ⚠️  TROUBLESHOOTING  ⚠️                            ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+Analysis failed for one or more components. Common causes:
+
+1. BUILD TOOL NOT FOUND
+   • Maven (Java): Install Maven and add to system PATH
+   • Gradle (Java): Install Gradle and add to system PATH
+   • MSBuild (C#): Install Visual Studio Build Tools
+   • Make (C/C++): Install build-essential or similar
+   • Solution: Verify with 'mvn --version' or equivalent command
+
+2. ALTERNATIVE: USE BUILD-MODE NONE (Recommended)
+   • For Java/C#/Kotlin projects, you can scan without building
+   • Remove 'buildCommand' from componentConfig
+   • CodeQL will use --build-mode none automatically
+   • Supported: Java, C#, Kotlin (CodeQL 2.16.5+)
+   • Note: Slightly lower accuracy for complex projects
+
+3. INTERPRETED LANGUAGES (No Build Needed)
+   • JavaScript/TypeScript, Python, Ruby never need builds
+   • Simply omit the buildCommand
+   • Analysis works automatically
+
+4. MISSING DEPENDENCIES
+   • Ensure all project dependencies are properly configured
+   • Check pom.xml (Maven), build.gradle (Gradle), or .csproj files
+
+5. PERMISSION ISSUES
+   • Verify read/write access to project directory
+   • Run application with appropriate permissions
+
+For more help: https://docs.github.com/en/code-security/code-scanning
+
+` : ''}
 ${"═".repeat(79)}
 `;
 
-          event.sender.send(`scan-log:${scanId}`, {
-            log: summary,
-            progress: 100,
-          });
+  event.sender.send(`scan-log:${scanId}`, {
+    log: summary,
+    progress: 100,
+  });
 
-          event.sender.send(`scan-complete:${scanId}`, {
-            success: analyzeCode === 0,
-            issues,
-          });
+  event.sender.send(`scan-complete:${scanId}`, {
+    success: allSuccessful,
+    totalIssues: canMakeSecurityVerdict ? totalIssues : undefined,
+    componentResults: componentResults.map(r => ({
+      language: r.language,
+      workingDirectory: r.workingDirectory,
+      issues: r.issues,
+      success: r.success,
+    })),
+  });
 
-          resolve({ success: analyzeCode === 0, issues });
-        });
+  return { 
+    success: allSuccessful, 
+    totalIssues: canMakeSecurityVerdict ? totalIssues : undefined,
+    componentResults: componentResults.map(r => ({
+      language: r.language,
+      workingDirectory: r.workingDirectory,
+      issues: r.issues,
+      success: r.success,
+    }))
+  };
+});
 
-        analyze.on("error", (err) => {
-          activeProcesses.delete(scanId);
-          event.sender.send(`scan-complete:${scanId}`, {
-            success: false,
-            error: err.message,
-          });
-          resolve({ success: false, error: err.message });
-        });
+/**
+ * Scan a single component with CodeQL
+ * Intelligently handles all language types
+ */
+async function scanComponent(
+  event: Electron.IpcMainInvokeEvent,
+  codeqlPath: string,
+  repoPath: string,
+  config: { language: string; buildCommand?: string; workingDirectory?: string },
+  scanId: string,
+  componentNum: number,
+  baseProgress: number
+): Promise<{ success: boolean; issues: number; cancelled: boolean; sarifPath?: string }> {
+  
+  const workDir = config.workingDirectory 
+    ? path.join(repoPath, config.workingDirectory)
+    : repoPath;
+
+  // Validate working directory exists
+  if (config.workingDirectory && !fsSync.existsSync(workDir)) {
+    event.sender.send(`scan-log:${scanId}`, {
+      log: `\n❌ Working directory not found: ${config.workingDirectory}\n`,
+      progress: baseProgress + 5,
+    });
+    return { success: false, issues: 0, cancelled: false };
+  }
+
+  const dbPath = path.join(workDir, `codeql-db-${componentNum}`);
+  const sarifPath = path.join(workDir, `codeql-results-${componentNum}.sarif`);
+  
+  let cancelled = false;
+
+  return new Promise((resolve) => {
+    event.sender.send(`scan-log:${scanId}`, {
+      log: `🔧 Step 1/2: Creating CodeQL database for ${config.language}...\n`,
+      progress: baseProgress + 5,
+    });
+
+    // Build create-db command
+    const createArgs = [
+      "database",
+      "create",
+      dbPath,
+      `--language=${config.language}`,
+      "--source-root",
+      workDir,
+    ];
+
+    // ✅ INTELLIGENT BUILD HANDLING FOR ALL LANGUAGES
+    if (config.buildCommand) {
+      // User explicitly provided build command
+      createArgs.push("--command", config.buildCommand);
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `🏗️  Using custom build command\n`,
+        progress: baseProgress + 6,
       });
-
-      createDb.on("error", (err) => {
-        activeProcesses.delete(scanId);
-        event.sender.send(`scan-complete:${scanId}`, {
-          success: false,
-          error: err.message,
+    } else {
+      // No build command - determine best approach based on language
+      const normalizedLang = config.language.toLowerCase();
+      
+      // Languages that support build-mode=none (CodeQL 2.16.5+)
+      const buildModeNoneSupported = ["java", "csharp", "kotlin"];
+      
+      // Interpreted languages (never need build)
+      const interpretedLanguages = ["javascript", "typescript", "javascript-typescript", "python", "ruby"];
+      
+      // Compiled languages that may need build for best results
+      const mayNeedBuild = ["c-cpp", "cpp", "c", "go", "swift"];
+      
+      if (buildModeNoneSupported.includes(normalizedLang)) {
+        // ✅ Java/C#/Kotlin: Use build-mode none
+        createArgs.push("--build-mode", "none");
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `🚀 Using build-mode=none (no build required)\n`,
+          progress: baseProgress + 6,
         });
-        resolve({ success: false, error: err.message });
-      });
+      } else if (interpretedLanguages.includes(normalizedLang)) {
+        // ✅ Interpreted languages: No build needed
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `✅ ${config.language} doesn't require compilation\n`,
+          progress: baseProgress + 6,
+        });
+      } else if (mayNeedBuild.includes(normalizedLang)) {
+        // ⚠️ Compiled languages without build command
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `⚠️  Warning: ${config.language} may require a build command for optimal analysis\n`,
+          progress: baseProgress + 6,
+        });
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `   Attempting analysis without build - results may be limited\n`,
+          progress: baseProgress + 6,
+        });
+      }
+    }
 
-      // Cancel handler
-      ipcMain.once(`scan:cancel-${scanId}`, () => {
-        cancelled = true;
-        debugLog(`Cancelling CodeQL scan: ${scanId}`);
-        
-        // Kill whichever process is active
-        const activeChild = activeProcesses.get(scanId);
-        if (activeChild) {
-          killProcess(activeChild, scanId);
-          activeProcesses.delete(scanId);
-        }
-        
-        resolve({ success: false, cancelled: true });
+    event.sender.send(`scan-log:${scanId}`, {
+      log: `$ codeql ${createArgs.join(" ")}\n\n`,
+      progress: baseProgress + 7,
+    });
+
+    // ✅ NO CMD POPUP - Proper Windows configuration
+    const spawnOptions: any = {
+      cwd: workDir,
+      stdio: ["ignore", "pipe", "pipe"],
+      env: {
+        ...process.env,
+        NO_COLOR: "1",
+      },
+    };
+
+    // ✅ Windows-specific: Prevent CMD window
+    if (process.platform === "win32") {
+      spawnOptions.windowsHide = true;
+      spawnOptions.shell = false;
+      spawnOptions.detached = false;
+    } else {
+      spawnOptions.detached = true;
+    }
+
+    const createDb = spawn(codeqlPath, createArgs, spawnOptions);
+
+    // Only unref on Unix
+    if (process.platform !== "win32") {
+      createDb.unref();
+    }
+
+    const createId = `${scanId}-create-${componentNum}`;
+    activeProcesses.set(createId, createDb);
+
+    createDb.stdout?.on("data", (data) => {
+      if (cancelled) return;
+      event.sender.send(`scan-log:${scanId}`, {
+        log: data.toString(),
+        progress: baseProgress + 10,
       });
     });
+
+    createDb.stderr?.on("data", (data) => {
+      if (cancelled) return;
+      event.sender.send(`scan-log:${scanId}`, {
+        log: data.toString(),
+        progress: baseProgress + 15,
+      });
+    });
+
+    createDb.on("close", (code) => {
+      activeProcesses.delete(createId);
+      
+      if (cancelled) {
+        resolve({ success: false, issues: 0, cancelled: true });
+        return;
+      }
+      
+      if (code !== 0) {
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `\n❌ Database creation failed with exit code ${code}\n`,
+          progress: baseProgress + 20,
+        });
+        resolve({ success: false, issues: 0, cancelled: false });
+        return;
+      }
+
+      // Step 2: Analyze
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `\n✅ Database created successfully!\n\n🔬 Step 2/2: Running security analysis...\n🧪 Detecting vulnerabilities and security patterns...\n\n`,
+        progress: baseProgress + 20,
+      });
+
+      const analyzeArgs = [
+        "database",
+        "analyze",
+        dbPath,
+        "--format=sarif-latest",
+        "--output",
+        sarifPath,
+      ];
+
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `$ codeql ${analyzeArgs.join(" ")}\n\n`,
+        progress: baseProgress + 22,
+      });
+
+      const analyze = spawn(codeqlPath, analyzeArgs, spawnOptions);
+
+      if (process.platform !== "win32") {
+        analyze.unref();
+      }
+
+      const analyzeId = `${scanId}-analyze-${componentNum}`;
+      activeProcesses.set(analyzeId, analyze);
+
+      analyze.stdout?.on("data", (data) => {
+        if (cancelled) return;
+        event.sender.send(`scan-log:${scanId}`, {
+          log: data.toString(),
+          progress: baseProgress + 30,
+        });
+      });
+
+      analyze.stderr?.on("data", (data) => {
+        if (cancelled) return;
+        event.sender.send(`scan-log:${scanId}`, {
+          log: data.toString(),
+          progress: baseProgress + 35,
+        });
+      });
+
+      analyze.on("close", async (analyzeCode) => {
+        activeProcesses.delete(analyzeId);
+        
+        if (cancelled) {
+          resolve({ success: false, issues: 0, cancelled: true });
+          return;
+        }
+
+        let issues = 0;
+        if (fsSync.existsSync(sarifPath)) {
+          try {
+            const sarif = JSON.parse(await fs.readFile(sarifPath, "utf-8"));
+            issues = sarif.runs?.[0]?.results?.length || 0;
+          } catch (err) {
+            debugLog(`Error parsing SARIF: ${err}`);
+          }
+        }
+
+        const verdict = 
+          issues === 0 ? "✅ Clean" :
+          issues <= 3 ? "🟡 Low Risk" :
+          issues <= 10 ? "🟠 Medium Risk" :
+          "🔴 High Risk";
+
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `\n✅ Analysis complete for ${config.language}!\n   Issues Found: ${issues}\n   Risk Level: ${verdict}\n`,
+          progress: baseProgress + 40,
+        });
+
+        resolve({ 
+          success: analyzeCode === 0, 
+          issues, 
+          cancelled: false,
+          sarifPath: sarifPath
+        });
+      });
+
+      analyze.on("error", (err) => {
+        activeProcesses.delete(analyzeId);
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `\n❌ Analysis error: ${err.message}\n`,
+          progress: baseProgress + 40,
+        });
+        resolve({ success: false, issues: 0, cancelled: false });
+      });
+    });
+
+    createDb.on("error", (err) => {
+      activeProcesses.delete(createId);
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `\n❌ Database creation error: ${err.message}\n`,
+        progress: baseProgress + 20,
+      });
+      resolve({ success: false, issues: 0, cancelled: false });
+    });
+
+    // Cancel handler
+    const cancelHandler = () => {
+      cancelled = true;
+      debugLog(`Cancelling component ${componentNum} scan`);
+      
+      const activeChild = activeProcesses.get(createId) || activeProcesses.get(`${scanId}-analyze-${componentNum}`);
+      if (activeChild) {
+        killProcess(activeChild, createId);
+      }
+      
+      resolve({ success: false, issues: 0, cancelled: true });
+    };
+
+    ipcMain.once(`scan:cancel-${scanId}`, cancelHandler);
   });
+}
+
 
   /* --------------------------------------------------------
      CANCEL HANDLER
