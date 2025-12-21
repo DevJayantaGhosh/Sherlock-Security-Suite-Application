@@ -417,16 +417,30 @@ ${"═".repeat(60)}
 `,
         progress: 55
       });
+      const spawnOptions = {
+        cwd: repoPath,
+        stdio: ["ignore", "pipe", "pipe"],
+        env: {
+          ...process.env,
+          NO_COLOR: "1"
+          // Removed ANSI colors for cleaner parsing
+        }
+      };
+      if (process.platform === "win32") {
+        spawnOptions.windowsHide = true;
+        spawnOptions.shell = false;
+        spawnOptions.detached = false;
+      } else {
+        spawnOptions.detached = true;
+      }
       const child = spawn(
         gitleaksPath,
         ["detect", "--source", repoPath, "--report-path", reportPath, "--verbose"],
-        {
-          detached: true,
-          stdio: ["ignore", "pipe", "pipe"],
-          windowsHide: true
-        }
+        spawnOptions
       );
-      child.unref();
+      if (process.platform !== "win32") {
+        child.unref();
+      }
       activeProcesses.set(scanId, child);
       let cancelled = false;
       (_a = child.stdout) == null ? void 0 : _a.on("data", (data) => {
@@ -454,7 +468,40 @@ ${"═".repeat(60)}
           try {
             const report = JSON.parse(await fs.readFile(reportPath, "utf-8"));
             findings = report.length || 0;
-          } catch {
+            if (findings > 0) {
+              event.sender.send(`scan-log:${scanId}`, {
+                log: `
+🔍 DETAILED FINDINGS:
+${"═".repeat(79)}
+
+`,
+                progress: 90
+              });
+              report.forEach((finding, index) => {
+                var _a2, _b2, _c;
+                const secretLog = `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🚨 Secret ${index + 1}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Type        : ${finding.RuleID || "Unknown"}
+Description : ${finding.Description || finding.RuleID || "N/A"}
+File        : ${finding.File || "N/A"}
+Line        : ${finding.StartLine || "N/A"}
+Commit      : ${((_a2 = finding.Commit) == null ? void 0 : _a2.substring(0, 8)) || "N/A"}
+Author      : ${finding.Author || "N/A"}
+Date        : ${finding.Date || "N/A"}
+
+Match       : ${((_b2 = finding.Match) == null ? void 0 : _b2.substring(0, 80)) || "N/A"}${((_c = finding.Match) == null ? void 0 : _c.length) > 80 ? "..." : ""}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+`;
+                event.sender.send(`scan-log:${scanId}`, {
+                  log: secretLog,
+                  progress: 90 + Math.floor(index / findings * 5)
+                });
+              });
+            }
+          } catch (err) {
+            debugLog(`Error parsing Gitleaks report: ${err}`);
           }
         }
         const summary = `
