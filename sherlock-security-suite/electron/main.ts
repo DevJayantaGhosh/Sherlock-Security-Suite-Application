@@ -971,7 +971,7 @@ Risk Level       : ${
     });
   }
 
-  // ✅ Beautiful final summary with CORRECT logic
+  //final summary
   const summary = `
 
 
@@ -1096,7 +1096,6 @@ ${"═".repeat(79)}
 
 /**
  * Scan a single component with CodeQL
- * Intelligently handles all language types
  */
 async function scanComponent(
   event: Electron.IpcMainInvokeEvent,
@@ -1112,7 +1111,6 @@ async function scanComponent(
     ? path.join(repoPath, config.workingDirectory)
     : repoPath;
 
-  // Validate working directory exists
   if (config.workingDirectory && !fsSync.existsSync(workDir)) {
     event.sender.send(`scan-log:${scanId}`, {
       log: `\n❌ Working directory not found: ${config.workingDirectory}\n`,
@@ -1132,7 +1130,6 @@ async function scanComponent(
       progress: baseProgress + 5,
     });
 
-    // Build create-db command
     const createArgs = [
       "database",
       "create",
@@ -1140,53 +1137,45 @@ async function scanComponent(
       `--language=${config.language}`,
       "--source-root",
       workDir,
+      "--overwrite",
     ];
 
-    // ✅ INTELLIGENT BUILD HANDLING FOR ALL LANGUAGES
+    // ✅ WORKING BUILD HANDLING
+    const normalizedLang = config.language.toLowerCase();
+    
     if (config.buildCommand) {
-      // User explicitly provided build command
       createArgs.push("--command", config.buildCommand);
       event.sender.send(`scan-log:${scanId}`, {
         log: `🏗️  Using custom build command\n`,
         progress: baseProgress + 6,
       });
-    } else {
-      // No build command - determine best approach based on language
-      const normalizedLang = config.language.toLowerCase();
-      
-      // Languages that support build-mode=none (CodeQL 2.16.5+)
-      const buildModeNoneSupported = ["java", "csharp", "kotlin"];
-      
-      // Interpreted languages (never need build)
-      const interpretedLanguages = ["javascript", "typescript", "javascript-typescript", "python", "ruby"];
-      
-      // Compiled languages that may need build for best results
-      const mayNeedBuild = ["c-cpp", "cpp", "c", "go", "swift"];
-      
-      if (buildModeNoneSupported.includes(normalizedLang)) {
-        // ✅ Java/C#/Kotlin: Use build-mode none
-        createArgs.push("--build-mode", "none");
-        event.sender.send(`scan-log:${scanId}`, {
-          log: `🚀 Using build-mode=none (no build required)\n`,
-          progress: baseProgress + 6,
-        });
-      } else if (interpretedLanguages.includes(normalizedLang)) {
-        // ✅ Interpreted languages: No build needed
-        event.sender.send(`scan-log:${scanId}`, {
-          log: `✅ ${config.language} doesn't require compilation\n`,
-          progress: baseProgress + 6,
-        });
-      } else if (mayNeedBuild.includes(normalizedLang)) {
-        // ⚠️ Compiled languages without build command
-        event.sender.send(`scan-log:${scanId}`, {
-          log: `⚠️  Warning: ${config.language} may require a build command for optimal analysis\n`,
-          progress: baseProgress + 6,
-        });
-        event.sender.send(`scan-log:${scanId}`, {
-          log: `   Attempting analysis without build - results may be limited\n`,
-          progress: baseProgress + 6,
-        });
+    } else if (["java", "csharp", "kotlin"].includes(normalizedLang)) {
+      createArgs.push("--build-mode", "none");
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `🚀 Using build-mode=none (no build required)\n`,
+        progress: baseProgress + 6,
+      });
+    } else if (["javascript", "typescript", "javascript-typescript"].includes(normalizedLang)) {
+      // ✅ FIX: Use dummy no-op command (echo) instead of empty string
+      if (process.platform === "win32") {
+        createArgs.push("--command", "echo Skipping build");
+      } else {
+        createArgs.push("--command", "echo 'Skipping build'");
       }
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `✅ Using no-op command to skip autobuild\n`,
+        progress: baseProgress + 6,
+      });
+    } else if (["python", "ruby"].includes(normalizedLang)) {
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `✅ ${config.language} doesn't require compilation\n`,
+        progress: baseProgress + 6,
+      });
+    } else {
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `⚠️  Warning: ${config.language} may require a build command\n`,
+        progress: baseProgress + 6,
+      });
     }
 
     event.sender.send(`scan-log:${scanId}`, {
@@ -1194,7 +1183,6 @@ async function scanComponent(
       progress: baseProgress + 7,
     });
 
-    // ✅ NO CMD POPUP - Proper Windows configuration
     const spawnOptions: any = {
       cwd: workDir,
       stdio: ["ignore", "pipe", "pipe"],
@@ -1204,7 +1192,6 @@ async function scanComponent(
       },
     };
 
-    // ✅ Windows-specific: Prevent CMD window
     if (process.platform === "win32") {
       spawnOptions.windowsHide = true;
       spawnOptions.shell = false;
@@ -1215,7 +1202,6 @@ async function scanComponent(
 
     const createDb = spawn(codeqlPath, createArgs, spawnOptions);
 
-    // Only unref on Unix
     if (process.platform !== "win32") {
       createDb.unref();
     }
@@ -1256,7 +1242,6 @@ async function scanComponent(
         return;
       }
 
-      // Step 2: Analyze
       event.sender.send(`scan-log:${scanId}`, {
         log: `\n✅ Database created successfully!\n\n🔬 Step 2/2: Running security analysis...\n🧪 Detecting vulnerabilities and security patterns...\n\n`,
         progress: baseProgress + 20,
@@ -1357,7 +1342,6 @@ async function scanComponent(
       resolve({ success: false, issues: 0, cancelled: false });
     });
 
-    // Cancel handler
     const cancelHandler = () => {
       cancelled = true;
       debugLog(`Cancelling component ${componentNum} scan`);
@@ -1373,6 +1357,9 @@ async function scanComponent(
     ipcMain.once(`scan:cancel-${scanId}`, cancelHandler);
   });
 }
+
+
+
 
 
   /* --------------------------------------------------------

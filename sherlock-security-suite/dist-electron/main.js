@@ -964,8 +964,10 @@ ${"═".repeat(79)}
         dbPath,
         `--language=${config.language}`,
         "--source-root",
-        workDir
+        workDir,
+        "--overwrite"
       ];
+      const normalizedLang = config.language.toLowerCase();
       if (config.buildCommand) {
         createArgs.push("--command", config.buildCommand);
         event.sender.send(`scan-log:${scanId}`, {
@@ -973,36 +975,36 @@ ${"═".repeat(79)}
 `,
           progress: baseProgress + 6
         });
-      } else {
-        const normalizedLang = config.language.toLowerCase();
-        const buildModeNoneSupported = ["java", "csharp", "kotlin"];
-        const interpretedLanguages = ["javascript", "typescript", "javascript-typescript", "python", "ruby"];
-        const mayNeedBuild = ["c-cpp", "cpp", "c", "go", "swift"];
-        if (buildModeNoneSupported.includes(normalizedLang)) {
-          createArgs.push("--build-mode", "none");
-          event.sender.send(`scan-log:${scanId}`, {
-            log: `🚀 Using build-mode=none (no build required)
+      } else if (["java", "csharp", "kotlin"].includes(normalizedLang)) {
+        createArgs.push("--build-mode", "none");
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `🚀 Using build-mode=none (no build required)
 `,
-            progress: baseProgress + 6
-          });
-        } else if (interpretedLanguages.includes(normalizedLang)) {
-          event.sender.send(`scan-log:${scanId}`, {
-            log: `✅ ${config.language} doesn't require compilation
-`,
-            progress: baseProgress + 6
-          });
-        } else if (mayNeedBuild.includes(normalizedLang)) {
-          event.sender.send(`scan-log:${scanId}`, {
-            log: `⚠️  Warning: ${config.language} may require a build command for optimal analysis
-`,
-            progress: baseProgress + 6
-          });
-          event.sender.send(`scan-log:${scanId}`, {
-            log: `   Attempting analysis without build - results may be limited
-`,
-            progress: baseProgress + 6
-          });
+          progress: baseProgress + 6
+        });
+      } else if (["javascript", "typescript", "javascript-typescript"].includes(normalizedLang)) {
+        if (process.platform === "win32") {
+          createArgs.push("--command", "echo Skipping build");
+        } else {
+          createArgs.push("--command", "echo 'Skipping build'");
         }
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `✅ Using no-op command to skip autobuild
+`,
+          progress: baseProgress + 6
+        });
+      } else if (["python", "ruby"].includes(normalizedLang)) {
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `✅ ${config.language} doesn't require compilation
+`,
+          progress: baseProgress + 6
+        });
+      } else {
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `⚠️  Warning: ${config.language} may require a build command
+`,
+          progress: baseProgress + 6
+        });
       }
       event.sender.send(`scan-log:${scanId}`, {
         log: `$ codeql ${createArgs.join(" ")}

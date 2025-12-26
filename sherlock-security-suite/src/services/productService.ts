@@ -101,34 +101,6 @@ let productDB: Product[] = [
   status: "Pending",
 }
 ,
-
-  {
-    id: "2",
-    name: "Sherlock Security Suite",
-    version: "1.2.0",
-    description: "Comprehensive security suite with multiple microservices.",
-    productDirector: "u1",
-    securityHead: "u2",
-    releaseEngineers: ["u3"],
-    repos: [
-      {
-        repoUrl:
-          "https://github.com/DevJayantaGhosh/Sherlock-Security-Suite-Services.git",
-        branch: "main",
-        componentConfigs: [
-          {
-            language: "java",
-            buildCommand: "mvn clean compile -DskipTests",
-            workingDirectory: "", // Root - multi-module Maven
-          },
-        ],
-      },
-    ],
-    dependencies: ["Spring Boot", "MongoDB", "Redis"],
-    createdBy: "u1",
-    createdAt: new Date().toISOString(),
-    status: "Pending",
-  },
   {
     id: "3",
     name: "File Upload Service",
@@ -144,7 +116,7 @@ let productDB: Product[] = [
         componentConfigs: [
           {
             language: "javascript-typescript",
-            buildCommand: "npm run build",
+            buildCommand: "",
             workingDirectory: "",
           },
         ],
