@@ -697,7 +697,6 @@ ${"═".repeat(79)}
         log: `
 ❌ OpenGrep tool not found
    Expected: ${toolPath("opengrep")}
-   Download: https://github.com/semgrep/semgrep/releases
 
 `,
         progress: 0
@@ -728,10 +727,9 @@ ${"═".repeat(79)}
         progress: 52
       });
       event.sender.send(`scan-log:${scanId}`, {
-        log: `🔧 Repository: ${repoUrl}
+        log: `📦 Repository: ${repoUrl}
 🌿 Branch: ${branch}
-📦 Engine: OpenGrep (Open Source SAST Scanner)
-🎯 Supports: Java, JavaScript, Python, C#, Go, Ruby, PHP, TypeScript
+
 
 `,
         progress: 54
@@ -754,12 +752,12 @@ ${"═".repeat(79)}
         progress: 55
       });
       event.sender.send(`scan-log:${scanId}`, {
-        log: `🔍 Analyzing all projects in repository for security vulnerabilities...
+        log: `🔍 Scanning entire repository recursively (all folders)...
 `,
         progress: 60
       });
       event.sender.send(`scan-log:${scanId}`, {
-        log: `⏳ Scanning multiple projects may take 1-2 minutes...
+        log: `⏳ This may take 1-3 minutes...
 
 `,
         progress: 62
@@ -780,29 +778,23 @@ ${"═".repeat(79)}
       activeProcesses.set(scanProcessId, child);
       let cancelled = false;
       let progressCounter = 0;
+      let stdoutData = "";
       let stderrData = "";
       (_a = child.stdout) == null ? void 0 : _a.on("data", (data) => {
         if (cancelled) return;
         progressCounter++;
-        const text = data.toString();
-        if (text.trim()) {
-          event.sender.send(`scan-log:${scanId}`, {
-            log: text,
-            progress: Math.min(65 + progressCounter, 85)
-          });
-        }
+        stdoutData += data.toString();
+        event.sender.send(`scan-log:${scanId}`, {
+          log: "",
+          progress: Math.min(65 + Math.floor(progressCounter / 5), 85)
+        });
       });
       (_b = child.stderr) == null ? void 0 : _b.on("data", (data) => {
         if (cancelled) return;
-        const text = data.toString();
-        stderrData += text;
-        event.sender.send(`scan-log:${scanId}`, {
-          log: text,
-          progress: 80
-        });
+        stderrData += data.toString();
       });
       child.on("close", async (code) => {
-        var _a2, _b2, _c, _d;
+        var _a2, _b2;
         activeProcesses.delete(scanProcessId);
         if (cancelled) {
           resolve({ success: false, cancelled: true });
@@ -817,30 +809,182 @@ ${"═".repeat(79)}
         let highCount = 0;
         let mediumCount = 0;
         let lowCount = 0;
-        const projectFindings = /* @__PURE__ */ new Map();
         if (fsSync.existsSync(reportPath)) {
           try {
+            let getRelativePath = function(absolutePath) {
+              const normalized = absolutePath.replace(/\\/g, "/");
+              if (normalized.startsWith(repoPathNormalized)) {
+                return normalized.substring(repoPathNormalized.length + 1);
+              }
+              return normalized;
+            };
             const reportContent = await fs.readFile(reportPath, "utf-8");
-            debugLog(`[OPENGREP] Report file size: ${reportContent.length} bytes`);
             const report = JSON.parse(reportContent);
             findings = report.results || [];
             totalIssues = findings.length;
-            findings.forEach((f) => {
+            const scannedFiles = ((_a2 = report.paths) == null ? void 0 : _a2.scanned) || [];
+            const skippedFiles = ((_b2 = report.paths) == null ? void 0 : _b2.skipped) || [];
+            const repoPathNormalized = repoPath.replace(/\\/g, "/");
+            const ignoredDirs = /* @__PURE__ */ new Set([
+              ".git",
+              ".idea",
+              ".vscode",
+              ".github",
+              "node_modules",
+              "dist",
+              "build",
+              "target",
+              "out",
+              "bin",
+              "__pycache__",
+              ".gradle",
+              "coverage",
+              ".next",
+              ".nuxt",
+              ".venv",
+              "venv"
+            ]);
+            const projectDirectories = /* @__PURE__ */ new Set();
+            const filesByDirectory = /* @__PURE__ */ new Map();
+            const filesByLanguage = /* @__PURE__ */ new Map();
+            let rootLevelFiles = 0;
+            try {
+              const repoContents = await fs.readdir(repoPath, { withFileTypes: true });
+              repoContents.forEach((item) => {
+                if (item.isDirectory() && !ignoredDirs.has(item.name)) {
+                  projectDirectories.add(item.name);
+                  filesByDirectory.set(item.name, 0);
+                }
+              });
+              debugLog(`[OPENGREP] Found ${projectDirectories.size} project directories: ${Array.from(projectDirectories).join(", ")}`);
+            } catch (err) {
+              debugLog(`Error reading repo directory: ${err.message}`);
+            }
+            scannedFiles.forEach((absolutePath) => {
               var _a3;
+              const relativePath = getRelativePath(absolutePath);
+              const normalizedPath = relativePath.replace(/\\/g, "/");
+              const parts = normalizedPath.split("/").filter((p) => p && p !== ".");
+              if (parts.length === 0) return;
+              if (parts.length === 1) {
+                rootLevelFiles++;
+              } else {
+                const topDir = parts[0];
+                if (projectDirectories.has(topDir)) {
+                  filesByDirectory.set(topDir, (filesByDirectory.get(topDir) || 0) + 1);
+                }
+              }
+              const fileName = absolutePath.split(/[/\\]/).pop() || "";
+              const ext = ((_a3 = fileName.split(".").pop()) == null ? void 0 : _a3.toLowerCase()) || "";
+              const langMap = {
+                // Programming languages
+                "java": "Java",
+                "js": "JavaScript",
+                "jsx": "JavaScript",
+                "ts": "TypeScript",
+                "tsx": "TypeScript",
+                "py": "Python",
+                "cs": "C#",
+                "go": "Go",
+                "rb": "Ruby",
+                "php": "PHP",
+                "kt": "Kotlin",
+                "swift": "Swift",
+                "rs": "Rust",
+                "c": "C",
+                "cpp": "C++",
+                "cc": "C++",
+                "cxx": "C++",
+                "h": "C/C++",
+                "hpp": "C/C++",
+                // Web languages
+                "html": "HTML",
+                "htm": "HTML",
+                "css": "CSS",
+                "scss": "SCSS",
+                "sass": "SASS",
+                "less": "LESS",
+                // Data/Config formats
+                "json": "JSON",
+                "xml": "XML",
+                "yaml": "YAML",
+                "yml": "YAML",
+                "properties": "Properties",
+                "gradle": "Gradle",
+                "sql": "SQL",
+                // Documentation
+                "md": "Markdown",
+                "markdown": "Markdown",
+                "txt": "Text",
+                // Scripts
+                "sh": "Shell",
+                "bash": "Shell",
+                "bat": "Batch",
+                "cmd": "Batch",
+                // Media
+                "svg": "SVG",
+                "png": "Image",
+                "jpg": "Image",
+                "jpeg": "Image",
+                "gif": "Image",
+                "ico": "Icon",
+                "webp": "Image"
+              };
+              const configFilePatterns = [
+                "gitignore",
+                "dockerignore",
+                "npmignore",
+                "editorconfig",
+                "prettierrc",
+                "eslintrc",
+                "babelrc",
+                "npmrc",
+                "yarnrc",
+                "dockerfile",
+                "makefile",
+                "rakefile",
+                "gemfile",
+                "podfile",
+                "cartfile"
+              ];
+              let language = "";
+              if (configFilePatterns.some((pattern) => fileName.toLowerCase().includes(pattern))) {
+                language = "Config";
+              } else if (["config", "ini", "conf"].includes(ext)) {
+                language = "Config";
+              } else if (langMap[ext]) {
+                language = langMap[ext];
+              } else {
+                language = "Other";
+              }
+              filesByLanguage.set(language, (filesByLanguage.get(language) || 0) + 1);
+            });
+            const findingsByDirectory = /* @__PURE__ */ new Map();
+            const findingsByLanguage = /* @__PURE__ */ new Map();
+            findings.forEach((f) => {
+              var _a3, _b3, _c;
               const severity = (((_a3 = f.extra) == null ? void 0 : _a3.severity) || "WARNING").toUpperCase();
               if (severity === "ERROR" || severity === "CRITICAL") criticalCount++;
               else if (severity === "WARNING" || severity === "HIGH") highCount++;
               else if (severity === "MEDIUM") mediumCount++;
               else lowCount++;
-              const relativePath = f.path || "";
-              const parts = relativePath.split(path.sep);
-              const projectDir = parts[0] || "root";
-              if (!projectFindings.has(projectDir)) {
-                projectFindings.set(projectDir, []);
+              const absolutePath = f.path || "";
+              const relativePath = getRelativePath(absolutePath);
+              const normalizedPath = relativePath.replace(/\\/g, "/");
+              const parts = normalizedPath.split("/").filter((p) => p && p !== ".");
+              if (parts.length > 1) {
+                const topDir = parts[0];
+                if (projectDirectories.has(topDir)) {
+                  if (!findingsByDirectory.has(topDir)) {
+                    findingsByDirectory.set(topDir, []);
+                  }
+                  findingsByDirectory.get(topDir).push(f);
+                }
               }
-              projectFindings.get(projectDir).push(f);
+              const language = ((_c = (_b3 = f.extra) == null ? void 0 : _b3.metadata) == null ? void 0 : _c.language) || "Unknown";
+              findingsByLanguage.set(language, (findingsByLanguage.get(language) || 0) + 1);
             });
-            passedChecks = Math.max(0, (((_b2 = (_a2 = report.paths) == null ? void 0 : _a2.scanned) == null ? void 0 : _b2.length) || 0) - totalIssues);
+            passedChecks = Math.max(0, scannedFiles.length - totalIssues);
             failedChecks = totalIssues;
             event.sender.send(`scan-log:${scanId}`, {
               log: `
@@ -849,51 +993,177 @@ ${"═".repeat(79)}
 `,
               progress: 88
             });
-            if (projectFindings.size > 1) {
+            const projectsWithFiles = Array.from(filesByDirectory.entries()).filter(([dir, count]) => count > 0 && projectDirectories.has(dir)).sort((a, b) => b[1] - a[1]);
+            if (projectsWithFiles.length > 0) {
               event.sender.send(`scan-log:${scanId}`, {
                 log: `
-📊 MULTI-PROJECT BREAKDOWN:
+📦 DETECTED PROJECTS:
 ${"═".repeat(79)}
 
 `,
-                progress: 89
+                progress: 88
               });
-              let projectIndex = 0;
-              for (const [projectDir, projectIssues] of projectFindings.entries()) {
-                projectIndex++;
-                const projectLog = `
+              projectsWithFiles.forEach(([dir, count]) => {
+                const issues = findingsByDirectory.get(dir) || [];
+                const statusIcon = issues.length === 0 ? "✅" : issues.length <= 5 ? "🟡" : "🔴";
+                event.sender.send(`scan-log:${scanId}`, {
+                  log: `   ${statusIcon} ${dir}/ — ${count} files scanned${issues.length > 0 ? ` — ${issues.length} issue(s) found` : " — Clean ✓"}
+`,
+                  progress: 88
+                });
+              });
+              if (rootLevelFiles > 0) {
+                event.sender.send(`scan-log:${scanId}`, {
+                  log: `   📄 [root]/ — ${rootLevelFiles} config/metadata files
+`,
+                  progress: 88
+                });
+              }
+            }
+            event.sender.send(`scan-log:${scanId}`, {
+              log: `
+
+📊 SCAN STATISTICS:
+${"═".repeat(79)}
+
+`,
+              progress: 89
+            });
+            const totalProjectFiles = Array.from(filesByDirectory.values()).reduce((sum, count) => sum + count, 0);
+            const totalFilesScanned = totalProjectFiles + rootLevelFiles;
+            const statsLog = `
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Project ${projectIndex}: ${projectDir.padEnd(65)}│
-├─────────────────────────────────────────────────────────────────────────────┤
-│ Issues Found: ${projectIssues.length.toString().padEnd(63)}│
-│ Critical/High: ${projectIssues.filter((f) => {
-                  var _a3;
-                  const sev = (((_a3 = f.extra) == null ? void 0 : _a3.severity) || "WARNING").toUpperCase();
-                  return sev === "ERROR" || sev === "CRITICAL" || sev === "WARNING" || sev === "HIGH";
-                }).length.toString().padEnd(62)}│
+│ 📁 Projects Detected    : ${projectsWithFiles.length.toString().padStart(4)}                                             │
+│ 📄 Project Files        : ${totalProjectFiles.toString().padStart(4)} (source code files)                        │
+│ 📝 Root/Config Files    : ${rootLevelFiles.toString().padStart(4)} (metadata, configs)                          │
+│ 📊 Total Files Scanned  : ${totalFilesScanned.toString().padStart(4)}                                             │
+│ ⏭️  Files Skipped        : ${skippedFiles.length.toString().padStart(4)}                                             │
+│ 🔤 Languages Detected   : ${filesByLanguage.size.toString().padStart(4)}                                             │
+│ 🔍 Total Issues Found   : ${totalIssues.toString().padStart(4)}                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 `;
+            event.sender.send(`scan-log:${scanId}`, {
+              log: statsLog,
+              progress: 89
+            });
+            if (filesByLanguage.size > 0) {
+              event.sender.send(`scan-log:${scanId}`, {
+                log: `
+🔤 LANGUAGE BREAKDOWN:
+${"─".repeat(79)}
+
+`,
+                progress: 90
+              });
+              const sortedLangs = Array.from(filesByLanguage.entries()).sort((a, b) => b[1] - a[1]).slice(0, 10);
+              sortedLangs.forEach(([lang, count]) => {
+                const issues = findingsByLanguage.get(lang) || 0;
+                const percentage = Math.round(count / totalFilesScanned * 100);
+                const barLength = Math.min(Math.floor(percentage / 2.5), 40);
+                const bar = "█".repeat(barLength) + "░".repeat(Math.max(0, 40 - barLength));
                 event.sender.send(`scan-log:${scanId}`, {
-                  log: projectLog,
-                  progress: 89
+                  log: `  ${lang.padEnd(15)} │${bar}│ ${count.toString().padStart(4)} files (${percentage.toString().padStart(2)}%)${issues > 0 ? ` — ${issues} issue(s)` : ""}
+`,
+                  progress: 90
+                });
+              });
+              if (filesByLanguage.size > 10) {
+                event.sender.send(`scan-log:${scanId}`, {
+                  log: `  ... and ${filesByLanguage.size - 10} more languages
+`,
+                  progress: 90
+                });
+              }
+            }
+            if (projectsWithFiles.length > 0) {
+              event.sender.send(`scan-log:${scanId}`, {
+                log: `
+
+📂 FILES BY PROJECT:
+${"─".repeat(79)}
+
+`,
+                progress: 90
+              });
+              projectsWithFiles.forEach(([dir, count]) => {
+                const issues = findingsByDirectory.get(dir) || [];
+                const statusIcon = issues.length === 0 ? "✅" : issues.length <= 5 ? "🟡" : "🔴";
+                const percentage = totalProjectFiles > 0 ? Math.round(count / totalProjectFiles * 100) : 0;
+                event.sender.send(`scan-log:${scanId}`, {
+                  log: `  ${statusIcon} ${dir.padEnd(40)} ${count.toString().padStart(4)} files (${percentage.toString().padStart(2)}%)${issues.length > 0 ? ` — ${issues.length} issue(s)` : ""}
+`,
+                  progress: 90
+                });
+              });
+              if (rootLevelFiles > 0) {
+                const rootPercentage = Math.round(rootLevelFiles / totalFilesScanned * 100);
+                event.sender.send(`scan-log:${scanId}`, {
+                  log: `  📝 [root] (config/metadata)              ${rootLevelFiles.toString().padStart(4)} files (${rootPercentage.toString().padStart(2)}%)
+`,
+                  progress: 90
+                });
+              }
+            }
+            if (totalIssues > 0) {
+              event.sender.send(`scan-log:${scanId}`, {
+                log: `
+
+🚨 SECURITY FINDINGS:
+${"═".repeat(79)}
+
+`,
+                progress: 91
+              });
+              const severityLog = `
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 🔴 Critical/Error  : ${criticalCount.toString().padStart(4)}                                                 │
+│ 🟠 High/Warning    : ${highCount.toString().padStart(4)}                                                 │
+│ 🟡 Medium          : ${mediumCount.toString().padStart(4)}                                                 │
+│ 🔵 Low/Info        : ${lowCount.toString().padStart(4)}                                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+`;
+              event.sender.send(`scan-log:${scanId}`, {
+                log: severityLog,
+                progress: 91
+              });
+              const sortedFindings = Array.from(findingsByDirectory.entries()).filter(([dir, issues]) => issues.length > 0).sort((a, b) => b[1].length - a[1].length);
+              if (sortedFindings.length > 0) {
+                event.sender.send(`scan-log:${scanId}`, {
+                  log: `
+📂 ISSUES BY PROJECT:
+${"─".repeat(79)}
+
+`,
+                  progress: 91
+                });
+                sortedFindings.forEach(([dir, dirFindings]) => {
+                  const critical = dirFindings.filter((f) => {
+                    var _a3;
+                    const sev = (((_a3 = f.extra) == null ? void 0 : _a3.severity) || "WARNING").toUpperCase();
+                    return sev === "ERROR" || sev === "CRITICAL";
+                  }).length;
+                  const high = dirFindings.filter((f) => {
+                    var _a3;
+                    const sev = (((_a3 = f.extra) == null ? void 0 : _a3.severity) || "WARNING").toUpperCase();
+                    return sev === "WARNING" || sev === "HIGH";
+                  }).length;
+                  event.sender.send(`scan-log:${scanId}`, {
+                    log: `  📂 ${dir}/ — ${dirFindings.length} total | 🔴 ${critical} critical | 🟠 ${high} high
+`,
+                    progress: 91
+                  });
                 });
               }
               event.sender.send(`scan-log:${scanId}`, {
                 log: `
-`,
-                progress: 89
-              });
-            }
-            event.sender.send(`scan-log:${scanId}`, {
-              log: `
-🔍 TOP SECURITY FINDINGS:
+
+🔍 TOP ${Math.min(10, totalIssues)} CRITICAL FINDINGS:
 ${"═".repeat(79)}
 
 `,
-              progress: 90
-            });
-            if (findings.length > 0) {
-              const sortedFindings = findings.sort((a, b) => {
+                progress: 92
+              });
+              const allSortedFindings = findings.sort((a, b) => {
                 var _a3, _b3;
                 const severityOrder = {
                   ERROR: 4,
@@ -908,80 +1178,104 @@ ${"═".repeat(79)}
                 const sevB = (((_b3 = b.extra) == null ? void 0 : _b3.severity) || "WARNING").toUpperCase();
                 return (severityOrder[sevB] || 0) - (severityOrder[sevA] || 0);
               });
-              const topFindings = sortedFindings.slice(0, 10);
+              const topFindings = allSortedFindings.slice(0, 10);
               topFindings.forEach((finding, index) => {
-                var _a3, _b3, _c2, _d2, _e;
+                var _a3, _b3, _c;
                 const severity = (((_a3 = finding.extra) == null ? void 0 : _a3.severity) || "WARNING").toUpperCase();
-                const severityIcon = severity === "ERROR" || severity === "CRITICAL" ? "🔴" : severity === "WARNING" || severity === "HIGH" ? "🟠" : "🟡";
-                const relativePath = finding.path || "N/A";
-                const parts = relativePath.split(path.sep);
-                const projectDir = parts[0] || "root";
+                const severityIcon = severity === "ERROR" || severity === "CRITICAL" ? "🔴 CRITICAL" : severity === "WARNING" || severity === "HIGH" ? "🟠 HIGH    " : severity === "MEDIUM" ? "🟡 MEDIUM  " : "🔵 LOW     ";
+                const absolutePath = finding.path || "N/A";
+                const relativePath = getRelativePath(absolutePath);
+                const shortPath = relativePath.length > 60 ? "..." + relativePath.slice(-57) : relativePath;
                 const findingLog = `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${severityIcon} Finding ${index + 1}/${topFindings.length} [Project: ${projectDir}]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Rule ID     : ${finding.check_id || "N/A"}
-Severity    : ${severity}
-File        : ${relativePath}
-Line        : ${((_b3 = finding.start) == null ? void 0 : _b3.line) || "N/A"}
-Message     : ${((_c2 = finding.extra) == null ? void 0 : _c2.message) || finding.message || "N/A"}
-${((_e = (_d2 = finding.extra) == null ? void 0 : _d2.metadata) == null ? void 0 : _e.source) ? `Source      : ${finding.extra.metadata.source}
-` : ""}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${index + 1}. ${severityIcon} │ ${finding.check_id || "Unknown Rule"}
+   File: ${shortPath}
+   Line: ${((_b3 = finding.start) == null ? void 0 : _b3.line) || "?"}
+   ${((_c = finding.extra) == null ? void 0 : _c.message) || finding.message || "No description"}
+${"─".repeat(79)}
 `;
                 event.sender.send(`scan-log:${scanId}`, {
                   log: findingLog,
-                  progress: 90 + Math.floor((index + 1) / topFindings.length * 5)
+                  progress: 92 + Math.floor((index + 1) / topFindings.length * 3)
                 });
               });
-              if (findings.length > 10) {
+              if (totalIssues > 10) {
                 event.sender.send(`scan-log:${scanId}`, {
                   log: `
-... and ${findings.length - 10} more findings across all projects
+   ... and ${totalIssues - 10} more findings (check opengrep-report.json for details)
 `,
                   progress: 95
                 });
               }
             } else {
               event.sender.send(`scan-log:${scanId}`, {
-                log: `✅ No security issues detected in any project!
+                log: `
+
+✅ NO SECURITY ISSUES DETECTED!
+${"═".repeat(79)}
+
+`,
+                progress: 95
+              });
+              event.sender.send(`scan-log:${scanId}`, {
+                log: `🎉 All ${totalFilesScanned} files across ${projectsWithFiles.length} project(s) passed security analysis.
+`,
+                progress: 95
+              });
+              event.sender.send(`scan-log:${scanId}`, {
+                log: `🛡️  No vulnerabilities found. Repository is secure!
 `,
                 progress: 95
               });
             }
+            const projectsList = projectsWithFiles.length > 0 ? projectsWithFiles.map(([dir]) => dir).slice(0, 3).join(", ") + (projectsWithFiles.length > 3 ? `, +${projectsWithFiles.length - 3} more` : "") : "No projects detected";
             const summary_text = `
 
 
 ╔═══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                               ║
-║     📊  STATIC APPLICATION SECURITY TESTING (SAST) ANALYSIS SUMMARY  📊      ║
+║              📊  SAST ANALYSIS SUMMARY - OpenGrep Scanner  📊                 ║
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 
 Repository        : ${repoUrl}
 Branch            : ${branch}
-Engine            : OpenGrep (Open Source SAST Scanner)
-Languages Scanned : Java, JavaScript, Python, C#, Go, Ruby, PHP, TypeScript
+Scan Engine       : OpenGrep (Open Source SAST)
 
-Scan Coverage:
-  📁 Projects Found : ${projectFindings.size}
-  📄 Files Scanned  : ${((_d = (_c = report.paths) == null ? void 0 : _c.scanned) == null ? void 0 : _d.length) || 0}
-  ❌ Issues Found   : ${failedChecks}
-  
-Severity Breakdown:
-  🔴 Critical/Error : ${criticalCount}
-  🟠 High/Warning   : ${highCount}
-  🟡 Medium/Info    : ${mediumCount}
-  
-Total Issues      : ${totalIssues}
+📁 SCAN COVERAGE
+${"─".repeat(79)}
+  Projects Scanned        : ${projectsWithFiles.length} (${projectsList})
+  Project Files           : ${totalProjectFiles}
+  Root/Config Files       : ${rootLevelFiles}
+  Total Files Scanned     : ${totalFilesScanned}
+  Files Skipped           : ${skippedFiles.length}
+  Languages Detected      : ${filesByLanguage.size}
+  Rules Applied           : Auto (Community Rules)
 
-Projects Analyzed:
-${Array.from(projectFindings.entries()).map(([dir, issues]) => `  • ${dir}: ${issues.length} issue(s)`).join("\n") || "  • No projects with issues"}
+🔍 FINDINGS SUMMARY
+${"─".repeat(79)}
+  Total Issues            : ${totalIssues}
+  🔴 Critical/Error       : ${criticalCount}
+  🟠 High/Warning         : ${highCount}
+  🟡 Medium               : ${mediumCount}
+  🔵 Low/Info             : ${lowCount}
 
-Overall Status    : ${code === 0 ? "✅ SCAN COMPLETED" : "⚠️ SCAN COMPLETED WITH WARNINGS"}
+🎯 SECURITY VERDICT
+${"─".repeat(79)}
+${totalIssues === 0 ? `  ✅ SECURE — All ${projectsWithFiles.length} project(s) passed security checks
+  ✅ No vulnerabilities detected
+  ✅ Safe to deploy to production` : criticalCount > 0 ? `  🚨 CRITICAL RISK — ${criticalCount} critical vulnerabilities detected
+  ⛔ DO NOT DEPLOY until all critical issues are fixed
+  🔧 Immediate remediation required` : highCount > 0 ? `  🟠 HIGH RISK — ${highCount} high severity issues found
+  ⚠️  Review and fix before deployment
+  🔧 Remediation recommended` : totalIssues <= 5 ? `  🟡 LOW RISK — ${totalIssues} minor issues detected
+  ℹ️  Review findings before release
+  🔧 Non-critical remediation` : `  🟡 MEDIUM RISK — ${totalIssues} security issues found
+  ⚠️  Security review required before production
+  🔧 Address issues before deployment`}
 
-Security Verdict  : ${totalIssues === 0 ? "✅ NO SECURITY ISSUES DETECTED - All projects are secure" : criticalCount > 0 ? "🚨 CRITICAL RISK - Urgent security remediation required" : totalIssues <= 5 ? "🟡 LOW RISK - Minor issues require attention" : totalIssues <= 15 ? "🟠 MEDIUM RISK - Security issues should be addressed" : "🔴 HIGH RISK - Immediate security review recommended"}
-
-Recommendation    : ${totalIssues === 0 ? "All projects pass security analysis. Safe to proceed with release." : criticalCount > 0 ? "DO NOT RELEASE - Critical vulnerabilities must be fixed immediately." : totalIssues <= 5 ? "Review and fix minor issues before release." : totalIssues <= 15 ? "Address security issues before deploying to production." : "Mandatory security review required before release."}
+📝 RECOMMENDATION
+${"─".repeat(79)}
+${totalIssues === 0 ? `  All security checks passed across ${projectsWithFiles.length} project(s). Production-ready.` : criticalCount > 0 ? `  Fix ${criticalCount} critical vulnerability(ies) immediately. DO NOT RELEASE.` : totalIssues <= 5 ? `  Review and fix ${totalIssues} minor issue(s). Low priority.` : `  Address ${totalIssues} security issue(s) before production deployment.`}
 
 ${"═".repeat(79)}
 `;
