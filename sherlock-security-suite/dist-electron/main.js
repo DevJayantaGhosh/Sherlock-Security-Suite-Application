@@ -955,6 +955,35 @@ ${"═".repeat(79)}
             }
             const totalProjectFiles = Array.from(filesByDirectory.values()).reduce((sum, count) => sum + count, 0);
             const totalFilesScanned = totalProjectFiles + rootLevelFiles;
+            if (projectsWithFiles.length > 0) {
+              event.sender.send(`scan-log:${scanId}`, {
+                log: `
+
+📂 FILES BY PROJECT:
+${"─".repeat(79)}
+
+`,
+                progress: 89
+              });
+              projectsWithFiles.forEach(([dir, count]) => {
+                const issues = findingsByDirectory.get(dir) || [];
+                const statusIcon = issues.length === 0 ? "✅" : issues.length <= 5 ? "🟡" : "🔴";
+                const percentage = totalProjectFiles > 0 ? Math.round(count / totalProjectFiles * 100) : 0;
+                event.sender.send(`scan-log:${scanId}`, {
+                  log: `  ${statusIcon} ${dir.padEnd(40)} ${count.toString().padStart(4)} files (${percentage.toString().padStart(2)}%)${issues.length > 0 ? ` — ${issues.length} issue(s)` : ""}
+`,
+                  progress: 89
+                });
+              });
+              if (rootLevelFiles > 0) {
+                const rootPercentage = Math.round(rootLevelFiles / totalFilesScanned * 100);
+                event.sender.send(`scan-log:${scanId}`, {
+                  log: `  📝 [root] (config/metadata)                 ${rootLevelFiles.toString().padStart(4)} files (${rootPercentage.toString().padStart(2)}%)
+`,
+                  progress: 89
+                });
+              }
+            }
             event.sender.send(`scan-log:${scanId}`, {
               log: `
 
@@ -962,14 +991,14 @@ ${"═".repeat(79)}
 ${"═".repeat(79)}
 
 `,
-              progress: 89
+              progress: 90
             });
             if (totalRulesCount > 0) {
               event.sender.send(`scan-log:${scanId}`, {
                 log: `   OpenGrep scanned ${totalFilesScanned} files using ${totalRulesCount} security rules
 
 `,
-                progress: 89
+                progress: 90
               });
             }
             if (rulesRun.size > 0) {
@@ -994,32 +1023,32 @@ ${"═".repeat(79)}
                   log: `   Sample Rules by Category:
 
 `,
-                  progress: 89
+                  progress: 90
                 });
                 sortedCategories.slice(0, 8).forEach(([category, rules]) => {
                   event.sender.send(`scan-log:${scanId}`, {
                     log: `   📋 ${category} (${rules.length} rule${rules.length > 1 ? "s" : ""})
 `,
-                    progress: 89
+                    progress: 90
                   });
                   rules.slice(0, 3).forEach((ruleId) => {
                     event.sender.send(`scan-log:${scanId}`, {
                       log: `      • ${ruleId}
 `,
-                      progress: 89
+                      progress: 90
                     });
                   });
                   if (rules.length > 3) {
                     event.sender.send(`scan-log:${scanId}`, {
                       log: `      ... and ${rules.length - 3} more
 `,
-                      progress: 89
+                      progress: 90
                     });
                   }
                   event.sender.send(`scan-log:${scanId}`, {
                     log: `
 `,
-                    progress: 89
+                    progress: 90
                   });
                 });
                 if (sortedCategories.length > 8) {
@@ -1027,7 +1056,7 @@ ${"═".repeat(79)}
                     log: `   ... and ${sortedCategories.length - 8} more categories
 
 `,
-                    progress: 89
+                    progress: 90
                   });
                 }
               }
@@ -1036,53 +1065,24 @@ ${"═".repeat(79)}
               event.sender.send(`scan-log:${scanId}`, {
                 log: `   ✅ Result: All ${totalFilesScanned} files passed all security checks
 `,
-                progress: 89
+                progress: 90
               });
               event.sender.send(`scan-log:${scanId}`, {
                 log: `   ✅ Status: No vulnerabilities detected - Repository is secure!
 `,
-                progress: 89
+                progress: 90
               });
             } else {
               event.sender.send(`scan-log:${scanId}`, {
                 log: `   ⚠️  Result: ${totalIssues} security issue(s) detected in ${failedChecks} file(s)
 `,
-                progress: 89
+                progress: 90
               });
               event.sender.send(`scan-log:${scanId}`, {
                 log: `   📊 Breakdown: ${criticalCount} critical, ${highCount} high, ${mediumCount} medium, ${lowCount} low
 `,
-                progress: 89
-              });
-            }
-            if (projectsWithFiles.length > 0) {
-              event.sender.send(`scan-log:${scanId}`, {
-                log: `
-
-📂 FILES BY PROJECT:
-${"─".repeat(79)}
-
-`,
                 progress: 90
               });
-              projectsWithFiles.forEach(([dir, count]) => {
-                const issues = findingsByDirectory.get(dir) || [];
-                const statusIcon = issues.length === 0 ? "✅" : issues.length <= 5 ? "🟡" : "🔴";
-                const percentage = totalProjectFiles > 0 ? Math.round(count / totalProjectFiles * 100) : 0;
-                event.sender.send(`scan-log:${scanId}`, {
-                  log: `  ${statusIcon} ${dir.padEnd(40)} ${count.toString().padStart(4)} files (${percentage.toString().padStart(2)}%)${issues.length > 0 ? ` — ${issues.length} issue(s)` : ""}
-`,
-                  progress: 90
-                });
-              });
-              if (rootLevelFiles > 0) {
-                const rootPercentage = Math.round(rootLevelFiles / totalFilesScanned * 100);
-                event.sender.send(`scan-log:${scanId}`, {
-                  log: `  📝 [root] (config/metadata)              ${rootLevelFiles.toString().padStart(4)} files (${rootPercentage.toString().padStart(2)}%)
-`,
-                  progress: 90
-                });
-              }
             }
             if (totalIssues > 0) {
               event.sender.send(`scan-log:${scanId}`, {
@@ -1197,7 +1197,7 @@ ${"═".repeat(79)}
                 progress: 95
               });
               event.sender.send(`scan-log:${scanId}`, {
-                log: `🎉 All ${totalFilesScanned} files across ${projectsWithFiles.length} project(s) passed security analysis.
+                log: `🎉 All ${totalFilesScanned} files passed security analysis.
 `,
                 progress: 95
               });
