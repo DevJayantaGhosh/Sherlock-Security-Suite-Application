@@ -1007,7 +1007,6 @@ ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, compone
           }
           
           // Pattern to extract individual rule IDs from verbose output
-          // Looking for patterns like "rule: <rule-id>" or lines that look like rule IDs
           const lines = stderrData.split('\n');
           lines.forEach(line => {
             const trimmed = line.trim();
@@ -1055,15 +1054,15 @@ ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, compone
             }
           });
 
-          passedChecks = scannedFiles.length;  // Total files scanned
-          failedChecks = totalIssues;  // Files with issues
+          passedChecks = scannedFiles.length;
+          failedChecks = totalIssues;
 
           event.sender.send(`scan-log:${scanId}`, {
             log: `\n✅ Scan completed successfully!\n\n`,
             progress: 88,
           });
 
-          // ==================== PROJECT STRUCTURE ====================
+          // ==================== 1. PROJECT STRUCTURE ====================
           const projectsWithFiles = Array.from(filesByDirectory.entries())
             .filter(([dir, count]) => count > 0 && projectDirectories.has(dir))
             .sort((a, b) => b[1] - a[1]);
@@ -1092,19 +1091,46 @@ ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, compone
             }
           }
 
-          // ==================== SECURITY RULES APPLIED ====================
+          // ==================== 2. FILES BY PROJECT ====================
           const totalProjectFiles = Array.from(filesByDirectory.values()).reduce((sum, count) => sum + count, 0);
           const totalFilesScanned = totalProjectFiles + rootLevelFiles;
 
+          if (projectsWithFiles.length > 0) {
+            event.sender.send(`scan-log:${scanId}`, {
+              log: `\n\n📂 FILES BY PROJECT:\n${"─".repeat(79)}\n\n`,
+              progress: 89,
+            });
+
+            projectsWithFiles.forEach(([dir, count]) => {
+              const issues = findingsByDirectory.get(dir) || [];
+              const statusIcon = issues.length === 0 ? '✅' : issues.length <= 5 ? '🟡' : '🔴';
+              const percentage = totalProjectFiles > 0 ? Math.round((count / totalProjectFiles) * 100) : 0;
+              
+              event.sender.send(`scan-log:${scanId}`, {
+                log: `  ${statusIcon} ${dir.padEnd(40)} ${count.toString().padStart(4)} files (${percentage.toString().padStart(2)}%)${issues.length > 0 ? ` — ${issues.length} issue(s)` : ''}\n`,
+                progress: 89,
+              });
+            });
+
+            if (rootLevelFiles > 0) {
+              const rootPercentage = Math.round((rootLevelFiles / totalFilesScanned) * 100);
+              event.sender.send(`scan-log:${scanId}`, {
+                log: `  📝 [root] (config/metadata)                 ${rootLevelFiles.toString().padStart(4)} files (${rootPercentage.toString().padStart(2)}%)\n`,
+                progress: 89,
+              });
+            }
+          }
+
+          // ==================== 3. SECURITY RULES APPLIED ====================
           event.sender.send(`scan-log:${scanId}`, {
             log: `\n\n🛡️  SECURITY RULES APPLIED:\n${"═".repeat(79)}\n\n`,
-            progress: 89,
+            progress: 90,
           });
 
           if (totalRulesCount > 0) {
             event.sender.send(`scan-log:${scanId}`, {
               log: `   OpenGrep scanned ${totalFilesScanned} files using ${totalRulesCount} security rules\n\n`,
-              progress: 89,
+              progress: 90,
             });
           }
 
@@ -1134,39 +1160,39 @@ ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, compone
             if (sortedCategories.length > 0) {
               event.sender.send(`scan-log:${scanId}`, {
                 log: `   Sample Rules by Category:\n\n`,
-                progress: 89,
+                progress: 90,
               });
 
               sortedCategories.slice(0, 8).forEach(([category, rules]) => {
                 event.sender.send(`scan-log:${scanId}`, {
                   log: `   📋 ${category} (${rules.length} rule${rules.length > 1 ? 's' : ''})\n`,
-                  progress: 89,
+                  progress: 90,
                 });
                 
                 rules.slice(0, 3).forEach((ruleId: string) => {
                   event.sender.send(`scan-log:${scanId}`, {
                     log: `      • ${ruleId}\n`,
-                    progress: 89,
+                    progress: 90,
                   });
                 });
                 
                 if (rules.length > 3) {
                   event.sender.send(`scan-log:${scanId}`, {
                     log: `      ... and ${rules.length - 3} more\n`,
-                    progress: 89,
+                    progress: 90,
                   });
                 }
                 
                 event.sender.send(`scan-log:${scanId}`, {
                   log: `\n`,
-                  progress: 89,
+                  progress: 90,
                 });
               });
               
               if (sortedCategories.length > 8) {
                 event.sender.send(`scan-log:${scanId}`, {
                   log: `   ... and ${sortedCategories.length - 8} more categories\n\n`,
-                  progress: 89,
+                  progress: 90,
                 });
               }
             }
@@ -1175,51 +1201,24 @@ ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, compone
           if (totalIssues === 0) {
             event.sender.send(`scan-log:${scanId}`, {
               log: `   ✅ Result: All ${totalFilesScanned} files passed all security checks\n`,
-              progress: 89,
+              progress: 90,
             });
             event.sender.send(`scan-log:${scanId}`, {
               log: `   ✅ Status: No vulnerabilities detected - Repository is secure!\n`,
-              progress: 89,
+              progress: 90,
             });
           } else {
             event.sender.send(`scan-log:${scanId}`, {
               log: `   ⚠️  Result: ${totalIssues} security issue(s) detected in ${failedChecks} file(s)\n`,
-              progress: 89,
+              progress: 90,
             });
             event.sender.send(`scan-log:${scanId}`, {
               log: `   📊 Breakdown: ${criticalCount} critical, ${highCount} high, ${mediumCount} medium, ${lowCount} low\n`,
-              progress: 89,
-            });
-          }
-
-          // ==================== PROJECT FILE BREAKDOWN ====================
-          if (projectsWithFiles.length > 0) {
-            event.sender.send(`scan-log:${scanId}`, {
-              log: `\n\n📂 FILES BY PROJECT:\n${"─".repeat(79)}\n\n`,
               progress: 90,
             });
-
-            projectsWithFiles.forEach(([dir, count]) => {
-              const issues = findingsByDirectory.get(dir) || [];
-              const statusIcon = issues.length === 0 ? '✅' : issues.length <= 5 ? '🟡' : '🔴';
-              const percentage = totalProjectFiles > 0 ? Math.round((count / totalProjectFiles) * 100) : 0;
-              
-              event.sender.send(`scan-log:${scanId}`, {
-                log: `  ${statusIcon} ${dir.padEnd(40)} ${count.toString().padStart(4)} files (${percentage.toString().padStart(2)}%)${issues.length > 0 ? ` — ${issues.length} issue(s)` : ''}\n`,
-                progress: 90,
-              });
-            });
-
-            if (rootLevelFiles > 0) {
-              const rootPercentage = Math.round((rootLevelFiles / totalFilesScanned) * 100);
-              event.sender.send(`scan-log:${scanId}`, {
-                log: `  📝 [root] (config/metadata)              ${rootLevelFiles.toString().padStart(4)} files (${rootPercentage.toString().padStart(2)}%)\n`,
-                progress: 90,
-              });
-            }
           }
 
-          // ==================== SECURITY FINDINGS ====================
+          // ==================== 4. SECURITY FINDINGS OR NO ISSUES ====================
           if (totalIssues > 0) {
             event.sender.send(`scan-log:${scanId}`, {
               log: `\n\n🚨 SECURITY FINDINGS:\n${"═".repeat(79)}\n\n`,
@@ -1325,7 +1324,7 @@ ${"─".repeat(79)}
             });
 
             event.sender.send(`scan-log:${scanId}`, {
-              log: `🎉 All ${totalFilesScanned} files across ${projectsWithFiles.length} project(s) passed security analysis.\n`,
+              log: `🎉 All ${totalFilesScanned} files passed security analysis.\n`,
               progress: 95,
             });
             
@@ -1335,7 +1334,7 @@ ${"─".repeat(79)}
             });
           }
 
-          // ==================== FINAL SUMMARY ====================
+          // ==================== 5. FINAL SUMMARY ====================
           const projectsList = projectsWithFiles.length > 0 
             ? projectsWithFiles.map(([dir]) => dir).slice(0, 3).join(', ') + 
               (projectsWithFiles.length > 3 ? `, +${projectsWithFiles.length - 3} more` : '')
