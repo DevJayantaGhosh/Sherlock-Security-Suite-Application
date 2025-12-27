@@ -71,7 +71,7 @@ let productDB: Product[] = [
 },
 {
   id: "sherlock-001",
-  name: "Sherlock Security Suite No Build",
+  name: "Sherlock Security Suite",
   version: "1.0.0",
   description: "Comprehensive security suite with multiple Spring Boot microservices.",
   productDirector: "u1",
@@ -84,12 +84,12 @@ let productDB: Product[] = [
       componentConfigs: [
         {
           language: "java",
-          buildCommand: "",
+          // ✅ NO buildCommand - uses build-mode=none automatically
           workingDirectory: "project-management-service",
         },
         {
           language: "java",
-          buildCommand: "",
+          // ✅ NO buildCommand - uses build-mode=none automatically  
           workingDirectory: "user-management-service",
         },
       ],

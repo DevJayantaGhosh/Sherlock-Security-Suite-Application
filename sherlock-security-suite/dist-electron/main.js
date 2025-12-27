@@ -689,15 +689,15 @@ ${"═".repeat(79)}
       });
     });
   });
-  ipcMain.handle("scan:codeql", async (event, { repoUrl, branch, scanId, componentConfigs }) => {
-    debugLog(`[CODEQL] Starting SAST analysis for ${repoUrl}`);
-    const codeqlPath = validateTool("codeql");
-    if (!codeqlPath) {
+  ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, componentConfigs }) => {
+    debugLog(`[OPENGREP] Starting multi-language SAST analysis for ${repoUrl}`);
+    const opengrepPath = validateTool("opengrep");
+    if (!opengrepPath) {
       event.sender.send(`scan-log:${scanId}`, {
         log: `
-❌ CodeQL tool not found
-   Expected: ${toolPath("codeql")}
-   Download from: https://github.com/github/codeql-cli-binaries/releases
+❌ OpenGrep tool not found
+   Expected: ${toolPath("opengrep")}
+   Download: https://github.com/semgrep/semgrep/releases
 
 `,
         progress: 0
@@ -716,131 +716,239 @@ ${"═".repeat(79)}
       });
       return { success: false, error: "Clone failed" };
     }
-    let cancelled = false;
-    const componentResults = [];
-    const configs = componentConfigs && componentConfigs.length > 0 ? componentConfigs : [{ language: "javascript-typescript" }];
-    event.sender.send(`scan-log:${scanId}`, {
-      log: `
+    return new Promise((resolve) => {
+      var _a, _b;
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `
 ${"═".repeat(79)}
-🔬 STATIC APPLICATION SECURITY TESTING (SAST) ANALYSIS
+🔬 STATIC APPLICATION SECURITY TESTING (SAST) - OpenGrep
 ${"═".repeat(79)}
 
 `,
-      progress: 52
-    });
-    event.sender.send(`scan-log:${scanId}`, {
-      log: `📊 Total Components to Scan: ${configs.length}
-🔧 Repository: ${repoUrl}
+        progress: 52
+      });
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `🔧 Repository: ${repoUrl}
 🌿 Branch: ${branch}
+📦 Engine: OpenGrep (Open Source SAST Scanner)
+🎯 Supports: Java, JavaScript, Python, C#, Go, Ruby, PHP, TypeScript
 
 `,
-      progress: 54
-    });
-    for (let i = 0; i < configs.length; i++) {
-      if (cancelled) break;
-      const config = configs[i];
-      const componentNum = i + 1;
-      const baseProgress = 55 + i * 40 / configs.length;
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `
-${"─".repeat(79)}
-📦 COMPONENT ${componentNum} OF ${configs.length}
-${"─".repeat(79)}
-`,
-        progress: baseProgress
+        progress: 54
       });
+      const reportPath = path.join(repoPath, "opengrep-report.json");
+      const args = [
+        "scan",
+        "--config",
+        "auto",
+        "--json",
+        "--output",
+        reportPath,
+        "--no-git-ignore",
+        repoPath
+      ];
       event.sender.send(`scan-log:${scanId}`, {
-        log: `Language          : ${config.language}
-`,
-        progress: baseProgress + 1
-      });
-      if (config.workingDirectory) {
-        event.sender.send(`scan-log:${scanId}`, {
-          log: `Working Directory : ${config.workingDirectory}
-`,
-          progress: baseProgress + 2
-        });
-      }
-      if (config.buildCommand) {
-        event.sender.send(`scan-log:${scanId}`, {
-          log: `Build Command     : ${config.buildCommand}
-`,
-          progress: baseProgress + 3
-        });
-      }
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `
-`,
-        progress: baseProgress + 4
-      });
-      const result = await scanComponent(
-        event,
-        codeqlPath,
-        repoPath,
-        config,
-        scanId,
-        componentNum,
-        baseProgress
-      );
-      if (result.cancelled) {
-        cancelled = true;
-        break;
-      }
-      componentResults.push({
-        language: config.language,
-        workingDirectory: config.workingDirectory,
-        issues: result.issues,
-        success: result.success,
-        sarifPath: result.sarifPath
-      });
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `
-${result.success ? "✅" : "❌"} Component ${componentNum} ${result.success ? "completed successfully" : "failed"} - ${result.success ? result.issues : "N/A"} issue${result.issues !== 1 ? "s" : ""} found
-`,
-        progress: baseProgress + 40
-      });
-    }
-    if (cancelled) {
-      return { success: false, cancelled: true };
-    }
-    const totalIssues = componentResults.reduce((sum, r) => sum + r.issues, 0);
-    const allSuccessful = componentResults.every((r) => r.success);
-    const successfulComponents = componentResults.filter((r) => r.success).length;
-    const failedComponents = componentResults.length - successfulComponents;
-    const canMakeSecurityVerdict = allSuccessful;
-    if (totalIssues > 0 && canMakeSecurityVerdict) {
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `
-
-🔍 DETAILED FINDINGS BREAKDOWN:
-${"═".repeat(79)}
+        log: `$ opengrep scan --config auto --json
 
 `,
-        progress: 95
+        progress: 55
       });
-      componentResults.forEach((comp, index) => {
-        if (comp.issues > 0) {
-          const findingLog = `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🎯 Component ${index + 1}: ${comp.language}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Language         : ${comp.language}
-${comp.workingDirectory ? `Working Directory: ${comp.workingDirectory}
-` : ""}Issues Found     : ${comp.issues}
-Status           : ${comp.success ? "✅ Analysis Complete" : "❌ Analysis Failed"}
-${comp.sarifPath ? `SARIF Report     : ${comp.sarifPath}
-` : ""}
-Risk Level       : ${comp.issues === 0 ? "✅ NONE" : comp.issues <= 3 ? "🟡 LOW" : comp.issues <= 10 ? "🟠 MEDIUM" : comp.issues <= 20 ? "🔴 HIGH" : "🚨 CRITICAL"}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-`;
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `🔍 Analyzing all projects in repository for security vulnerabilities...
+`,
+        progress: 60
+      });
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `⏳ Scanning multiple projects may take 1-2 minutes...
+
+`,
+        progress: 62
+      });
+      const spawnOptions = {
+        cwd: repoPath,
+        stdio: ["ignore", "pipe", "pipe"],
+        env: {
+          ...process.env,
+          NO_COLOR: "1"
+        },
+        windowsHide: true,
+        shell: false,
+        detached: false
+      };
+      const child = spawn(opengrepPath, args, spawnOptions);
+      const scanProcessId = `${scanId}-opengrep`;
+      activeProcesses.set(scanProcessId, child);
+      let cancelled = false;
+      let progressCounter = 0;
+      let stderrData = "";
+      (_a = child.stdout) == null ? void 0 : _a.on("data", (data) => {
+        if (cancelled) return;
+        progressCounter++;
+        const text = data.toString();
+        if (text.trim()) {
           event.sender.send(`scan-log:${scanId}`, {
-            log: findingLog,
-            progress: 95 + Math.floor((index + 1) / componentResults.length * 3)
+            log: text,
+            progress: Math.min(65 + progressCounter, 85)
           });
         }
       });
-    }
-    const summary = `
+      (_b = child.stderr) == null ? void 0 : _b.on("data", (data) => {
+        if (cancelled) return;
+        const text = data.toString();
+        stderrData += text;
+        event.sender.send(`scan-log:${scanId}`, {
+          log: text,
+          progress: 80
+        });
+      });
+      child.on("close", async (code) => {
+        var _a2, _b2, _c, _d;
+        activeProcesses.delete(scanProcessId);
+        if (cancelled) {
+          resolve({ success: false, cancelled: true });
+          return;
+        }
+        debugLog(`[OPENGREP] Process exited with code: ${code}`);
+        let totalIssues = 0;
+        let passedChecks = 0;
+        let failedChecks = 0;
+        let findings = [];
+        let criticalCount = 0;
+        let highCount = 0;
+        let mediumCount = 0;
+        let lowCount = 0;
+        const projectFindings = /* @__PURE__ */ new Map();
+        if (fsSync.existsSync(reportPath)) {
+          try {
+            const reportContent = await fs.readFile(reportPath, "utf-8");
+            debugLog(`[OPENGREP] Report file size: ${reportContent.length} bytes`);
+            const report = JSON.parse(reportContent);
+            findings = report.results || [];
+            totalIssues = findings.length;
+            findings.forEach((f) => {
+              var _a3;
+              const severity = (((_a3 = f.extra) == null ? void 0 : _a3.severity) || "WARNING").toUpperCase();
+              if (severity === "ERROR" || severity === "CRITICAL") criticalCount++;
+              else if (severity === "WARNING" || severity === "HIGH") highCount++;
+              else if (severity === "MEDIUM") mediumCount++;
+              else lowCount++;
+              const relativePath = f.path || "";
+              const parts = relativePath.split(path.sep);
+              const projectDir = parts[0] || "root";
+              if (!projectFindings.has(projectDir)) {
+                projectFindings.set(projectDir, []);
+              }
+              projectFindings.get(projectDir).push(f);
+            });
+            passedChecks = Math.max(0, (((_b2 = (_a2 = report.paths) == null ? void 0 : _a2.scanned) == null ? void 0 : _b2.length) || 0) - totalIssues);
+            failedChecks = totalIssues;
+            event.sender.send(`scan-log:${scanId}`, {
+              log: `
+✅ Scan completed successfully!
+
+`,
+              progress: 88
+            });
+            if (projectFindings.size > 1) {
+              event.sender.send(`scan-log:${scanId}`, {
+                log: `
+📊 MULTI-PROJECT BREAKDOWN:
+${"═".repeat(79)}
+
+`,
+                progress: 89
+              });
+              let projectIndex = 0;
+              for (const [projectDir, projectIssues] of projectFindings.entries()) {
+                projectIndex++;
+                const projectLog = `
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Project ${projectIndex}: ${projectDir.padEnd(65)}│
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Issues Found: ${projectIssues.length.toString().padEnd(63)}│
+│ Critical/High: ${projectIssues.filter((f) => {
+                  var _a3;
+                  const sev = (((_a3 = f.extra) == null ? void 0 : _a3.severity) || "WARNING").toUpperCase();
+                  return sev === "ERROR" || sev === "CRITICAL" || sev === "WARNING" || sev === "HIGH";
+                }).length.toString().padEnd(62)}│
+└─────────────────────────────────────────────────────────────────────────────┘
+`;
+                event.sender.send(`scan-log:${scanId}`, {
+                  log: projectLog,
+                  progress: 89
+                });
+              }
+              event.sender.send(`scan-log:${scanId}`, {
+                log: `
+`,
+                progress: 89
+              });
+            }
+            event.sender.send(`scan-log:${scanId}`, {
+              log: `
+🔍 TOP SECURITY FINDINGS:
+${"═".repeat(79)}
+
+`,
+              progress: 90
+            });
+            if (findings.length > 0) {
+              const sortedFindings = findings.sort((a, b) => {
+                var _a3, _b3;
+                const severityOrder = {
+                  ERROR: 4,
+                  CRITICAL: 4,
+                  WARNING: 3,
+                  HIGH: 3,
+                  MEDIUM: 2,
+                  INFO: 1,
+                  LOW: 1
+                };
+                const sevA = (((_a3 = a.extra) == null ? void 0 : _a3.severity) || "WARNING").toUpperCase();
+                const sevB = (((_b3 = b.extra) == null ? void 0 : _b3.severity) || "WARNING").toUpperCase();
+                return (severityOrder[sevB] || 0) - (severityOrder[sevA] || 0);
+              });
+              const topFindings = sortedFindings.slice(0, 10);
+              topFindings.forEach((finding, index) => {
+                var _a3, _b3, _c2, _d2, _e;
+                const severity = (((_a3 = finding.extra) == null ? void 0 : _a3.severity) || "WARNING").toUpperCase();
+                const severityIcon = severity === "ERROR" || severity === "CRITICAL" ? "🔴" : severity === "WARNING" || severity === "HIGH" ? "🟠" : "🟡";
+                const relativePath = finding.path || "N/A";
+                const parts = relativePath.split(path.sep);
+                const projectDir = parts[0] || "root";
+                const findingLog = `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${severityIcon} Finding ${index + 1}/${topFindings.length} [Project: ${projectDir}]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Rule ID     : ${finding.check_id || "N/A"}
+Severity    : ${severity}
+File        : ${relativePath}
+Line        : ${((_b3 = finding.start) == null ? void 0 : _b3.line) || "N/A"}
+Message     : ${((_c2 = finding.extra) == null ? void 0 : _c2.message) || finding.message || "N/A"}
+${((_e = (_d2 = finding.extra) == null ? void 0 : _d2.metadata) == null ? void 0 : _e.source) ? `Source      : ${finding.extra.metadata.source}
+` : ""}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+`;
+                event.sender.send(`scan-log:${scanId}`, {
+                  log: findingLog,
+                  progress: 90 + Math.floor((index + 1) / topFindings.length * 5)
+                });
+              });
+              if (findings.length > 10) {
+                event.sender.send(`scan-log:${scanId}`, {
+                  log: `
+... and ${findings.length - 10} more findings across all projects
+`,
+                  progress: 95
+                });
+              }
+            } else {
+              event.sender.send(`scan-log:${scanId}`, {
+                log: `✅ No security issues detected in any project!
+`,
+                progress: 95
+              });
+            }
+            const summary_text = `
 
 
 ╔═══════════════════════════════════════════════════════════════════════════════╗
@@ -851,328 +959,102 @@ Risk Level       : ${comp.issues === 0 ? "✅ NONE" : comp.issues <= 3 ? "🟡 L
 
 Repository        : ${repoUrl}
 Branch            : ${branch}
-Total Components  : ${componentResults.length}
-Successful Scans  : ${successfulComponents}
-Failed Scans      : ${failedComponents}
-Total Issues      : ${canMakeSecurityVerdict ? totalIssues : "N/A (Scan Failed)"}
-Overall Status    : ${allSuccessful ? "✅ ALL COMPONENTS ANALYZED SUCCESSFULLY" : "❌ ANALYSIS FAILED"}
+Engine            : OpenGrep (Open Source SAST Scanner)
+Languages Scanned : Java, JavaScript, Python, C#, Go, Ruby, PHP, TypeScript
 
-${componentResults.length > 1 || !allSuccessful ? `
-Component Breakdown:
-${"─".repeat(79)}
-${componentResults.map((r, i) => `
-  ${i + 1}. ${r.language}${r.workingDirectory ? ` (${r.workingDirectory})` : ""}
-     Status: ${r.success ? "✅ Success" : "❌ Failed"}
-     Issues: ${r.success ? r.issues : "N/A"}
-     Risk  : ${!r.success ? "⚠️ Unable to assess" : r.issues === 0 ? "✅ None" : r.issues <= 3 ? "🟡 Low" : r.issues <= 10 ? "🟠 Medium" : r.issues <= 20 ? "🔴 High" : "🚨 Critical"}
-`).join("")}
-${"─".repeat(79)}
-` : ""}
+Scan Coverage:
+  📁 Projects Found : ${projectFindings.size}
+  📄 Files Scanned  : ${((_d = (_c = report.paths) == null ? void 0 : _c.scanned) == null ? void 0 : _d.length) || 0}
+  ❌ Issues Found   : ${failedChecks}
+  
+Severity Breakdown:
+  🔴 Critical/Error : ${criticalCount}
+  🟠 High/Warning   : ${highCount}
+  🟡 Medium/Info    : ${mediumCount}
+  
+Total Issues      : ${totalIssues}
 
-Security Verdict  : ${!canMakeSecurityVerdict ? "❌ ANALYSIS INCOMPLETE - Cannot determine security status" : totalIssues === 0 ? "✅ NO SECURITY ISSUES DETECTED - Code is secure" : totalIssues <= 5 ? "🟡 LOW RISK - Minor issues require attention" : totalIssues <= 15 ? "🟠 MEDIUM RISK - Security issues should be addressed" : totalIssues <= 30 ? "🔴 HIGH RISK - Immediate security review recommended" : "🚨 CRITICAL RISK - Urgent security remediation required"}
+Projects Analyzed:
+${Array.from(projectFindings.entries()).map(([dir, issues]) => `  • ${dir}: ${issues.length} issue(s)`).join("\n") || "  • No projects with issues"}
 
-Recommendation    : ${!canMakeSecurityVerdict ? "⚠️ Fix build/analysis errors before proceeding. See troubleshooting section below." : totalIssues === 0 ? "Code passes security analysis. Safe to proceed with release." : totalIssues <= 5 ? "Review and fix minor issues before release." : totalIssues <= 15 ? "Address security issues before deploying to production." : totalIssues <= 30 ? "Mandatory security review required before release." : "DO NOT RELEASE - Critical security vulnerabilities detected."}
+Overall Status    : ${code === 0 ? "✅ SCAN COMPLETED" : "⚠️ SCAN COMPLETED WITH WARNINGS"}
 
-${!canMakeSecurityVerdict ? `
-╔═══════════════════════════════════════════════════════════════════════════════╗
-║                           ⚠️  TROUBLESHOOTING  ⚠️                            ║
-╚═══════════════════════════════════════════════════════════════════════════════╝
+Security Verdict  : ${totalIssues === 0 ? "✅ NO SECURITY ISSUES DETECTED - All projects are secure" : criticalCount > 0 ? "🚨 CRITICAL RISK - Urgent security remediation required" : totalIssues <= 5 ? "🟡 LOW RISK - Minor issues require attention" : totalIssues <= 15 ? "🟠 MEDIUM RISK - Security issues should be addressed" : "🔴 HIGH RISK - Immediate security review recommended"}
 
-Analysis failed for one or more components. Common causes:
+Recommendation    : ${totalIssues === 0 ? "All projects pass security analysis. Safe to proceed with release." : criticalCount > 0 ? "DO NOT RELEASE - Critical vulnerabilities must be fixed immediately." : totalIssues <= 5 ? "Review and fix minor issues before release." : totalIssues <= 15 ? "Address security issues before deploying to production." : "Mandatory security review required before release."}
 
-1. BUILD TOOL NOT FOUND
-   • Maven (Java): Install Maven and add to system PATH
-   • Gradle (Java): Install Gradle and add to system PATH
-   • MSBuild (C#): Install Visual Studio Build Tools
-   • Make (C/C++): Install build-essential or similar
-   • Solution: Verify with 'mvn --version' or equivalent command
-
-2. ALTERNATIVE: USE BUILD-MODE NONE (Recommended)
-   • For Java/C#/Kotlin projects, you can scan without building
-   • Remove 'buildCommand' from componentConfig
-   • CodeQL will use --build-mode none automatically
-   • Supported: Java, C#, Kotlin (CodeQL 2.16.5+)
-   • Note: Slightly lower accuracy for complex projects
-
-3. INTERPRETED LANGUAGES (No Build Needed)
-   • JavaScript/TypeScript, Python, Ruby never need builds
-   • Simply omit the buildCommand
-   • Analysis works automatically
-
-4. MISSING DEPENDENCIES
-   • Ensure all project dependencies are properly configured
-   • Check pom.xml (Maven), build.gradle (Gradle), or .csproj files
-
-5. PERMISSION ISSUES
-   • Verify read/write access to project directory
-   • Run application with appropriate permissions
-
-For more help: https://docs.github.com/en/code-security/code-scanning
-
-` : ""}
 ${"═".repeat(79)}
 `;
-    event.sender.send(`scan-log:${scanId}`, {
-      log: summary,
-      progress: 100
-    });
-    event.sender.send(`scan-complete:${scanId}`, {
-      success: allSuccessful,
-      totalIssues: canMakeSecurityVerdict ? totalIssues : void 0,
-      componentResults: componentResults.map((r) => ({
-        language: r.language,
-        workingDirectory: r.workingDirectory,
-        issues: r.issues,
-        success: r.success
-      }))
-    });
-    return {
-      success: allSuccessful,
-      totalIssues: canMakeSecurityVerdict ? totalIssues : void 0,
-      componentResults: componentResults.map((r) => ({
-        language: r.language,
-        workingDirectory: r.workingDirectory,
-        issues: r.issues,
-        success: r.success
-      }))
-    };
-  });
-  async function scanComponent(event, codeqlPath, repoPath, config, scanId, componentNum, baseProgress) {
-    const workDir = config.workingDirectory ? path.join(repoPath, config.workingDirectory) : repoPath;
-    if (config.workingDirectory && !fsSync.existsSync(workDir)) {
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `
-❌ Working directory not found: ${config.workingDirectory}
+            event.sender.send(`scan-log:${scanId}`, {
+              log: summary_text,
+              progress: 100
+            });
+          } catch (err) {
+            debugLog(`Error parsing OpenGrep report: ${err.message}`);
+            event.sender.send(`scan-log:${scanId}`, {
+              log: `
+❌ Error parsing report: ${err.message}
 `,
-        progress: baseProgress + 5
-      });
-      return { success: false, issues: 0, cancelled: false };
-    }
-    const dbPath = path.join(workDir, `codeql-db-${componentNum}`);
-    const sarifPath = path.join(workDir, `codeql-results-${componentNum}.sarif`);
-    let cancelled = false;
-    return new Promise((resolve) => {
-      var _a, _b;
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `🔧 Step 1/2: Creating CodeQL database for ${config.language}...
-`,
-        progress: baseProgress + 5
-      });
-      const createArgs = [
-        "database",
-        "create",
-        dbPath,
-        `--language=${config.language}`,
-        "--source-root",
-        workDir,
-        "--overwrite"
-      ];
-      const normalizedLang = config.language.toLowerCase();
-      if (config.buildCommand) {
-        createArgs.push("--command", config.buildCommand);
-        event.sender.send(`scan-log:${scanId}`, {
-          log: `🏗️  Using custom build command
-`,
-          progress: baseProgress + 6
-        });
-      } else if (["java", "csharp", "kotlin"].includes(normalizedLang)) {
-        createArgs.push("--build-mode", "none");
-        event.sender.send(`scan-log:${scanId}`, {
-          log: `🚀 Using build-mode=none (no build required)
-`,
-          progress: baseProgress + 6
-        });
-      } else if (["javascript", "typescript", "javascript-typescript"].includes(normalizedLang)) {
-        if (process.platform === "win32") {
-          createArgs.push("--command", "echo Skipping build");
+              progress: 100
+            });
+          }
         } else {
-          createArgs.push("--command", "echo 'Skipping build'");
-        }
-        event.sender.send(`scan-log:${scanId}`, {
-          log: `✅ Using no-op command to skip autobuild
-`,
-          progress: baseProgress + 6
-        });
-      } else if (["python", "ruby"].includes(normalizedLang)) {
-        event.sender.send(`scan-log:${scanId}`, {
-          log: `✅ ${config.language} doesn't require compilation
-`,
-          progress: baseProgress + 6
-        });
-      } else {
-        event.sender.send(`scan-log:${scanId}`, {
-          log: `⚠️  Warning: ${config.language} may require a build command
-`,
-          progress: baseProgress + 6
-        });
-      }
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `$ codeql ${createArgs.join(" ")}
-
-`,
-        progress: baseProgress + 7
-      });
-      const spawnOptions = {
-        cwd: workDir,
-        stdio: ["ignore", "pipe", "pipe"],
-        env: {
-          ...process.env,
-          NO_COLOR: "1"
-        }
-      };
-      if (process.platform === "win32") {
-        spawnOptions.windowsHide = true;
-        spawnOptions.shell = false;
-        spawnOptions.detached = false;
-      } else {
-        spawnOptions.detached = true;
-      }
-      const createDb = spawn(codeqlPath, createArgs, spawnOptions);
-      if (process.platform !== "win32") {
-        createDb.unref();
-      }
-      const createId = `${scanId}-create-${componentNum}`;
-      activeProcesses.set(createId, createDb);
-      (_a = createDb.stdout) == null ? void 0 : _a.on("data", (data) => {
-        if (cancelled) return;
-        event.sender.send(`scan-log:${scanId}`, {
-          log: data.toString(),
-          progress: baseProgress + 10
-        });
-      });
-      (_b = createDb.stderr) == null ? void 0 : _b.on("data", (data) => {
-        if (cancelled) return;
-        event.sender.send(`scan-log:${scanId}`, {
-          log: data.toString(),
-          progress: baseProgress + 15
-        });
-      });
-      createDb.on("close", (code) => {
-        var _a2, _b2;
-        activeProcesses.delete(createId);
-        if (cancelled) {
-          resolve({ success: false, issues: 0, cancelled: true });
-          return;
-        }
-        if (code !== 0) {
+          debugLog(`[OPENGREP] Report file not found at: ${reportPath}`);
           event.sender.send(`scan-log:${scanId}`, {
             log: `
-❌ Database creation failed with exit code ${code}
+⚠️ No report file generated
 `,
-            progress: baseProgress + 20
+            progress: 100
           });
-          resolve({ success: false, issues: 0, cancelled: false });
-          return;
+          if (stderrData.trim()) {
+            event.sender.send(`scan-log:${scanId}`, {
+              log: `
+❌ Error details:
+${stderrData}
+`,
+              progress: 100
+            });
+          }
         }
+        const success = code === 0 || code === 1;
+        event.sender.send(`scan-complete:${scanId}`, {
+          success,
+          totalIssues,
+          passedChecks,
+          failedChecks,
+          error: success ? void 0 : `Scan exited with code ${code}`
+        });
+        resolve({ success, totalIssues, passedChecks, failedChecks });
+      });
+      child.on("error", (err) => {
+        activeProcesses.delete(scanProcessId);
         event.sender.send(`scan-log:${scanId}`, {
           log: `
-✅ Database created successfully!
-
-🔬 Step 2/2: Running security analysis...
-🧪 Detecting vulnerabilities and security patterns...
-
+❌ OpenGrep process error: ${err.message}
 `,
-          progress: baseProgress + 20
+          progress: 0
         });
-        const analyzeArgs = [
-          "database",
-          "analyze",
-          dbPath,
-          "--format=sarif-latest",
-          "--output",
-          sarifPath
-        ];
-        event.sender.send(`scan-log:${scanId}`, {
-          log: `$ codeql ${analyzeArgs.join(" ")}
-
-`,
-          progress: baseProgress + 22
+        event.sender.send(`scan-complete:${scanId}`, {
+          success: false,
+          error: err.message
         });
-        const analyze = spawn(codeqlPath, analyzeArgs, spawnOptions);
-        if (process.platform !== "win32") {
-          analyze.unref();
-        }
-        const analyzeId = `${scanId}-analyze-${componentNum}`;
-        activeProcesses.set(analyzeId, analyze);
-        (_a2 = analyze.stdout) == null ? void 0 : _a2.on("data", (data) => {
-          if (cancelled) return;
-          event.sender.send(`scan-log:${scanId}`, {
-            log: data.toString(),
-            progress: baseProgress + 30
-          });
-        });
-        (_b2 = analyze.stderr) == null ? void 0 : _b2.on("data", (data) => {
-          if (cancelled) return;
-          event.sender.send(`scan-log:${scanId}`, {
-            log: data.toString(),
-            progress: baseProgress + 35
-          });
-        });
-        analyze.on("close", async (analyzeCode) => {
-          var _a3, _b3, _c;
-          activeProcesses.delete(analyzeId);
-          if (cancelled) {
-            resolve({ success: false, issues: 0, cancelled: true });
-            return;
-          }
-          let issues = 0;
-          if (fsSync.existsSync(sarifPath)) {
-            try {
-              const sarif = JSON.parse(await fs.readFile(sarifPath, "utf-8"));
-              issues = ((_c = (_b3 = (_a3 = sarif.runs) == null ? void 0 : _a3[0]) == null ? void 0 : _b3.results) == null ? void 0 : _c.length) || 0;
-            } catch (err) {
-              debugLog(`Error parsing SARIF: ${err}`);
-            }
-          }
-          const verdict = issues === 0 ? "✅ Clean" : issues <= 3 ? "🟡 Low Risk" : issues <= 10 ? "🟠 Medium Risk" : "🔴 High Risk";
-          event.sender.send(`scan-log:${scanId}`, {
-            log: `
-✅ Analysis complete for ${config.language}!
-   Issues Found: ${issues}
-   Risk Level: ${verdict}
-`,
-            progress: baseProgress + 40
-          });
-          resolve({
-            success: analyzeCode === 0,
-            issues,
-            cancelled: false,
-            sarifPath
-          });
-        });
-        analyze.on("error", (err) => {
-          activeProcesses.delete(analyzeId);
-          event.sender.send(`scan-log:${scanId}`, {
-            log: `
-❌ Analysis error: ${err.message}
-`,
-            progress: baseProgress + 40
-          });
-          resolve({ success: false, issues: 0, cancelled: false });
-        });
+        resolve({ success: false, error: err.message });
       });
-      createDb.on("error", (err) => {
-        activeProcesses.delete(createId);
-        event.sender.send(`scan-log:${scanId}`, {
-          log: `
-❌ Database creation error: ${err.message}
-`,
-          progress: baseProgress + 20
-        });
-        resolve({ success: false, issues: 0, cancelled: false });
-      });
-      const cancelHandler = () => {
+      ipcMain.once(`scan:cancel-${scanId}`, () => {
         cancelled = true;
-        debugLog(`Cancelling component ${componentNum} scan`);
-        const activeChild = activeProcesses.get(createId) || activeProcesses.get(`${scanId}-analyze-${componentNum}`);
-        if (activeChild) {
-          killProcess(activeChild, createId);
-        }
-        resolve({ success: false, issues: 0, cancelled: true });
-      };
-      ipcMain.once(`scan:cancel-${scanId}`, cancelHandler);
+        debugLog(`Cancelling OpenGrep scan: ${scanId}`);
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `
+⚠️ Scan cancelled by user
+`,
+          progress: 0
+        });
+        killProcess(child, scanProcessId);
+        activeProcesses.delete(scanProcessId);
+        resolve({ success: false, cancelled: true });
+      });
     });
-  }
+  });
   ipcMain.handle("scan:cancel", async (event, { scanId }) => {
     debugLog(`Cancel requested: ${scanId}`);
     return new Promise((resolve) => {
