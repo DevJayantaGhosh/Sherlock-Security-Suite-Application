@@ -1695,14 +1695,6 @@ function OpenGrepPanel({
             >
               {repoDetails.repoUrl} • {repoDetails.branch}
             </Typography>
-            <Typography
-              textAlign="center"
-              variant="caption"
-              color="primary"
-              sx={{ fontWeight: 600 }}
-            >
-              Powered by OpenGrep • Java, JavaScript, Python, C#, Go, Ruby, PHP, TypeScript
-            </Typography>
           </Stack>
         </AccordionSummary>
 
@@ -1762,7 +1754,7 @@ function OpenGrepPanel({
                   disabled={!isAuthorized || isRunning}
                   onClick={runOpenGrepScan}
                 >
-                  🔍 Run SAST Scan
+                  🔍 Run
                 </Button>
               </Stack>
             </Stack>
@@ -2163,7 +2155,7 @@ function OpenGrepPanel({
             alignItems="center"
           >
             <Typography variant="h6" fontWeight={600}>
-              🔬 Multi-Language SAST Analysis (OpenGrep)
+              🔬 Static Application Security Testing (SAST) 🔬
             </Typography>
 
             {canClose && (

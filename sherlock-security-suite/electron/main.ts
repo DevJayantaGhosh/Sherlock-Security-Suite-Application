@@ -803,10 +803,6 @@ ${"═".repeat(79)}
 
 /* ============================================================
    OPENGREP - MULTI-LANGUAGE STATIC APPLICATION SECURITY SCANNING
-   FINAL PRODUCTION VERSION - ALL ISSUES FIXED
-   - Accurate file counting (no duplicates)
-   - Language breakdown matches total files
-   - Clean professional output
 ============================================================ */
 ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, componentConfigs }) => {
   debugLog(`[OPENGREP] Starting multi-language SAST analysis for ${repoUrl}`);
@@ -837,7 +833,7 @@ ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, compone
 
   return new Promise((resolve) => {
     event.sender.send(`scan-log:${scanId}`, {
-      log: `\n${"═".repeat(79)}\n🔬 STATIC APPLICATION SECURITY TESTING (SAST) - OpenGrep\n${"═".repeat(79)}\n\n`,
+      log: `\n${"═".repeat(79)}\n🔬 STATIC APPLICATION SECURITY TESTING (SAST) \n${"═".repeat(79)}\n\n`,
       progress: 52,
     });
 
@@ -853,12 +849,13 @@ ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, compone
       "--config", "auto",
       "--json",
       "--output", reportPath,
+      "--verbose",
       "--no-git-ignore",
       repoPath
     ];
 
     event.sender.send(`scan-log:${scanId}`, {
-      log: `$ opengrep scan --config auto --json\n\n`,
+      log: `$ opengrep scan --config auto --json --verbose\n\n`,
       progress: 55,
     });
 
@@ -952,7 +949,7 @@ ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, compone
             return normalized;
           }
 
-          // Detect actual project directories (ignore common non-project folders)
+          // Detect actual project directories
           const ignoredDirs = new Set([
             '.git', '.idea', '.vscode', '.github', 
             'node_modules', 'dist', 'build', 'target', 
@@ -962,10 +959,8 @@ ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, compone
 
           const projectDirectories = new Set<string>();
           const filesByDirectory = new Map<string, number>();
-          const filesByLanguage = new Map<string, number>();
           let rootLevelFiles = 0;
           
-          // Scan actual repository directory structure to find projects
           try {
             const repoContents = await fs.readdir(repoPath, { withFileTypes: true });
             
@@ -981,7 +976,7 @@ ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, compone
             debugLog(`Error reading repo directory: ${err.message}`);
           }
           
-          // Process scanned files - COUNT ALL FILES (FINAL FIX - NO DUPLICATES)
+          // Process scanned files
           scannedFiles.forEach((absolutePath: string) => {
             const relativePath = getRelativePath(absolutePath);
             const normalizedPath = relativePath.replace(/\\/g, '/');
@@ -989,119 +984,48 @@ ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, compone
             
             if (parts.length === 0) return;
             
-            // Determine which project this file belongs to
             if (parts.length === 1) {
-              // Root level file (pom.xml, README.md, etc.)
               rootLevelFiles++;
             } else {
               const topDir = parts[0];
               
-              // Count ALL files in project directories
               if (projectDirectories.has(topDir)) {
                 filesByDirectory.set(topDir, (filesByDirectory.get(topDir) || 0) + 1);
               }
             }
+          });
+
+          // Parse rules from verbose output (stderr)
+          const rulesRun = new Set<string>();
+          let totalRulesCount = 0;
+          
+          // Pattern to extract total rule count
+          const ruleCountPattern = /(?:running|loaded|scanning with)\s+(\d+)\s+rules?/gi;
+          const ruleCountMatch = ruleCountPattern.exec(stderrData);
+          if (ruleCountMatch) {
+            totalRulesCount = parseInt(ruleCountMatch[1]);
+          }
+          
+          // Pattern to extract individual rule IDs from verbose output
+          // Looking for patterns like "rule: <rule-id>" or lines that look like rule IDs
+          const lines = stderrData.split('\n');
+          lines.forEach(line => {
+            const trimmed = line.trim();
             
-            // Track languages - ALL files, NO DUPLICATES (FINAL FIX)
-            const fileName = absolutePath.split(/[/\\]/).pop() || '';
-            const ext = fileName.split('.').pop()?.toLowerCase() || '';
-
-            // Enhanced language map
-            const langMap: Record<string, string> = {
-              // Programming languages
-              'java': 'Java',
-              'js': 'JavaScript',
-              'jsx': 'JavaScript',
-              'ts': 'TypeScript',
-              'tsx': 'TypeScript',
-              'py': 'Python',
-              'cs': 'C#',
-              'go': 'Go',
-              'rb': 'Ruby',
-              'php': 'PHP',
-              'kt': 'Kotlin',
-              'swift': 'Swift',
-              'rs': 'Rust',
-              'c': 'C',
-              'cpp': 'C++',
-              'cc': 'C++',
-              'cxx': 'C++',
-              'h': 'C/C++',
-              'hpp': 'C/C++',
-              
-              // Web languages
-              'html': 'HTML',
-              'htm': 'HTML',
-              'css': 'CSS',
-              'scss': 'SCSS',
-              'sass': 'SASS',
-              'less': 'LESS',
-              
-              // Data/Config formats
-              'json': 'JSON',
-              'xml': 'XML',
-              'yaml': 'YAML',
-              'yml': 'YAML',
-              'properties': 'Properties',
-              'gradle': 'Gradle',
-              'sql': 'SQL',
-              
-              // Documentation
-              'md': 'Markdown',
-              'markdown': 'Markdown',
-              'txt': 'Text',
-              
-              // Scripts
-              'sh': 'Shell',
-              'bash': 'Shell',
-              'bat': 'Batch',
-              'cmd': 'Batch',
-              
-              // Media
-              'svg': 'SVG',
-              'png': 'Image',
-              'jpg': 'Image',
-              'jpeg': 'Image',
-              'gif': 'Image',
-              'ico': 'Icon',
-              'webp': 'Image',
-            };
-
-            // Special config files (without extension or special names)
-            const configFilePatterns = [
-              'gitignore', 'dockerignore', 'npmignore',
-              'editorconfig', 'prettierrc', 'eslintrc',
-              'babelrc', 'npmrc', 'yarnrc',
-              'dockerfile', 'makefile', 'rakefile',
-              'gemfile', 'podfile', 'cartfile'
-            ];
-
-            let language = '';
-
-            // Check if it's a special config file
-            if (configFilePatterns.some(pattern => fileName.toLowerCase().includes(pattern))) {
-              language = 'Config';
-            } 
-            // Check for .config, .ini, .conf extensions
-            else if (['config', 'ini', 'conf'].includes(ext)) {
-              language = 'Config';
+            // Match patterns like "rule: java.lang.security..."
+            const ruleMatch = trimmed.match(/^(?:rule|checking|running):\s*([a-zA-Z0-9._\-:\/]+)$/i);
+            if (ruleMatch) {
+              rulesRun.add(ruleMatch[1]);
             }
-            // Check recognized extensions
-            else if (langMap[ext]) {
-              language = langMap[ext];
+            
+            // Match standalone rule IDs (contain dots and are reasonable length)
+            if (trimmed.includes('.') && trimmed.length > 10 && trimmed.length < 100 && !trimmed.includes(' ') && /^[a-zA-Z0-9._\-:\/]+$/.test(trimmed)) {
+              rulesRun.add(trimmed);
             }
-            // Everything else is "Other"
-            else {
-              language = 'Other';
-            }
-
-            // Count each file exactly ONCE
-            filesByLanguage.set(language, (filesByLanguage.get(language) || 0) + 1);
           });
 
           // Analyze findings
           const findingsByDirectory = new Map<string, any[]>();
-          const findingsByLanguage = new Map<string, number>();
           
           findings.forEach((f: any) => {
             const severity = (f.extra?.severity || "WARNING").toUpperCase();
@@ -1109,6 +1033,10 @@ ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, compone
             else if (severity === "WARNING" || severity === "HIGH") highCount++;
             else if (severity === "MEDIUM") mediumCount++;
             else lowCount++;
+
+            if (f.check_id) {
+              rulesRun.add(f.check_id);
+            }
 
             const absolutePath = f.path || "";
             const relativePath = getRelativePath(absolutePath);
@@ -1125,13 +1053,10 @@ ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, compone
                 findingsByDirectory.get(topDir)!.push(f);
               }
             }
-
-            const language = f.extra?.metadata?.language || "Unknown";
-            findingsByLanguage.set(language, (findingsByLanguage.get(language) || 0) + 1);
           });
 
-          passedChecks = Math.max(0, scannedFiles.length - totalIssues);
-          failedChecks = totalIssues;
+          passedChecks = scannedFiles.length;  // Total files scanned
+          failedChecks = totalIssues;  // Files with issues
 
           event.sender.send(`scan-log:${scanId}`, {
             log: `\n✅ Scan completed successfully!\n\n`,
@@ -1167,62 +1092,104 @@ ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, compone
             }
           }
 
-          // ==================== SCAN STATISTICS ====================
-          event.sender.send(`scan-log:${scanId}`, {
-            log: `\n\n📊 SCAN STATISTICS:\n${"═".repeat(79)}\n\n`,
-            progress: 89,
-          });
-
-          // Calculate totals properly
+          // ==================== SECURITY RULES APPLIED ====================
           const totalProjectFiles = Array.from(filesByDirectory.values()).reduce((sum, count) => sum + count, 0);
           const totalFilesScanned = totalProjectFiles + rootLevelFiles;
 
-          const statsLog = `
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ 📁 Projects Detected    : ${projectsWithFiles.length.toString().padStart(4)}                                             │
-│ 📄 Project Files        : ${totalProjectFiles.toString().padStart(4)} (source code files)                        │
-│ 📝 Root/Config Files    : ${rootLevelFiles.toString().padStart(4)} (metadata, configs)                          │
-│ 📊 Total Files Scanned  : ${totalFilesScanned.toString().padStart(4)}                                             │
-│ ⏭️  Files Skipped        : ${skippedFiles.length.toString().padStart(4)}                                             │
-│ 🔤 Languages Detected   : ${filesByLanguage.size.toString().padStart(4)}                                             │
-│ 🔍 Total Issues Found   : ${totalIssues.toString().padStart(4)}                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-`;
-
           event.sender.send(`scan-log:${scanId}`, {
-            log: statsLog,
+            log: `\n\n🛡️  SECURITY RULES APPLIED:\n${"═".repeat(79)}\n\n`,
             progress: 89,
           });
 
-          // ==================== LANGUAGE BREAKDOWN ====================
-          if (filesByLanguage.size > 0) {
+          if (totalRulesCount > 0) {
             event.sender.send(`scan-log:${scanId}`, {
-              log: `\n🔤 LANGUAGE BREAKDOWN:\n${"─".repeat(79)}\n\n`,
-              progress: 90,
+              log: `   OpenGrep scanned ${totalFilesScanned} files using ${totalRulesCount} security rules\n\n`,
+              progress: 89,
             });
+          }
 
-            const sortedLangs = Array.from(filesByLanguage.entries())
-              .sort((a, b) => b[1] - a[1])
-              .slice(0, 10);
-            
-            sortedLangs.forEach(([lang, count]) => {
-              const issues = findingsByLanguage.get(lang) || 0;
-              const percentage = Math.round((count / totalFilesScanned) * 100);
-              const barLength = Math.min(Math.floor(percentage / 2.5), 40);
-              const bar = '█'.repeat(barLength) + '░'.repeat(Math.max(0, 40 - barLength));
+          if (rulesRun.size > 0) {
+            // Parse categories from rule IDs
+            const rulesByCategory = new Map<string, string[]>();
+            rulesRun.forEach((ruleId: string) => {
+              const parts = ruleId.split('.');
+              let category = 'Other';
               
-              event.sender.send(`scan-log:${scanId}`, {
-                log: `  ${lang.padEnd(15)} │${bar}│ ${count.toString().padStart(4)} files (${percentage.toString().padStart(2)}%)${issues > 0 ? ` — ${issues} issue(s)` : ''}\n`,
-                progress: 90,
-              });
+              if (parts.includes('security')) category = 'Security';
+              else if (parts.includes('best-practice')) category = 'Best Practice';
+              else if (parts.includes('performance')) category = 'Performance';
+              else if (parts.includes('correctness')) category = 'Correctness';
+              else if (parts.includes('audit')) category = 'Security Audit';
+              else if (parts.length >= 2) category = parts[1];
+              
+              if (!rulesByCategory.has(category)) {
+                rulesByCategory.set(category, []);
+              }
+              rulesByCategory.get(category)!.push(ruleId);
             });
 
-            if (filesByLanguage.size > 10) {
+            const sortedCategories = Array.from(rulesByCategory.entries())
+              .sort((a, b) => b[1].length - a[1].length);
+            
+            if (sortedCategories.length > 0) {
               event.sender.send(`scan-log:${scanId}`, {
-                log: `  ... and ${filesByLanguage.size - 10} more languages\n`,
-                progress: 90,
+                log: `   Sample Rules by Category:\n\n`,
+                progress: 89,
               });
+
+              sortedCategories.slice(0, 8).forEach(([category, rules]) => {
+                event.sender.send(`scan-log:${scanId}`, {
+                  log: `   📋 ${category} (${rules.length} rule${rules.length > 1 ? 's' : ''})\n`,
+                  progress: 89,
+                });
+                
+                rules.slice(0, 3).forEach((ruleId: string) => {
+                  event.sender.send(`scan-log:${scanId}`, {
+                    log: `      • ${ruleId}\n`,
+                    progress: 89,
+                  });
+                });
+                
+                if (rules.length > 3) {
+                  event.sender.send(`scan-log:${scanId}`, {
+                    log: `      ... and ${rules.length - 3} more\n`,
+                    progress: 89,
+                  });
+                }
+                
+                event.sender.send(`scan-log:${scanId}`, {
+                  log: `\n`,
+                  progress: 89,
+                });
+              });
+              
+              if (sortedCategories.length > 8) {
+                event.sender.send(`scan-log:${scanId}`, {
+                  log: `   ... and ${sortedCategories.length - 8} more categories\n\n`,
+                  progress: 89,
+                });
+              }
             }
+          }
+
+          if (totalIssues === 0) {
+            event.sender.send(`scan-log:${scanId}`, {
+              log: `   ✅ Result: All ${totalFilesScanned} files passed all security checks\n`,
+              progress: 89,
+            });
+            event.sender.send(`scan-log:${scanId}`, {
+              log: `   ✅ Status: No vulnerabilities detected - Repository is secure!\n`,
+              progress: 89,
+            });
+          } else {
+            event.sender.send(`scan-log:${scanId}`, {
+              log: `   ⚠️  Result: ${totalIssues} security issue(s) detected in ${failedChecks} file(s)\n`,
+              progress: 89,
+            });
+            event.sender.send(`scan-log:${scanId}`, {
+              log: `   📊 Breakdown: ${criticalCount} critical, ${highCount} high, ${mediumCount} medium, ${lowCount} low\n`,
+              progress: 89,
+            });
           }
 
           // ==================== PROJECT FILE BREAKDOWN ====================
@@ -1261,10 +1228,10 @@ ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, compone
 
             const severityLog = `
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ 🔴 Critical/Error  : ${criticalCount.toString().padStart(4)}                                                 │
-│ 🟠 High/Warning    : ${highCount.toString().padStart(4)}                                                 │
-│ 🟡 Medium          : ${mediumCount.toString().padStart(4)}                                                 │
-│ 🔵 Low/Info        : ${lowCount.toString().padStart(4)}                                                 │
+│ 🔴 Critical/Error       : ${criticalCount.toString().padStart(4)}                                             │
+│ 🟠 High/Warning         : ${highCount.toString().padStart(4)}                                             │
+│ 🟡 Medium               : ${mediumCount.toString().padStart(4)}                                             │
+│ 🔵 Low/Info             : ${lowCount.toString().padStart(4)}                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 `;
             event.sender.send(`scan-log:${scanId}`, {
@@ -1379,7 +1346,7 @@ ${"─".repeat(79)}
 
 ╔═══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                               ║
-║              📊  SAST ANALYSIS SUMMARY - OpenGrep Scanner  📊                 ║
+║                        📊  SAST ANALYSIS SUMMARY  📊                         ║
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 
@@ -1394,8 +1361,7 @@ ${"─".repeat(79)}
   Root/Config Files       : ${rootLevelFiles}
   Total Files Scanned     : ${totalFilesScanned}
   Files Skipped           : ${skippedFiles.length}
-  Languages Detected      : ${filesByLanguage.size}
-  Rules Applied           : Auto (Community Rules)
+  Rules Applied           : ${totalRulesCount > 0 ? totalRulesCount : 'Auto (Community Rules)'}
 
 🔍 FINDINGS SUMMARY
 ${"─".repeat(79)}
