@@ -55,7 +55,7 @@ interface Window {
       vulnerabilities?: number;
     }>;
 
-    runCodeQL(payload: { 
+    runOpenGrep(payload: { 
       repoUrl: string; 
       branch: string; 
       scanId: string;
@@ -65,12 +65,8 @@ interface Window {
       cancelled?: boolean;
       error?: string;
       totalIssues?: number;
-      componentResults?: Array<{
-        language: string;
-        workingDirectory?: string;
-        issues: number;
-        success: boolean;
-      }>;
+      passedChecks?: number;
+      failedChecks?: number;
     }>;
 
     cancelScan(payload: { scanId: string }): Promise<{ cancelled: boolean }>;
@@ -92,12 +88,8 @@ interface Window {
         findings?: number;
         vulnerabilities?: number;
         totalIssues?: number;
-        componentResults?: Array<{
-          language: string;
-          workingDirectory?: string;
-          issues: number;
-          success: boolean;
-        }>;
+        passedChecks?: number;
+        failedChecks?: number;
         error?: string;
       }) => void
     ): () => void;

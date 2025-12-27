@@ -21,8 +21,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   runTrivy: (payload: { repoUrl: string; branch: string; scanId: string }) =>
     ipcRenderer.invoke("scan:trivy", payload),
   
-  // CodeQL Scan with Component Configurations
-  runCodeQL: (payload: { 
+  // OpenGrep SAST Scan
+  runOpenGrep: (payload: { 
     repoUrl: string; 
     branch: string; 
     scanId: string;
@@ -32,7 +32,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
       workingDirectory?: string;
     }>;
   }) =>
-    ipcRenderer.invoke("scan:codeql", payload),
+    ipcRenderer.invoke("scan:opengrep", payload),
   
   // Cancel scan
   cancelScan: (payload: { scanId: string }) =>

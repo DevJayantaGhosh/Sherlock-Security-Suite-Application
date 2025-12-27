@@ -29,6 +29,8 @@ import CancelIcon from "@mui/icons-material/Cancel";
 import CloseIcon from "@mui/icons-material/Close";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
+import SecurityIcon from "@mui/icons-material/Security";
+import InfoIcon from "@mui/icons-material/Info";
 
 import { Product , RepoDetails} from "../../models/Product";
 import { useUserStore } from "../../store/userStore";
@@ -63,7 +65,7 @@ export default function RepoScanAccordion({
         repoDetails={repoDetails}
         isAuthorized={isAuthorized}
       />
-      <CodeQLPanel
+      <OpenGrepPanel 
         product={product}
         repoDetails={repoDetails}
         isAuthorized={isAuthorized}
@@ -1508,9 +1510,9 @@ function TrivyPanel({
 }
 
 /* ============================================================
-   CODEQL PANEL
+   OPENGREP PANEL - Multi-Language SAST
 ============================================================ */
-function CodeQLPanel({
+function OpenGrepPanel({
   product,
   repoDetails,
   isAuthorized,
@@ -1529,12 +1531,8 @@ function CodeQLPanel({
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<{
     totalIssues?: number;
-    componentResults?: Array<{
-      language: string;
-      workingDirectory?: string;
-      issues: number;
-      success: boolean;
-    }>;
+    passedChecks?: number;
+    failedChecks?: number;
   } | null>(null);
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -1561,11 +1559,11 @@ function CodeQLPanel({
     };
   }, []);
 
-  // Run CodeQL scan
-  async function runCodeQLScan() {
+  // Run OpenGrep scan
+  async function runOpenGrepScan() {
     if (!isAuthorized) return;
 
-    console.log("[CODEQL] Starting scan");
+    console.log("[OPENGREP] Starting scan");
 
     const scanId = crypto.randomUUID();
     scanIdRef.current = scanId;
@@ -1584,7 +1582,7 @@ function CodeQLPanel({
     logCleanupRef.current = logCleanup;
 
     const completeCleanup = window.electronAPI.onScanComplete(scanId, (data) => {
-      console.log("[CODEQL] Complete", data);
+      console.log("[OPENGREP] Complete", data);
 
       setStatus(data.success ? "success" : "failed");
       setProgress(100);
@@ -1592,7 +1590,8 @@ function CodeQLPanel({
       if (data.totalIssues !== undefined) {
         setResult({
           totalIssues: data.totalIssues,
-          componentResults: data.componentResults,
+          passedChecks: data.passedChecks,
+          failedChecks: data.failedChecks,
         });
       }
 
@@ -1605,11 +1604,11 @@ function CodeQLPanel({
     completeCleanupRef.current = completeCleanup;
 
     try {
-      const result = await window.electronAPI.runCodeQL({
+      const result = await window.electronAPI.runOpenGrep({
         repoUrl: repoDetails.repoUrl,
         branch: repoDetails.branch,
         scanId,
-        componentConfigs: repoDetails.componentConfigs, // ✅ Pass component configs
+        componentConfigs: repoDetails.componentConfigs,
       });
 
       if (result?.cancelled) {
@@ -1617,7 +1616,7 @@ function CodeQLPanel({
         setLogs((prev) => [...prev, "\n❌ Scan was cancelled\n"]);
       }
     } catch (err: any) {
-      console.error("[CODEQL] Error:", err);
+      console.error("[OPENGREP] Error:", err);
       setStatus("failed");
       setLogs((prev) => [...prev, `\n❌ Error: ${err.message}\n`]);
     }
@@ -1627,7 +1626,7 @@ function CodeQLPanel({
   async function cancelScan() {
     if (!scanIdRef.current) return;
 
-    console.log("[CODEQL] Cancelling");
+    console.log("[OPENGREP] Cancelling");
     setIsCancelling(true);
     setLogs((prev) => [...prev, "\n⏳ Cancelling scan...\n"]);
 
@@ -1643,7 +1642,7 @@ function CodeQLPanel({
         setLogs((prev) => [...prev, "⚠️ No active scan found\n"]);
       }
     } catch (err: any) {
-      console.error("[CODEQL] Cancel error:", err);
+      console.error("[OPENGREP] Cancel error:", err);
       setLogs((prev) => [...prev, `❌ Cancel error: ${err.message}\n`]);
     } finally {
       if (logCleanupRef.current) logCleanupRef.current();
@@ -1664,7 +1663,7 @@ function CodeQLPanel({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `codeql-scan-${Date.now()}.log`;
+    a.download = `opengrep-sast-scan-${Date.now()}.log`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -1672,8 +1671,14 @@ function CodeQLPanel({
   const isRunning = status === "running";
   const canClose = !isRunning && !isCancelling;
 
-  // Component count display
-  const componentCount = repoDetails.componentConfigs?.length || 1;
+  // Calculate risk percentage for visual indicator
+  const getRiskPercentage = () => {
+    if (!result?.totalIssues) return 0;
+    if (result.totalIssues <= 5) return 25;
+    if (result.totalIssues <= 15) return 50;
+    if (result.totalIssues <= 30) return 75;
+    return 100;
+  };
 
   return (
     <>
@@ -1681,7 +1686,7 @@ function CodeQLPanel({
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Stack width="100%" spacing={1}>
             <Typography textAlign="center" fontWeight={700} fontSize={18}>
-              📊 Static Application Security Testing (SAST) Analysis 📊
+              🔬 Static Application Security Testing (SAST) 🔬
             </Typography>
             <Typography
               textAlign="center"
@@ -1690,18 +1695,14 @@ function CodeQLPanel({
             >
               {repoDetails.repoUrl} • {repoDetails.branch}
             </Typography>
-            {repoDetails.componentConfigs && repoDetails.componentConfigs.length > 0 && (
-              <Stack direction="row" spacing={1} justifyContent="center" flexWrap="wrap">
-                {repoDetails.componentConfigs.map((config, idx) => (
-                  <Chip
-                    key={idx}
-                    label={`${config.language}${config.workingDirectory ? ` (${config.workingDirectory})` : ""}`}
-                    size="small"
-                    variant="outlined"
-                  />
-                ))}
-              </Stack>
-            )}
+            <Typography
+              textAlign="center"
+              variant="caption"
+              color="primary"
+              sx={{ fontWeight: 600 }}
+            >
+              Powered by OpenGrep • Java, JavaScript, Python, C#, Go, Ruby, PHP, TypeScript
+            </Typography>
           </Stack>
         </AccordionSummary>
 
@@ -1717,7 +1718,7 @@ function CodeQLPanel({
 
                 {status === "idle" && (
                   <Typography variant="body2" color="text.secondary">
-                    Ready to scan {componentCount} component{componentCount > 1 ? "s" : ""}
+                    Ready to scan
                   </Typography>
                 )}
 
@@ -1725,7 +1726,7 @@ function CodeQLPanel({
                   <>
                     <CircularProgress size={16} />
                     <Typography variant="body2" color="primary">
-                      Running... {progress}%
+                      Analyzing... {progress}%
                     </Typography>
                   </>
                 )}
@@ -1734,7 +1735,7 @@ function CodeQLPanel({
                   <>
                     <CheckCircleIcon color="success" fontSize="small" />
                     <Typography variant="body2" color="success.main">
-                      Complete
+                      Scan Complete
                     </Typography>
                   </>
                 )}
@@ -1743,7 +1744,7 @@ function CodeQLPanel({
                   <>
                     <ErrorIcon color="error" fontSize="small" />
                     <Typography variant="body2" color="error.main">
-                      Failed
+                      Scan Failed
                     </Typography>
                   </>
                 )}
@@ -1759,9 +1760,9 @@ function CodeQLPanel({
                   variant="contained"
                   startIcon={<PlayArrowIcon />}
                   disabled={!isAuthorized || isRunning}
-                  onClick={runCodeQLScan}
+                  onClick={runOpenGrepScan}
                 >
-                  🔍 Run ({componentCount})
+                  🔍 Run SAST Scan
                 </Button>
               </Stack>
             </Stack>
@@ -1769,62 +1770,302 @@ function CodeQLPanel({
             {/* Results Summary */}
             {result && (
               <Box>
-                <Alert severity={result.totalIssues! > 0 ? "warning" : "success"} sx={{ mb: 2 }}>
-                  <Typography variant="body2">
-                    {result.totalIssues! > 0 ? (
-                      <strong>⚠️ {result.totalIssues} total security issues found across {result.componentResults?.length} components</strong>
-                    ) : (
-                      <strong>✅ No security issues detected</strong>
+                <Alert 
+                  severity={
+                    result.totalIssues === 0 ? "success" : 
+                    result.totalIssues! <= 5 ? "info" :
+                    result.totalIssues! <= 15 ? "warning" : 
+                    "error"
+                  } 
+                  sx={{ mb: 2 }}
+                >
+                  <Stack spacing={1}>
+                    <Typography variant="body2" fontWeight={600}>
+                      {result.totalIssues === 0 ? (
+                        "✅ No security issues detected - Code is secure!"
+                      ) : result.totalIssues! <= 5 ? (
+                        `🟡 ${result.totalIssues} security issue(s) found - Low Risk`
+                      ) : result.totalIssues! <= 15 ? (
+                        `🟠 ${result.totalIssues} security issues found - Medium Risk`
+                      ) : (
+                        `🔴 ${result.totalIssues} security issues found - High Risk`
+                      )}
+                    </Typography>
+                    {result.totalIssues! > 0 && (
+                      <Typography variant="caption" color="text.secondary">
+                        {result.failedChecks} failed checks out of {(result.passedChecks || 0) + (result.failedChecks || 0)} total checks
+                      </Typography>
                     )}
-                  </Typography>
+                  </Stack>
                 </Alert>
 
-                {/* Component Results Table */}
-                {result.componentResults && result.componentResults.length > 1 && (
-                  <Paper sx={{ p: 2, bgcolor: "rgba(255,255,255,0.02)" }}>
-                    <Typography variant="subtitle2" fontWeight={700} mb={1}>
-                      Component Breakdown:
-                    </Typography>
-                    <Stack spacing={1}>
-                      {result.componentResults.map((comp, idx) => (
-                        <Stack
-                          key={idx}
-                          direction="row"
-                          justifyContent="space-between"
-                          alignItems="center"
-                          sx={{
-                            p: 1,
-                            bgcolor: "rgba(255,255,255,0.03)",
-                            borderRadius: 1,
-                          }}
+                {/* Statistics Cards */}
+                <Paper 
+                  sx={{ 
+                    p: 3, 
+                    bgcolor: "rgba(255,255,255,0.02)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    mb: 2
+                  }}
+                >
+                  <Stack 
+                    direction={{ xs: 'column', md: 'row' }} 
+                    spacing={2}
+                  >
+                    {/* Passed Checks */}
+                    <Box flex={1}>
+                      <Stack 
+                        alignItems="center" 
+                        spacing={1}
+                        sx={{
+                          p: 3,
+                          bgcolor: "rgba(76, 175, 80, 0.1)",
+                          borderRadius: 2,
+                          border: "2px solid rgba(76, 175, 80, 0.3)",
+                          transition: "all 0.3s",
+                          "&:hover": {
+                            bgcolor: "rgba(76, 175, 80, 0.15)",
+                            transform: "translateY(-2px)",
+                          }
+                        }}
+                      >
+                        <CheckCircleIcon sx={{ fontSize: 48, color: "success.main" }} />
+                        <Typography variant="h3" fontWeight={700} color="success.main">
+                          {result.passedChecks || 0}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" fontWeight={600}>
+                          Passed Checks
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Security rules passed
+                        </Typography>
+                      </Stack>
+                    </Box>
+
+                    {/* Failed Checks */}
+                    <Box flex={1}>
+                      <Stack 
+                        alignItems="center" 
+                        spacing={1}
+                        sx={{
+                          p: 3,
+                          bgcolor: result.totalIssues! > 0 ? "rgba(244, 67, 54, 0.1)" : "rgba(76, 175, 80, 0.1)",
+                          borderRadius: 2,
+                          border: result.totalIssues! > 0 ? "2px solid rgba(244, 67, 54, 0.3)" : "2px solid rgba(76, 175, 80, 0.3)",
+                          transition: "all 0.3s",
+                          "&:hover": {
+                            bgcolor: result.totalIssues! > 0 ? "rgba(244, 67, 54, 0.15)" : "rgba(76, 175, 80, 0.15)",
+                            transform: "translateY(-2px)",
+                          }
+                        }}
+                      >
+                        <ErrorIcon 
+                          sx={{ 
+                            fontSize: 48, 
+                            color: result.totalIssues! > 0 ? "error.main" : "success.main" 
+                          }} 
+                        />
+                        <Typography 
+                          variant="h3" 
+                          fontWeight={700} 
+                          color={result.totalIssues! > 0 ? "error.main" : "success.main"}
                         >
-                          <Stack>
-                            <Typography variant="body2" fontWeight={600}>
-                              {comp.language}
-                            </Typography>
-                            {comp.workingDirectory && (
-                              <Typography variant="caption" color="text.secondary">
-                                {comp.workingDirectory}
-                              </Typography>
-                            )}
-                          </Stack>
-                          <Stack direction="row" spacing={1} alignItems="center">
-                            <Chip
-                              label={`${comp.issues} issues`}
-                              size="small"
-                              color={comp.issues > 0 ? "warning" : "success"}
-                            />
-                            {comp.success ? (
-                              <CheckCircleIcon color="success" fontSize="small" />
-                            ) : (
-                              <ErrorIcon color="error" fontSize="small" />
-                            )}
-                          </Stack>
-                        </Stack>
-                      ))}
+                          {result.failedChecks || 0}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" fontWeight={600}>
+                          Failed Checks
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Security rules violated
+                        </Typography>
+                      </Stack>
+                    </Box>
+
+                    {/* Total Issues */}
+                    <Box flex={1}>
+                      <Stack 
+                        alignItems="center" 
+                        spacing={1}
+                        sx={{
+                          p: 3,
+                          bgcolor: "rgba(33, 150, 243, 0.1)",
+                          borderRadius: 2,
+                          border: "2px solid rgba(33, 150, 243, 0.3)",
+                          transition: "all 0.3s",
+                          "&:hover": {
+                            bgcolor: "rgba(33, 150, 243, 0.15)",
+                            transform: "translateY(-2px)",
+                          }
+                        }}
+                      >
+                        <SecurityIcon sx={{ fontSize: 48, color: "info.main" }} />
+                        <Typography variant="h3" fontWeight={700} color="info.main">
+                          {result.totalIssues || 0}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" fontWeight={600}>
+                          Total Issues
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Vulnerabilities detected
+                        </Typography>
+                      </Stack>
+                    </Box>
+                  </Stack>
+
+                  {/* Risk Level Indicator */}
+                  <Box sx={{ mt: 3 }}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+                      <Typography variant="body2" fontWeight={600}>
+                        Security Risk Level
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {result.totalIssues === 0 ? "Excellent" : 
+                         result.totalIssues! <= 5 ? "Good" :
+                         result.totalIssues! <= 15 ? "Fair" : "Poor"}
+                      </Typography>
                     </Stack>
-                  </Paper>
-                )}
+                    
+                    <Stack direction="row" spacing={1}>
+                      <Box
+                        flex={1}
+                        sx={{
+                          height: 40,
+                          bgcolor: result.totalIssues === 0 ? "success.main" : "rgba(255,255,255,0.05)",
+                          borderRadius: 1,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          border: result.totalIssues === 0 ? "2px solid" : "1px solid rgba(255,255,255,0.1)",
+                          borderColor: result.totalIssues === 0 ? "success.main" : "transparent",
+                          transition: "all 0.3s",
+                          "&:hover": {
+                            bgcolor: result.totalIssues === 0 ? "success.dark" : "rgba(255,255,255,0.08)",
+                          }
+                        }}
+                      >
+                        <Typography variant="caption" fontWeight={700} sx={{ textTransform: "uppercase" }}>
+                          ✅ Clean
+                        </Typography>
+                      </Box>
+                      <Box
+                        flex={1}
+                        sx={{
+                          height: 40,
+                          bgcolor: result.totalIssues! > 0 && result.totalIssues! <= 5 ? "info.main" : "rgba(255,255,255,0.05)",
+                          borderRadius: 1,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          border: result.totalIssues! > 0 && result.totalIssues! <= 5 ? "2px solid" : "1px solid rgba(255,255,255,0.1)",
+                          borderColor: result.totalIssues! > 0 && result.totalIssues! <= 5 ? "info.main" : "transparent",
+                          transition: "all 0.3s",
+                          "&:hover": {
+                            bgcolor: result.totalIssues! > 0 && result.totalIssues! <= 5 ? "info.dark" : "rgba(255,255,255,0.08)",
+                          }
+                        }}
+                      >
+                        <Typography variant="caption" fontWeight={700} sx={{ textTransform: "uppercase" }}>
+                          🟡 Low
+                        </Typography>
+                      </Box>
+                      <Box
+                        flex={1}
+                        sx={{
+                          height: 40,
+                          bgcolor: result.totalIssues! > 5 && result.totalIssues! <= 15 ? "warning.main" : "rgba(255,255,255,0.05)",
+                          borderRadius: 1,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          border: result.totalIssues! > 5 && result.totalIssues! <= 15 ? "2px solid" : "1px solid rgba(255,255,255,0.1)",
+                          borderColor: result.totalIssues! > 5 && result.totalIssues! <= 15 ? "warning.main" : "transparent",
+                          transition: "all 0.3s",
+                          "&:hover": {
+                            bgcolor: result.totalIssues! > 5 && result.totalIssues! <= 15 ? "warning.dark" : "rgba(255,255,255,0.08)",
+                          }
+                        }}
+                      >
+                        <Typography variant="caption" fontWeight={700} sx={{ textTransform: "uppercase" }}>
+                          🟠 Medium
+                        </Typography>
+                      </Box>
+                      <Box
+                        flex={1}
+                        sx={{
+                          height: 40,
+                          bgcolor: result.totalIssues! > 15 ? "error.main" : "rgba(255,255,255,0.05)",
+                          borderRadius: 1,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          border: result.totalIssues! > 15 ? "2px solid" : "1px solid rgba(255,255,255,0.1)",
+                          borderColor: result.totalIssues! > 15 ? "error.main" : "transparent",
+                          transition: "all 0.3s",
+                          "&:hover": {
+                            bgcolor: result.totalIssues! > 15 ? "error.dark" : "rgba(255,255,255,0.08)",
+                          }
+                        }}
+                      >
+                        <Typography variant="caption" fontWeight={700} sx={{ textTransform: "uppercase" }}>
+                          🔴 High
+                        </Typography>
+                      </Box>
+                    </Stack>
+
+                    {/* Risk Percentage Bar */}
+                    <Box sx={{ mt: 2 }}>
+                      <Stack direction="row" justifyContent="space-between" mb={0.5}>
+                        <Typography variant="caption" color="text.secondary">
+                          Risk Score
+                        </Typography>
+                        <Typography variant="caption" fontWeight={600}>
+                          {getRiskPercentage()}%
+                        </Typography>
+                      </Stack>
+                      <Box
+                        sx={{
+                          width: "100%",
+                          height: 8,
+                          bgcolor: "rgba(255,255,255,0.1)",
+                          borderRadius: 4,
+                          overflow: "hidden",
+                        }}
+                      >
+                        <Box
+                          sx={{
+                            width: `${getRiskPercentage()}%`,
+                            height: "100%",
+                            bgcolor: result.totalIssues === 0 ? "success.main" :
+                                     result.totalIssues! <= 5 ? "info.main" :
+                                     result.totalIssues! <= 15 ? "warning.main" : "error.main",
+                            transition: "width 0.5s ease-in-out",
+                          }}
+                        />
+                      </Box>
+                    </Box>
+                  </Box>
+
+                  {/* Recommendation */}
+                  <Box sx={{ mt: 3, p: 2, bgcolor: "rgba(255,255,255,0.03)", borderRadius: 1 }}>
+                    <Stack direction="row" spacing={1} alignItems="flex-start">
+                      <InfoIcon sx={{ fontSize: 20, color: "info.main", mt: 0.2 }} />
+                      <Box>
+                        <Typography variant="body2" fontWeight={600} mb={0.5}>
+                          Recommendation
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {result.totalIssues === 0 
+                            ? "All code passes security analysis. Safe to proceed with release and deployment."
+                            : result.totalIssues! <= 5 
+                            ? "Review and fix minor security issues before release. Low priority remediation."
+                            : result.totalIssues! <= 15 
+                            ? "Address security issues before deploying to production. Medium priority."
+                            : "DO NOT RELEASE - Critical security vulnerabilities detected. Immediate remediation required."}
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </Box>
+                </Paper>
               </Box>
             )}
 
@@ -1837,8 +2078,9 @@ function CodeQLPanel({
                   variant="outlined"
                   size="small"
                   fullWidth
+                  sx={{ mb: showLogs ? 2 : 0 }}
                 >
-                  {showLogs ? "Hide Logs" : "Show Logs"}
+                  {showLogs ? "Hide Detailed Logs" : "Show Detailed Logs"}
                 </Button>
 
                 <Collapse in={showLogs}>
@@ -1900,7 +2142,7 @@ function CodeQLPanel({
         </AccordionDetails>
       </Accordion>
 
-      {/* Modal - Same as before but with component count in title */}
+      {/* Modal */}
       <Dialog
         open={modalOpen}
         onClose={() => canClose && setModalOpen(false)}
@@ -1921,7 +2163,7 @@ function CodeQLPanel({
             alignItems="center"
           >
             <Typography variant="h6" fontWeight={600}>
-              📊 SAST Analysis ({componentCount} Component{componentCount > 1 ? "s" : ""})
+              🔬 Multi-Language SAST Analysis (OpenGrep)
             </Typography>
 
             {canClose && (
@@ -1937,10 +2179,13 @@ function CodeQLPanel({
                 <Box flex={1}>
                   <LinearProgress variant="determinate" value={progress} />
                 </Box>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" color="text.secondary" fontWeight={600}>
                   {progress}%
                 </Typography>
               </Stack>
+              <Typography variant="caption" color="text.secondary">
+                Scanning for security issues across all projects and languages...
+              </Typography>
             </Box>
           )}
 
@@ -2009,7 +2254,7 @@ function CodeQLPanel({
               </>
             ) : (
               <Typography color="text.secondary" textAlign="center" py={4}>
-                {isRunning ? "Initializing scan..." : "No logs available"}
+                {isRunning ? "Initializing OpenGrep scanner..." : "No logs available"}
               </Typography>
             )}
           </Box>
@@ -2050,4 +2295,5 @@ function CodeQLPanel({
     </>
   );
 }
+
 
