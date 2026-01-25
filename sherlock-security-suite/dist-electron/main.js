@@ -740,18 +740,12 @@ ${"═".repeat(79)}
 `,
         progress: 0
       });
-      event.sender.send(`scan-complete:${scanId}`, {
-        success: false,
-        error: "Tool not found"
-      });
+      event.sender.send(`scan-complete:${scanId}`, { success: false, error: "Tool not found" });
       return { success: false, error: "Tool not found" };
     }
     const repoPath = await cloneRepository(event, repoUrl, branch, scanId);
     if (!repoPath) {
-      event.sender.send(`scan-complete:${scanId}`, {
-        success: false,
-        error: "Clone failed"
-      });
+      event.sender.send(`scan-complete:${scanId}`, { success: false, error: "Clone failed" });
       return { success: false, error: "Clone failed" };
     }
     return new Promise((resolve) => {
@@ -786,12 +780,6 @@ ${"═".repeat(79)}
         repoPath
       ];
       event.sender.send(`scan-log:${scanId}`, {
-        log: `$ opengrep scan --config auto --json --verbose
-
-`,
-        progress: 55
-      });
-      event.sender.send(`scan-log:${scanId}`, {
         log: `🔍 Scanning entire repository recursively (all folders)...
 `,
         progress: 60
@@ -805,10 +793,7 @@ ${"═".repeat(79)}
       const spawnOptions = {
         cwd: repoPath,
         stdio: ["ignore", "pipe", "pipe"],
-        env: {
-          ...process.env,
-          NO_COLOR: "1"
-        },
+        env: { ...process.env, NO_COLOR: "1" },
         windowsHide: true,
         shell: false,
         detached: false
@@ -862,8 +847,11 @@ ${"═".repeat(79)}
             const report = JSON.parse(reportContent);
             findings = report.results || [];
             totalIssues = findings.length;
+            failedChecks = totalIssues;
             const scannedFiles = ((_a2 = report.paths) == null ? void 0 : _a2.scanned) || [];
             const skippedFiles = ((_b2 = report.paths) == null ? void 0 : _b2.skipped) || [];
+            passedChecks = scannedFiles.length;
+            const totalFilesScanned = scannedFiles.length;
             const repoPathNormalized = repoPath.replace(/\\/g, "/");
             const ignoredDirs = /* @__PURE__ */ new Set([
               ".git",
@@ -886,7 +874,6 @@ ${"═".repeat(79)}
             ]);
             const projectDirectories = /* @__PURE__ */ new Set();
             const filesByDirectory = /* @__PURE__ */ new Map();
-            let rootLevelFiles = 0;
             try {
               const repoContents = await fs.readdir(repoPath, { withFileTypes: true });
               repoContents.forEach((item) => {
@@ -895,7 +882,7 @@ ${"═".repeat(79)}
                   filesByDirectory.set(item.name, 0);
                 }
               });
-              debugLog(`[OPENGREP] Found ${projectDirectories.size} project directories: ${Array.from(projectDirectories).join(", ")}`);
+              debugLog(`[OPENGREP] Found ${projectDirectories.size} project directories`);
             } catch (err) {
               debugLog(`Error reading repo directory: ${err.message}`);
             }
@@ -904,9 +891,7 @@ ${"═".repeat(79)}
               const normalizedPath = relativePath.replace(/\\/g, "/");
               const parts = normalizedPath.split("/").filter((p) => p && p !== ".");
               if (parts.length === 0) return;
-              if (parts.length === 1) {
-                rootLevelFiles++;
-              } else {
+              if (parts.length > 1) {
                 const topDir = parts[0];
                 if (projectDirectories.has(topDir)) {
                   filesByDirectory.set(topDir, (filesByDirectory.get(topDir) || 0) + 1);
@@ -924,9 +909,7 @@ ${"═".repeat(79)}
             lines.forEach((line) => {
               const trimmed = line.trim();
               const ruleMatch = trimmed.match(/^(?:rule|checking|running):\s*([a-zA-Z0-9._\-:\/]+)$/i);
-              if (ruleMatch) {
-                rulesRun.add(ruleMatch[1]);
-              }
+              if (ruleMatch) rulesRun.add(ruleMatch[1]);
               if (trimmed.includes(".") && trimmed.length > 10 && trimmed.length < 100 && !trimmed.includes(" ") && /^[a-zA-Z0-9._\-:\/]+$/.test(trimmed)) {
                 rulesRun.add(trimmed);
               }
@@ -939,9 +922,7 @@ ${"═".repeat(79)}
               else if (severity === "WARNING" || severity === "HIGH") highCount++;
               else if (severity === "MEDIUM") mediumCount++;
               else lowCount++;
-              if (f.check_id) {
-                rulesRun.add(f.check_id);
-              }
+              if (f.check_id) rulesRun.add(f.check_id);
               const absolutePath = f.path || "";
               const relativePath = getRelativePath(absolutePath);
               const normalizedPath = relativePath.replace(/\\/g, "/");
@@ -949,15 +930,11 @@ ${"═".repeat(79)}
               if (parts.length > 1) {
                 const topDir = parts[0];
                 if (projectDirectories.has(topDir)) {
-                  if (!findingsByDirectory.has(topDir)) {
-                    findingsByDirectory.set(topDir, []);
-                  }
+                  if (!findingsByDirectory.has(topDir)) findingsByDirectory.set(topDir, []);
                   findingsByDirectory.get(topDir).push(f);
                 }
               }
             });
-            passedChecks = scannedFiles.length;
-            failedChecks = totalIssues;
             event.sender.send(`scan-log:${scanId}`, {
               log: `
 ✅ Scan completed successfully!
@@ -965,35 +942,9 @@ ${"═".repeat(79)}
 `,
               progress: 88
             });
+            const filesInIdentifiedProjects = Array.from(filesByDirectory.values()).reduce((sum, count) => sum + count, 0);
+            const otherFiles = totalFilesScanned - filesInIdentifiedProjects;
             const projectsWithFiles = Array.from(filesByDirectory.entries()).filter(([dir, count]) => count > 0 && projectDirectories.has(dir)).sort((a, b) => b[1] - a[1]);
-            if (projectsWithFiles.length > 0) {
-              event.sender.send(`scan-log:${scanId}`, {
-                log: `
-📦 DETECTED PROJECTS:
-${"═".repeat(79)}
-
-`,
-                progress: 88
-              });
-              projectsWithFiles.forEach(([dir, count]) => {
-                const issues = findingsByDirectory.get(dir) || [];
-                const statusIcon = issues.length === 0 ? "✅" : issues.length <= 5 ? "🟡" : "🔴";
-                event.sender.send(`scan-log:${scanId}`, {
-                  log: `   ${statusIcon} ${dir}/ — ${count} files scanned${issues.length > 0 ? ` — ${issues.length} issue(s) found` : " — Clean ✓"}
-`,
-                  progress: 88
-                });
-              });
-              if (rootLevelFiles > 0) {
-                event.sender.send(`scan-log:${scanId}`, {
-                  log: `   📄 [root]/ — ${rootLevelFiles} config/metadata files
-`,
-                  progress: 88
-                });
-              }
-            }
-            const totalProjectFiles = Array.from(filesByDirectory.values()).reduce((sum, count) => sum + count, 0);
-            const totalFilesScanned = totalProjectFiles + rootLevelFiles;
             if (projectsWithFiles.length > 0) {
               event.sender.send(`scan-log:${scanId}`, {
                 log: `
@@ -1007,21 +958,28 @@ ${"─".repeat(79)}
               projectsWithFiles.forEach(([dir, count]) => {
                 const issues = findingsByDirectory.get(dir) || [];
                 const statusIcon = issues.length === 0 ? "✅" : issues.length <= 5 ? "🟡" : "🔴";
-                const percentage = totalProjectFiles > 0 ? Math.round(count / totalProjectFiles * 100) : 0;
+                const percentage = totalFilesScanned > 0 ? Math.round(count / totalFilesScanned * 100) : 0;
                 event.sender.send(`scan-log:${scanId}`, {
                   log: `  ${statusIcon} ${dir.padEnd(40)} ${count.toString().padStart(4)} files (${percentage.toString().padStart(2)}%)${issues.length > 0 ? ` — ${issues.length} issue(s)` : ""}
 `,
                   progress: 89
                 });
               });
-              if (rootLevelFiles > 0) {
-                const rootPercentage = Math.round(rootLevelFiles / totalFilesScanned * 100);
+              if (otherFiles > 0) {
+                const rootPercentage = totalFilesScanned > 0 ? Math.round(otherFiles / totalFilesScanned * 100) : 0;
                 event.sender.send(`scan-log:${scanId}`, {
-                  log: `  📝 [root] (config/metadata)                 ${rootLevelFiles.toString().padStart(4)} files (${rootPercentage.toString().padStart(2)}%)
+                  log: `  📄 [root/misc] (config/metadata)           ${otherFiles.toString().padStart(4)} files (${rootPercentage.toString().padStart(2)}%)
 `,
                   progress: 89
                 });
               }
+            } else if (totalFilesScanned > 0) {
+              event.sender.send(`scan-log:${scanId}`, {
+                log: `
+📂 FILES SCANNED: ${totalFilesScanned} (root level or flat structure)
+`,
+                progress: 89
+              });
             }
             event.sender.send(`scan-log:${scanId}`, {
               log: `
@@ -1051,19 +1009,14 @@ ${"═".repeat(79)}
                 else if (parts.includes("correctness")) category = "Correctness";
                 else if (parts.includes("audit")) category = "Security Audit";
                 else if (parts.length >= 2) category = parts[1];
-                if (!rulesByCategory.has(category)) {
-                  rulesByCategory.set(category, []);
-                }
+                if (!rulesByCategory.has(category)) rulesByCategory.set(category, []);
                 rulesByCategory.get(category).push(ruleId);
               });
               const sortedCategories = Array.from(rulesByCategory.entries()).sort((a, b) => b[1].length - a[1].length);
               if (sortedCategories.length > 0) {
-                event.sender.send(`scan-log:${scanId}`, {
-                  log: `   Sample Rules by Category:
+                event.sender.send(`scan-log:${scanId}`, { log: `   Sample Rules by Category:
 
-`,
-                  progress: 90
-                });
+`, progress: 90 });
                 sortedCategories.slice(0, 8).forEach(([category, rules]) => {
                   event.sender.send(`scan-log:${scanId}`, {
                     log: `   📋 ${category} (${rules.length} rule${rules.length > 1 ? "s" : ""})
@@ -1071,57 +1024,17 @@ ${"═".repeat(79)}
                     progress: 90
                   });
                   rules.slice(0, 3).forEach((ruleId) => {
-                    event.sender.send(`scan-log:${scanId}`, {
-                      log: `      • ${ruleId}
-`,
-                      progress: 90
-                    });
+                    event.sender.send(`scan-log:${scanId}`, { log: `      • ${ruleId}
+`, progress: 90 });
                   });
                   if (rules.length > 3) {
-                    event.sender.send(`scan-log:${scanId}`, {
-                      log: `      ... and ${rules.length - 3} more
-`,
-                      progress: 90
-                    });
+                    event.sender.send(`scan-log:${scanId}`, { log: `      ... and ${rules.length - 3} more
+`, progress: 90 });
                   }
-                  event.sender.send(`scan-log:${scanId}`, {
-                    log: `
-`,
-                    progress: 90
-                  });
+                  event.sender.send(`scan-log:${scanId}`, { log: `
+`, progress: 90 });
                 });
-                if (sortedCategories.length > 8) {
-                  event.sender.send(`scan-log:${scanId}`, {
-                    log: `   ... and ${sortedCategories.length - 8} more categories
-
-`,
-                    progress: 90
-                  });
-                }
               }
-            }
-            if (totalIssues === 0) {
-              event.sender.send(`scan-log:${scanId}`, {
-                log: `   ✅ Result: All ${totalFilesScanned} files passed all security checks
-`,
-                progress: 90
-              });
-              event.sender.send(`scan-log:${scanId}`, {
-                log: `   ✅ Status: No vulnerabilities detected - Repository is secure!
-`,
-                progress: 90
-              });
-            } else {
-              event.sender.send(`scan-log:${scanId}`, {
-                log: `   ⚠️  Result: ${totalIssues} security issue(s) detected in ${failedChecks} file(s)
-`,
-                progress: 90
-              });
-              event.sender.send(`scan-log:${scanId}`, {
-                log: `   📊 Breakdown: ${criticalCount} critical, ${highCount} high, ${mediumCount} medium, ${lowCount} low
-`,
-                progress: 90
-              });
             }
             if (totalIssues > 0) {
               event.sender.send(`scan-log:${scanId}`, {
@@ -1141,20 +1054,14 @@ ${"═".repeat(79)}
 │ 🔵 Low/Info             : ${lowCount.toString().padStart(4)}                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 `;
-              event.sender.send(`scan-log:${scanId}`, {
-                log: severityLog,
-                progress: 91
-              });
+              event.sender.send(`scan-log:${scanId}`, { log: severityLog, progress: 91 });
               const sortedFindings = Array.from(findingsByDirectory.entries()).filter(([dir, issues]) => issues.length > 0).sort((a, b) => b[1].length - a[1].length);
               if (sortedFindings.length > 0) {
-                event.sender.send(`scan-log:${scanId}`, {
-                  log: `
+                event.sender.send(`scan-log:${scanId}`, { log: `
 📂 ISSUES BY PROJECT:
 ${"─".repeat(79)}
 
-`,
-                  progress: 91
-                });
+`, progress: 91 });
                 sortedFindings.forEach(([dir, dirFindings]) => {
                   const critical = dirFindings.filter((f) => {
                     var _a3;
@@ -1182,49 +1089,37 @@ ${"═".repeat(79)}
 `,
                 progress: 92
               });
+              const severityMap = {
+                ERROR: 4,
+                CRITICAL: 4,
+                WARNING: 3,
+                HIGH: 3,
+                MEDIUM: 2,
+                INFO: 1,
+                LOW: 1
+              };
               const allSortedFindings = findings.sort((a, b) => {
                 var _a3, _b3;
-                const severityOrder = {
-                  ERROR: 4,
-                  CRITICAL: 4,
-                  WARNING: 3,
-                  HIGH: 3,
-                  MEDIUM: 2,
-                  INFO: 1,
-                  LOW: 1
-                };
                 const sevA = (((_a3 = a.extra) == null ? void 0 : _a3.severity) || "WARNING").toUpperCase();
                 const sevB = (((_b3 = b.extra) == null ? void 0 : _b3.severity) || "WARNING").toUpperCase();
-                return (severityOrder[sevB] || 0) - (severityOrder[sevA] || 0);
+                return (severityMap[sevB] || 0) - (severityMap[sevA] || 0);
               });
-              const topFindings = allSortedFindings.slice(0, 10);
-              topFindings.forEach((finding, index) => {
+              allSortedFindings.slice(0, 10).forEach((finding, index) => {
                 var _a3, _b3, _c;
-                const severity = (((_a3 = finding.extra) == null ? void 0 : _a3.severity) || "WARNING").toUpperCase();
-                const severityIcon = severity === "ERROR" || severity === "CRITICAL" ? "🔴 CRITICAL" : severity === "WARNING" || severity === "HIGH" ? "🟠 HIGH    " : severity === "MEDIUM" ? "🟡 MEDIUM  " : "🔵 LOW     ";
+                const sev = (((_a3 = finding.extra) == null ? void 0 : _a3.severity) || "WARNING").toUpperCase();
+                const sevIcon = sev === "ERROR" || sev === "CRITICAL" ? "🔴 CRITICAL" : sev === "WARNING" || sev === "HIGH" ? "🟠 HIGH    " : "🔵 LOW     ";
                 const absolutePath = finding.path || "N/A";
                 const relativePath = getRelativePath(absolutePath);
                 const shortPath = relativePath.length > 60 ? "..." + relativePath.slice(-57) : relativePath;
                 const findingLog = `
-${index + 1}. ${severityIcon} │ ${finding.check_id || "Unknown Rule"}
+${index + 1}. ${sevIcon} │ ${finding.check_id || "Unknown Rule"}
    File: ${shortPath}
    Line: ${((_b3 = finding.start) == null ? void 0 : _b3.line) || "?"}
    ${((_c = finding.extra) == null ? void 0 : _c.message) || finding.message || "No description"}
 ${"─".repeat(79)}
 `;
-                event.sender.send(`scan-log:${scanId}`, {
-                  log: findingLog,
-                  progress: 92 + Math.floor((index + 1) / topFindings.length * 3)
-                });
+                event.sender.send(`scan-log:${scanId}`, { log: findingLog, progress: 93 });
               });
-              if (totalIssues > 10) {
-                event.sender.send(`scan-log:${scanId}`, {
-                  log: `
-   ... and ${totalIssues - 10} more findings (check opengrep-report.json for details)
-`,
-                  progress: 95
-                });
-              }
             } else {
               event.sender.send(`scan-log:${scanId}`, {
                 log: `
@@ -1237,19 +1132,13 @@ ${"═".repeat(79)}
               });
               event.sender.send(`scan-log:${scanId}`, {
                 log: `🎉 All ${totalFilesScanned} files passed security analysis.
-`,
-                progress: 95
-              });
-              event.sender.send(`scan-log:${scanId}`, {
-                log: `🛡️  No vulnerabilities found. Repository is secure!
+🛡️  No vulnerabilities found. Repository is secure!
 `,
                 progress: 95
               });
             }
-            const projectsList = projectsWithFiles.length > 0 ? projectsWithFiles.map(([dir]) => dir).slice(0, 3).join(", ") + (projectsWithFiles.length > 3 ? `, +${projectsWithFiles.length - 3} more` : "") : "No projects detected";
+            const projectsList = projectsWithFiles.length > 0 ? projectsWithFiles.map(([dir]) => dir).slice(0, 3).join(", ") + (projectsWithFiles.length > 3 ? `, +${projectsWithFiles.length - 3} more` : "") : "No sub-projects detected";
             const summary_text = `
-
-
 ╔═══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                               ║
 ║                        📊  SAST ANALYSIS SUMMARY  📊                         ║
@@ -1261,16 +1150,18 @@ Branch            : ${branch}
 Scan Engine       : OpenGrep (Open Source SAST)
 
 📁 SCAN COVERAGE
-${"─".repeat(79)}
-  Projects Scanned        : ${projectsWithFiles.length} (${projectsList})
-  Project Files           : ${totalProjectFiles}
-  Root/Config Files       : ${rootLevelFiles}
+───────────────────────────────────────────────────────────────────────────────
   Total Files Scanned     : ${totalFilesScanned}
+  Projects Scanned        : ${projectsWithFiles.length} (${projectsList})
   Files Skipped           : ${skippedFiles.length}
   Rules Applied           : ${totalRulesCount > 0 ? totalRulesCount : "Auto (Community Rules)"}
 
+  Breakdown:
+   - Project Code         : ${filesInIdentifiedProjects}
+   - Config/Root/Misc     : ${otherFiles}
+
 🔍 FINDINGS SUMMARY
-${"─".repeat(79)}
+───────────────────────────────────────────────────────────────────────────────
   Total Issues            : ${totalIssues}
   🔴 Critical/Error       : ${criticalCount}
   🟠 High/Warning         : ${highCount}
@@ -1278,24 +1169,14 @@ ${"─".repeat(79)}
   🔵 Low/Info             : ${lowCount}
 
 🎯 SECURITY VERDICT
-${"─".repeat(79)}
-${totalIssues === 0 ? `  ✅ SECURE — All ${projectsWithFiles.length} project(s) passed security checks
+───────────────────────────────────────────────────────────────────────────────
+${totalIssues === 0 ? `  ✅ SECURE — All code passed security checks
   ✅ No vulnerabilities detected
   ✅ Safe to deploy to production` : criticalCount > 0 ? `  🚨 CRITICAL RISK — ${criticalCount} critical vulnerabilities detected
   ⛔ DO NOT DEPLOY until all critical issues are fixed
-  🔧 Immediate remediation required` : highCount > 0 ? `  🟠 HIGH RISK — ${highCount} high severity issues found
-  ⚠️  Review and fix before deployment
-  🔧 Remediation recommended` : totalIssues <= 5 ? `  🟡 LOW RISK — ${totalIssues} minor issues detected
-  ℹ️  Review findings before release
-  🔧 Non-critical remediation` : `  🟡 MEDIUM RISK — ${totalIssues} security issues found
-  ⚠️  Security review required before production
-  🔧 Address issues before deployment`}
-
-📝 RECOMMENDATION
-${"─".repeat(79)}
-${totalIssues === 0 ? `  All security checks passed across ${projectsWithFiles.length} project(s). Production-ready.` : criticalCount > 0 ? `  Fix ${criticalCount} critical vulnerability(ies) immediately. DO NOT RELEASE.` : totalIssues <= 5 ? `  Review and fix ${totalIssues} minor issue(s). Low priority.` : `  Address ${totalIssues} security issue(s) before production deployment.`}
-
-${"═".repeat(79)}
+  🔧 Immediate remediation required` : `  ⚠️  RISKS DETECTED — ${totalIssues} issues found
+  🔧 Review required`}
+═══════════════════════════════════════════════════════════════════════════════
 `;
             event.sender.send(`scan-log:${scanId}`, {
               log: summary_text,
@@ -1311,7 +1192,6 @@ ${"═".repeat(79)}
             });
           }
         } else {
-          debugLog(`[OPENGREP] Report file not found at: ${reportPath}`);
           event.sender.send(`scan-log:${scanId}`, {
             log: `
 ⚠️ No report file generated
@@ -1319,13 +1199,10 @@ ${"═".repeat(79)}
             progress: 100
           });
           if (stderrData.trim()) {
-            event.sender.send(`scan-log:${scanId}`, {
-              log: `
+            event.sender.send(`scan-log:${scanId}`, { log: `
 ❌ Error details:
 ${stderrData}
-`,
-              progress: 100
-            });
+`, progress: 100 });
           }
         }
         const success = code === 0 || code === 1;
@@ -1340,27 +1217,18 @@ ${stderrData}
       });
       child.on("error", (err) => {
         activeProcesses.delete(scanProcessId);
-        event.sender.send(`scan-log:${scanId}`, {
-          log: `
+        event.sender.send(`scan-log:${scanId}`, { log: `
 ❌ OpenGrep process error: ${err.message}
-`,
-          progress: 0
-        });
-        event.sender.send(`scan-complete:${scanId}`, {
-          success: false,
-          error: err.message
-        });
+`, progress: 0 });
+        event.sender.send(`scan-complete:${scanId}`, { success: false, error: err.message });
         resolve({ success: false, error: err.message });
       });
       ipcMain.once(`scan:cancel-${scanId}`, () => {
         cancelled = true;
         debugLog(`Cancelling OpenGrep scan: ${scanId}`);
-        event.sender.send(`scan-log:${scanId}`, {
-          log: `
+        event.sender.send(`scan-log:${scanId}`, { log: `
 ⚠️ Scan cancelled by user
-`,
-          progress: 0
-        });
+`, progress: 0 });
         killProcess(child, scanProcessId);
         activeProcesses.delete(scanProcessId);
         resolve({ success: false, cancelled: true });

@@ -1659,24 +1659,34 @@ function OpenGrepPanel({
   const scanIdRef = useRef<string | null>(null);
   const logCleanupRef = useRef<(() => void) | null>(null);
   const completeCleanupRef = useRef<(() => void) | null>(null);
-
-  // Use a Ref to track logs safely for the callback closure
   const logsRef = useRef<string[]>([]);
 
   // 1. Load Persisted Data
   const savedScan = repoDetails.scans?.staticAnalysis;
 
-  //  2. Initialize State with Persisted Data
-  const [status, setStatus] = useState<ScanStatus>(savedScan?.status || "idle");
+  // 2. Initialize State
+  const [status, setStatus] = useState<ScanStatus>(savedScan?.status as ScanStatus || "idle");
   const [logs, setLogs] = useState<string[]>(savedScan?.logs || []);
   const [progress, setProgress] = useState(savedScan?.status === 'success' || savedScan?.status === 'failed' ? 100 : 0);
   const [result, setResult] = useState(savedScan?.summary || null);
-  const [showLogs, setShowLogs] = useState(() => {
-    return (savedScan?.logs?.length || 0) > 0;
-  });
-
+  
+  const [showLogs, setShowLogs] = useState(() => (savedScan?.logs?.length || 0) > 0);
   const [modalOpen, setModalOpen] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+
+  // Sync State
+  useEffect(() => {
+    if (savedScan && status !== 'running') {
+      setStatus(savedScan.status as ScanStatus);
+      setLogs(savedScan.logs || []);
+      setResult(savedScan.summary || null);
+      setProgress(savedScan.status === 'success' || savedScan.status === 'failed' ? 100 : 0);
+      if (savedScan.logs && savedScan.logs.length > 0) {
+         logsRef.current = savedScan.logs;
+         setShowLogs(true);
+      }
+    }
+  }, [savedScan]);
 
   // Auto-scroll logs
   useEffect(() => {
@@ -1687,7 +1697,7 @@ function OpenGrepPanel({
     }
   }, [logs, modalOpen]);
 
-  // Cleanup on unmount
+  // Cleanup
   useEffect(() => {
     return () => {
       if (logCleanupRef.current) logCleanupRef.current();
@@ -1698,16 +1708,12 @@ function OpenGrepPanel({
     };
   }, []);
 
-  // Run OpenGrep scan
   async function runOpenGrepScan() {
     if (!isAuthorized) return;
-
     console.log("[OPENGREP] Starting scan");
-
     const scanId = crypto.randomUUID();
     scanIdRef.current = scanId;
 
-    // Reset state
     setLogs([]);
     logsRef.current = [];
     setProgress(0);
@@ -1718,14 +1724,13 @@ function OpenGrepPanel({
 
     const logCleanup = window.electronAPI.onScanLog(scanId, (data) => {
       setLogs((prev) => [...prev, data.log]);
-      logsRef.current.push(data.log); // Keep ref in sync
+      logsRef.current.push(data.log); 
       setProgress(data.progress || 0);
     });
     logCleanupRef.current = logCleanup;
 
     const completeCleanup = window.electronAPI.onScanComplete(scanId, (data) => {
       console.log("[OPENGREP] Complete", data);
-
       const newStatus = data.success ? "success" : "failed";
       setStatus(newStatus);
       setProgress(100);
@@ -1734,18 +1739,17 @@ function OpenGrepPanel({
       if (data.totalIssues !== undefined) {
         newSummary = {
           totalIssues: data.totalIssues,
-          passedChecks: data.passedChecks,
-          failedChecks: data.failedChecks,
+          passedChecks: data.passedChecks, // Mapped to Files Scanned
+          failedChecks: data.failedChecks, // Mapped to Issues Found
         };
         setResult(newSummary);
       }
 
-      // Bubble up result to parent for DB save
       if (onScanComplete) {
         onScanComplete({
           status: newStatus,
           timestamp: new Date().toISOString(),
-          logs: logsRef.current, // Use Ref to ensure full logs are saved
+          logs: logsRef.current,
           summary: newSummary
         });
       }
@@ -1780,10 +1784,8 @@ function OpenGrepPanel({
     }
   }
 
-  // Cancel scan
   async function cancelScan() {
     if (!scanIdRef.current) return;
-
     console.log("[OPENGREP] Cancelling");
     setIsCancelling(true);
     const msg = "\n⏳ Cancelling scan...\n";
@@ -1791,38 +1793,22 @@ function OpenGrepPanel({
     logsRef.current.push(msg);
 
     try {
-      const result = await window.electronAPI.cancelScan({
-        scanId: scanIdRef.current,
-      });
-
+      const result = await window.electronAPI.cancelScan({ scanId: scanIdRef.current });
       if (result.cancelled) {
         setStatus("failed");
         const cancelMsg = "✅ Scan cancelled successfully\n";
         setLogs((prev) => [...prev, cancelMsg]);
         logsRef.current.push(cancelMsg);
-      } else {
-        const warnMsg = "⚠️ No active scan found\n";
-        setLogs((prev) => [...prev, warnMsg]);
-        logsRef.current.push(warnMsg);
       }
     } catch (err: any) {
       console.error("[OPENGREP] Cancel error:", err);
-      const errMsg = `❌ Cancel error: ${err.message}\n`;
-      setLogs((prev) => [...prev, errMsg]);
-      logsRef.current.push(errMsg);
+      setLogs((prev) => [...prev, `❌ Cancel error: ${err.message}\n`]);
     } finally {
-      if (logCleanupRef.current) logCleanupRef.current();
-      if (completeCleanupRef.current) completeCleanupRef.current();
-      logCleanupRef.current = null;
-      completeCleanupRef.current = null;
-      scanIdRef.current = null;
-
       setIsCancelling(false);
       setTimeout(() => setModalOpen(false), 800);
     }
   }
 
-  // Download logs
   function downloadLogs() {
     const logText = logs.join("");
     const blob = new Blob([logText], { type: "text/plain" });
@@ -1837,7 +1823,6 @@ function OpenGrepPanel({
   const isRunning = status === "running";
   const canClose = !isRunning && !isCancelling;
 
-  // Calculate risk percentage for visual indicator
   const getRiskPercentage = () => {
     if (!result?.totalIssues) return 0;
     if (result.totalIssues <= 5) return 25;
@@ -1854,11 +1839,7 @@ function OpenGrepPanel({
             <Typography textAlign="center" fontWeight={700} fontSize={18}>
               🔬 Static Application Security Testing (SAST) 🔬
             </Typography>
-            <Typography
-              textAlign="center"
-              variant="body2"
-              color="text.secondary"
-            >
+            <Typography textAlign="center" variant="body2" color="text.secondary">
               {repoDetails.repoUrl} • {repoDetails.branch}
             </Typography>
           </Stack>
@@ -1939,21 +1920,11 @@ function OpenGrepPanel({
                 >
                   <Stack spacing={1}>
                     <Typography variant="body2" fontWeight={600}>
-                      {result.totalIssues === 0 ? (
-                        "✅ No security issues detected - Code is secure!"
-                      ) : result.totalIssues! <= 5 ? (
-                        `🟡 ${result.totalIssues} security issue(s) found - Low Risk`
-                      ) : result.totalIssues! <= 15 ? (
-                        `🟠 ${result.totalIssues} security issues found - Medium Risk`
-                      ) : (
-                        `🔴 ${result.totalIssues} security issues found - High Risk`
-                      )}
+                      {result.totalIssues === 0 ? "✅ No security issues detected - Code is secure!" : 
+                       result.totalIssues! <= 5 ? `🟡 ${result.totalIssues} security issue(s) found - Low Risk` :
+                       result.totalIssues! <= 15 ? `🟠 ${result.totalIssues} security issues found - Medium Risk` :
+                       `🔴 ${result.totalIssues} security issues found - High Risk`}
                     </Typography>
-                    {result.totalIssues! > 0 && (
-                      <Typography variant="caption" color="text.secondary">
-                        {result.failedChecks} failed checks out of {(result.passedChecks || 0) + (result.failedChecks || 0)} total checks
-                      </Typography>
-                    )}
                   </Stack>
                 </Alert>
 
@@ -1992,46 +1963,28 @@ function OpenGrepPanel({
                           {result.passedChecks || 0}
                         </Typography>
                         <Typography variant="body2" color="text.secondary" fontWeight={600}>
-                          Passed Checks
+                          Files Scanned
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          Security rules passed
+                          Successfully analyzed
                         </Typography>
                       </Stack>
                     </Box>
 
-                    {/* Failed Checks */}
+                    {/* ✅ Red Box: Issues Found */}
                     <Box flex={1}>
-                      <Stack 
-                        alignItems="center" 
-                        spacing={1}
-                        sx={{
-                          p: 3,
-                          bgcolor: result.totalIssues! > 0 ? "rgba(244, 67, 54, 0.1)" : "rgba(76, 175, 80, 0.1)",
-                          borderRadius: 2,
-                          border: result.totalIssues! > 0 ? "2px solid rgba(244, 67, 54, 0.3)" : "2px solid rgba(76, 175, 80, 0.3)",
-                          transition: "all 0.3s",
-                          "&:hover": {
-                            bgcolor: result.totalIssues! > 0 ? "rgba(244, 67, 54, 0.15)" : "rgba(76, 175, 80, 0.15)",
-                            transform: "translateY(-2px)",
-                          }
-                        }}
-                      >
-                        <ErrorIcon 
-                          sx={{ 
-                            fontSize: 48, 
-                            color: result.totalIssues! > 0 ? "error.main" : "success.main" 
-                          }} 
-                        />
-                        <Typography 
-                          variant="h3" 
-                          fontWeight={700} 
-                          color={result.totalIssues! > 0 ? "error.main" : "success.main"}
-                        >
+                      <Stack alignItems="center" spacing={1} sx={{ 
+                        p: 3, 
+                        bgcolor: result.totalIssues! > 0 ? "rgba(244, 67, 54, 0.1)" : "rgba(76, 175, 80, 0.1)", 
+                        borderRadius: 2, 
+                        border: result.totalIssues! > 0 ? "2px solid rgba(244, 67, 54, 0.3)" : "2px solid rgba(76, 175, 80, 0.3)" 
+                      }}>
+                        <ErrorIcon sx={{ fontSize: 48, color: result.totalIssues! > 0 ? "error.main" : "success.main" }} />
+                        <Typography variant="h3" fontWeight={700} color={result.totalIssues! > 0 ? "error.main" : "success.main"}>
                           {result.failedChecks || 0}
                         </Typography>
                         <Typography variant="body2" color="text.secondary" fontWeight={600}>
-                          Failed Checks
+                          Issues Found
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
                           Security rules violated
@@ -2041,30 +1994,16 @@ function OpenGrepPanel({
 
                     {/* Total Issues */}
                     <Box flex={1}>
-                      <Stack 
-                        alignItems="center" 
-                        spacing={1}
-                        sx={{
-                          p: 3,
-                          bgcolor: "rgba(33, 150, 243, 0.1)",
-                          borderRadius: 2,
-                          border: "2px solid rgba(33, 150, 243, 0.3)",
-                          transition: "all 0.3s",
-                          "&:hover": {
-                            bgcolor: "rgba(33, 150, 243, 0.15)",
-                            transform: "translateY(-2px)",
-                          }
-                        }}
-                      >
+                      <Stack alignItems="center" spacing={1} sx={{ p: 3, bgcolor: "rgba(33, 150, 243, 0.1)", borderRadius: 2, border: "2px solid rgba(33, 150, 243, 0.3)" }}>
                         <SecurityIcon sx={{ fontSize: 48, color: "info.main" }} />
                         <Typography variant="h3" fontWeight={700} color="info.main">
                           {result.totalIssues || 0}
                         </Typography>
                         <Typography variant="body2" color="text.secondary" fontWeight={600}>
-                          Total Issues
+                          Total Vulnerabilities
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          Vulnerabilities detected
+                          Distinct security flaws
                         </Typography>
                       </Stack>
                     </Box>
@@ -2073,153 +2012,23 @@ function OpenGrepPanel({
                   {/* Risk Level Indicator */}
                   <Box sx={{ mt: 3 }}>
                     <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
-                      <Typography variant="body2" fontWeight={600}>
-                        Security Risk Level
-                      </Typography>
+                      <Typography variant="body2" fontWeight={600}>Security Risk Level</Typography>
                       <Typography variant="caption" color="text.secondary">
-                        {result.totalIssues === 0 ? "Excellent" : 
-                         result.totalIssues! <= 5 ? "Good" :
-                         result.totalIssues! <= 15 ? "Fair" : "Poor"}
+                        {result.totalIssues === 0 ? "Excellent" : result.totalIssues! <= 5 ? "Good" : result.totalIssues! <= 15 ? "Fair" : "Poor"}
                       </Typography>
                     </Stack>
-                    
                     <Stack direction="row" spacing={1}>
-                      <Box
-                        flex={1}
-                        sx={{
-                          height: 40,
-                          bgcolor: result.totalIssues === 0 ? "success.main" : "rgba(255,255,255,0.05)",
-                          borderRadius: 1,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          border: result.totalIssues === 0 ? "2px solid" : "1px solid rgba(255,255,255,0.1)",
-                          borderColor: result.totalIssues === 0 ? "success.main" : "transparent",
-                          transition: "all 0.3s",
-                          "&:hover": {
-                            bgcolor: result.totalIssues === 0 ? "success.dark" : "rgba(255,255,255,0.08)",
-                          }
-                        }}
-                      >
-                        <Typography variant="caption" fontWeight={700} sx={{ textTransform: "uppercase" }}>
-                          ✅ Clean
-                        </Typography>
+                      <Box flex={1} sx={{ height: 40, bgcolor: result.totalIssues === 0 ? "success.main" : "rgba(255,255,255,0.05)", borderRadius: 1, display: "flex", alignItems: "center", justifyContent: "center", border: result.totalIssues === 0 ? "2px solid" : "1px solid rgba(255,255,255,0.1)", borderColor: result.totalIssues === 0 ? "success.main" : "transparent" }}>
+                        <Typography variant="caption" fontWeight={700} sx={{ textTransform: "uppercase" }}>✅ Clean</Typography>
                       </Box>
-                      <Box
-                        flex={1}
-                        sx={{
-                          height: 40,
-                          bgcolor: result.totalIssues! > 0 && result.totalIssues! <= 5 ? "info.main" : "rgba(255,255,255,0.05)",
-                          borderRadius: 1,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          border: result.totalIssues! > 0 && result.totalIssues! <= 5 ? "2px solid" : "1px solid rgba(255,255,255,0.1)",
-                          borderColor: result.totalIssues! > 0 && result.totalIssues! <= 5 ? "info.main" : "transparent",
-                          transition: "all 0.3s",
-                          "&:hover": {
-                            bgcolor: result.totalIssues! > 0 && result.totalIssues! <= 5 ? "info.dark" : "rgba(255,255,255,0.08)",
-                          }
-                        }}
-                      >
-                        <Typography variant="caption" fontWeight={700} sx={{ textTransform: "uppercase" }}>
-                          🟡 Low
-                        </Typography>
+                      <Box flex={1} sx={{ height: 40, bgcolor: result.totalIssues! > 0 && result.totalIssues! <= 5 ? "info.main" : "rgba(255,255,255,0.05)", borderRadius: 1, display: "flex", alignItems: "center", justifyContent: "center", border: result.totalIssues! > 0 && result.totalIssues! <= 5 ? "2px solid" : "1px solid rgba(255,255,255,0.1)", borderColor: result.totalIssues! > 0 && result.totalIssues! <= 5 ? "info.main" : "transparent" }}>
+                        <Typography variant="caption" fontWeight={700} sx={{ textTransform: "uppercase" }}>🟡 Low</Typography>
                       </Box>
-                      <Box
-                        flex={1}
-                        sx={{
-                          height: 40,
-                          bgcolor: result.totalIssues! > 5 && result.totalIssues! <= 15 ? "warning.main" : "rgba(255,255,255,0.05)",
-                          borderRadius: 1,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          border: result.totalIssues! > 5 && result.totalIssues! <= 15 ? "2px solid" : "1px solid rgba(255,255,255,0.1)",
-                          borderColor: result.totalIssues! > 5 && result.totalIssues! <= 15 ? "warning.main" : "transparent",
-                          transition: "all 0.3s",
-                          "&:hover": {
-                            bgcolor: result.totalIssues! > 5 && result.totalIssues! <= 15 ? "warning.dark" : "rgba(255,255,255,0.08)",
-                          }
-                        }}
-                      >
-                        <Typography variant="caption" fontWeight={700} sx={{ textTransform: "uppercase" }}>
-                          🟠 Medium
-                        </Typography>
+                      <Box flex={1} sx={{ height: 40, bgcolor: result.totalIssues! > 5 && result.totalIssues! <= 15 ? "warning.main" : "rgba(255,255,255,0.05)", borderRadius: 1, display: "flex", alignItems: "center", justifyContent: "center", border: result.totalIssues! > 5 && result.totalIssues! <= 15 ? "2px solid" : "1px solid rgba(255,255,255,0.1)", borderColor: result.totalIssues! > 5 && result.totalIssues! <= 15 ? "warning.main" : "transparent" }}>
+                        <Typography variant="caption" fontWeight={700} sx={{ textTransform: "uppercase" }}>🟠 Medium</Typography>
                       </Box>
-                      <Box
-                        flex={1}
-                        sx={{
-                          height: 40,
-                          bgcolor: result.totalIssues! > 15 ? "error.main" : "rgba(255,255,255,0.05)",
-                          borderRadius: 1,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          border: result.totalIssues! > 15 ? "2px solid" : "1px solid rgba(255,255,255,0.1)",
-                          borderColor: result.totalIssues! > 15 ? "error.main" : "transparent",
-                          transition: "all 0.3s",
-                          "&:hover": {
-                            bgcolor: result.totalIssues! > 15 ? "error.dark" : "rgba(255,255,255,0.08)",
-                          }
-                        }}
-                      >
-                        <Typography variant="caption" fontWeight={700} sx={{ textTransform: "uppercase" }}>
-                          🔴 High
-                        </Typography>
-                      </Box>
-                    </Stack>
-
-                    {/* Risk Percentage Bar */}
-                    <Box sx={{ mt: 2 }}>
-                      <Stack direction="row" justifyContent="space-between" mb={0.5}>
-                        <Typography variant="caption" color="text.secondary">
-                          Risk Score
-                        </Typography>
-                        <Typography variant="caption" fontWeight={600}>
-                          {getRiskPercentage()}%
-                        </Typography>
-                      </Stack>
-                      <Box
-                        sx={{
-                          width: "100%",
-                          height: 8,
-                          bgcolor: "rgba(255,255,255,0.1)",
-                          borderRadius: 4,
-                          overflow: "hidden",
-                        }}
-                      >
-                        <Box
-                          sx={{
-                            width: `${getRiskPercentage()}%`,
-                            height: "100%",
-                            bgcolor: result.totalIssues === 0 ? "success.main" :
-                                     result.totalIssues! <= 5 ? "info.main" :
-                                     result.totalIssues! <= 15 ? "warning.main" : "error.main",
-                            transition: "width 0.5s ease-in-out",
-                          }}
-                        />
-                      </Box>
-                    </Box>
-                  </Box>
-
-                  {/* Recommendation */}
-                  <Box sx={{ mt: 3, p: 2, bgcolor: "rgba(255,255,255,0.03)", borderRadius: 1 }}>
-                    <Stack direction="row" spacing={1} alignItems="flex-start">
-                      <InfoIcon sx={{ fontSize: 20, color: "info.main", mt: 0.2 }} />
-                      <Box>
-                        <Typography variant="body2" fontWeight={600} mb={0.5}>
-                          Recommendation
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {result.totalIssues === 0 
-                            ? "All code passes security analysis. Safe to proceed with release and deployment."
-                            : result.totalIssues! <= 5 
-                            ? "Review and fix minor security issues before release. Low priority remediation."
-                            : result.totalIssues! <= 15 
-                            ? "Address security issues before deploying to production. Medium priority."
-                            : "DO NOT RELEASE - Critical security vulnerabilities detected. Immediate remediation required."}
-                        </Typography>
+                      <Box flex={1} sx={{ height: 40, bgcolor: result.totalIssues! > 15 ? "error.main" : "rgba(255,255,255,0.05)", borderRadius: 1, display: "flex", alignItems: "center", justifyContent: "center", border: result.totalIssues! > 15 ? "2px solid" : "1px solid rgba(255,255,255,0.1)", borderColor: result.totalIssues! > 15 ? "error.main" : "transparent" }}>
+                        <Typography variant="caption" fontWeight={700} sx={{ textTransform: "uppercase" }}>🔴 High</Typography>
                       </Box>
                     </Stack>
                   </Box>
@@ -2230,66 +2039,14 @@ function OpenGrepPanel({
             {/* Logs Section */}
             {logs.length > 0 && !isRunning && (
               <Box>
-                <Button
-                  onClick={() => setShowLogs(!showLogs)}
-                  endIcon={showLogs ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                  variant="outlined"
-                  size="small"
-                  fullWidth
-                  sx={{ mb: showLogs ? 2 : 0 }}
-                >
+                <Button onClick={() => setShowLogs(!showLogs)} endIcon={showLogs ? <ExpandLessIcon /> : <ExpandMoreIcon />} variant="outlined" size="small" fullWidth sx={{ mb: showLogs ? 2 : 0 }}>
                   {showLogs ? "Hide Detailed Logs" : "Show Detailed Logs"}
                 </Button>
-
                 <Collapse in={showLogs}>
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      mt: 2,
-                      maxHeight: "400px",
-                      overflow: "auto",
-                      backgroundColor: "#1a1a1a",
-                      border: "1px solid #333",
-                      p: 2,
-                      "&::-webkit-scrollbar": {
-                        width: "8px",
-                      },
-                      "&::-webkit-scrollbar-track": {
-                        background: "#2d2d2d",
-                      },
-                      "&::-webkit-scrollbar-thumb": {
-                        background: "#555",
-                        borderRadius: "4px",
-                      },
-                      "&::-webkit-scrollbar-thumb:hover": {
-                        background: "#777",
-                      },
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
-                        fontSize: 12,
-                        lineHeight: 1.6,
-                        color: "#e0e0e0",
-                        whiteSpace: "pre-wrap",
-                        wordBreak: "break-word",
-                      }}
-                    >
+                  <Paper elevation={0} sx={{ mt: 2, maxHeight: "400px", overflow: "auto", backgroundColor: "#1a1a1a", border: "1px solid #333", p: 2 }}>
+                    <Box sx={{ fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace", fontSize: 12, lineHeight: 1.6, color: "#e0e0e0", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                       {logs.map((log, i) => (
-                        <Typography
-                          key={i}
-                          component="pre"
-                          sx={{
-                            margin: 0,
-                            fontFamily: "inherit",
-                            fontSize: "inherit",
-                            lineHeight: "inherit",
-                            color: "inherit",
-                          }}
-                        >
-                          {log}
-                        </Typography>
+                        <Typography key={i} component="pre" sx={{ margin: 0, fontFamily: "inherit", fontSize: "inherit", lineHeight: "inherit", color: "inherit" }}>{log}</Typography>
                       ))}
                     </Box>
                   </Paper>
@@ -2300,154 +2057,39 @@ function OpenGrepPanel({
         </AccordionDetails>
       </Accordion>
 
-      {/* Modal */}
-      <Dialog
-        open={modalOpen}
-        onClose={() => canClose && setModalOpen(false)}
-        maxWidth="md"
-        fullWidth
-        disableEscapeKeyDown={!canClose}
-        PaperProps={{
-          sx: {
-            backgroundColor: "#1e1e1e",
-            backgroundImage: "none",
-          },
-        }}
-      >
+      {/* Modal - Live Log View */}
+      <Dialog open={modalOpen} onClose={() => canClose && setModalOpen(false)} maxWidth="md" fullWidth disableEscapeKeyDown={!canClose} PaperProps={{ sx: { backgroundColor: "#1e1e1e", backgroundImage: "none" } }}>
         <DialogTitle sx={{ backgroundColor: "#2d2d2d", borderBottom: "1px solid #404040" }}>
-          <Stack
-            direction="row"
-            justifyContent="space-between"
-            alignItems="center"
-          >
-            <Typography variant="h6" fontWeight={600}>
-              🔬 Static Application Security Testing (SAST) 🔬
-            </Typography>
-
-            {canClose && (
-              <IconButton onClick={() => setModalOpen(false)} size="small">
-                <CloseIcon />
-              </IconButton>
-            )}
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Typography variant="h6" fontWeight={600}>🔬 Static Application Security Testing (SAST) 🔬</Typography>
+            {canClose && <IconButton onClick={() => setModalOpen(false)} size="small"><CloseIcon /></IconButton>}
           </Stack>
-
           {isRunning && (
             <Box sx={{ mt: 2 }}>
               <Stack direction="row" spacing={2} alignItems="center" mb={1}>
-                <Box flex={1}>
-                  <LinearProgress variant="determinate" value={progress} />
-                </Box>
-                <Typography variant="body2" color="text.secondary" fontWeight={600}>
-                  {progress}%
-                </Typography>
+                <Box flex={1}><LinearProgress variant="determinate" value={progress} /></Box>
+                <Typography variant="body2" color="text.secondary" fontWeight={600}>{progress}%</Typography>
               </Stack>
-              <Typography variant="caption" color="text.secondary">
-                Scanning for security issues across all projects and languages...
-              </Typography>
+              <Typography variant="caption" color="text.secondary">Scanning for security issues across all projects and languages...</Typography>
             </Box>
           )}
-
-          {isCancelling && (
-            <Alert severity="warning" sx={{ mt: 2 }}>
-              <Stack direction="row" spacing={1} alignItems="center">
-                <CircularProgress size={16} />
-                <Typography variant="body2">
-                  Cancelling scan and cleaning up processes...
-                </Typography>
-              </Stack>
-            </Alert>
-          )}
         </DialogTitle>
-
-        <DialogContent
-          sx={{
-            height: "60vh",
-            mt: 2,
-            backgroundColor: "#1a1a1a",
-            overflow: "auto",
-            p: 3,
-            "&::-webkit-scrollbar": {
-              width: "8px",
-            },
-            "&::-webkit-scrollbar-track": {
-              background: "#2d2d2d",
-            },
-            "&::-webkit-scrollbar-thumb": {
-              background: "#555",
-              borderRadius: "4px",
-            },
-            "&::-webkit-scrollbar-thumb:hover": {
-              background: "#777",
-            },
-          }}
-        >
-          <Box
-            sx={{
-              fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
-              fontSize: 13,
-              lineHeight: 1.6,
-              color: "#e0e0e0",
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-word",
-            }}
-          >
+        <DialogContent sx={{ height: "60vh", mt: 2, backgroundColor: "#1a1a1a", overflow: "auto", p: 3 }}>
+          <Box sx={{ fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace", fontSize: 13, lineHeight: 1.6, color: "#e0e0e0", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
             {logs.length > 0 ? (
               <>
-                {logs.map((log, i) => (
-                  <Typography
-                    key={i}
-                    component="pre"
-                    sx={{
-                      margin: 0,
-                      fontFamily: "inherit",
-                      fontSize: "inherit",
-                      lineHeight: "inherit",
-                      color: "inherit",
-                    }}
-                  >
-                    {log}
-                  </Typography>
-                ))}
+                {logs.map((log, i) => <Typography key={i} component="pre" sx={{ margin: 0, fontFamily: "inherit", fontSize: "inherit", lineHeight: "inherit", color: "inherit" }}>{log}</Typography>)}
                 <div ref={logEndRef} />
               </>
             ) : (
-              <Typography color="text.secondary" textAlign="center" py={4}>
-                {isRunning ? "Initializing OpenGrep scanner..." : "No logs available"}
-              </Typography>
+              <Typography color="text.secondary" textAlign="center" py={4}>{isRunning ? "Initializing OpenGrep scanner..." : "No logs available"}</Typography>
             )}
           </Box>
         </DialogContent>
-
         <DialogActions sx={{ p: 2, backgroundColor: "#2d2d2d", borderTop: "1px solid #404040" }}>
-          {isRunning && (
-            <Button
-              onClick={cancelScan}
-              color="error"
-              variant="contained"
-              startIcon={
-                isCancelling ? (
-                  <CircularProgress size={16} color="inherit" />
-                ) : (
-                  <CancelIcon />
-                )
-              }
-              disabled={isCancelling}
-            >
-              {isCancelling ? "Cancelling..." : "Cancel Scan"}
-            </Button>
-          )}
-
-          {logs.length > 0 && (
-            <Button startIcon={<DownloadIcon />} onClick={downloadLogs}>
-              Download Logs
-            </Button>
-          )}
-
-          {canClose && (
-            <Button onClick={() => setModalOpen(false)} variant="outlined">
-              Close
-            </Button>
-          )}
+          {isRunning && <Button onClick={cancelScan} color="error" variant="contained" startIcon={isCancelling ? <CircularProgress size={16} color="inherit" /> : <CancelIcon />} disabled={isCancelling}>{isCancelling ? "Cancelling..." : "Cancel Scan"}</Button>}
+          {logs.length > 0 && <Button startIcon={<DownloadIcon />} onClick={downloadLogs}>Download Logs</Button>}
+          {canClose && <Button onClick={() => setModalOpen(false)} variant="outlined">Close</Button>}
         </DialogActions>
       </Dialog>
     </>
