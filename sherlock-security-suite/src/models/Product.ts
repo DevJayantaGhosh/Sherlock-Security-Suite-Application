@@ -8,18 +8,89 @@ export type ProductStatus =
   | "Rejected"
   | "Released";
 
-// Component configuration for monorepos/multi-component repos
-export interface ComponentConfiguration {
-  language: string;              // "java", "csharp", "python", etc.
-  buildCommand?: string;         // "mvn clean compile -DskipTests"
-  workingDirectory?: string;     // "backend-service-1" (relative to repo root)
+export type ScanStatus = "idle" | "running" | "success" | "failed";
+
+// ------------------------------------------------------------------
+// SCAN RESULT MODELS
+// ------------------------------------------------------------------
+
+// Common base for all scan results
+export interface BaseScanResult {
+  status: ScanStatus;
+  timestamp?: string; 
+  logs?: string[];    
 }
 
-// Repository details with component configurations
+// 1. Signature Verification (Tool: GPG)
+export interface SignatureVerificationResult extends BaseScanResult {
+  summary?: {
+    totalCommits: number;
+    goodSignatures: number;
+  };
+}
+
+// 2. Secret Detection (Tool : Gitleaks)
+export interface SecretLeakDetectionResult extends BaseScanResult {
+  summary?: {
+    findings: number;
+  };
+}
+
+// 3. Vulnerability Scan (Tool: Trivy)
+export interface VulnerabilityScanResult extends BaseScanResult {
+  summary?: {
+    vulnerabilities: number; // Total CVEs
+    critical?: number;
+    high?: number;
+    medium?: number;
+    low?: number;
+  };
+}
+
+// 4. Static Analysis / SAST (Tool: OpenGrep)
+export interface ComponentScanResult {
+  componentName: string; 
+  language: string;
+  issuesCount: number;
+  isPassing: boolean;
+}
+
+export interface StaticAnalysisResult extends BaseScanResult {
+  summary?: {
+    totalIssues: number;
+    passedChecks?: number;
+    failedChecks?: number;
+  };
+  componentResults?: ComponentScanResult[]; 
+}
+
+// Container for all scans on a single repo
+export interface RepoScanResults {
+  signatureVerification?: SignatureVerificationResult; 
+  secretLeakDetection?: SecretLeakDetectionResult;             
+  vulnerabilityScan?: VulnerabilityScanResult;         
+  staticAnalysis?: StaticAnalysisResult;               
+}
+
+// ------------------------------------------------------------------
+// CORE ENTITIES
+// ------------------------------------------------------------------
+
+// Component configuration for monorepos
+export interface ComponentConfiguration {
+  language: string;              
+  buildCommand?: string;         
+  workingDirectory?: string;     
+}
+
+// Repository details
 export interface RepoDetails {
   repoUrl: string;
   branch: string;
-  componentConfigs?: ComponentConfiguration[];  // Multiple components per repo
+  componentConfigs?: ComponentConfiguration[];
+  
+  // Centralized scan results for this repo
+  scans?: RepoScanResults;
 }
 
 // Main Product entity
@@ -37,8 +108,8 @@ export interface Product {
   releaseEngineers: string[];
 
   // Technical Details
-  repos: RepoDetails[];           // Multiple repos per product
-  dependencies?: string[];        // External dependencies
+  repos: RepoDetails[];           
+  dependencies?: string[];        
 
   // Audit Trail
   createdBy: string;
