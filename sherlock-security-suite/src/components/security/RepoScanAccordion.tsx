@@ -32,7 +32,7 @@ import ErrorIcon from "@mui/icons-material/Error";
 import SecurityIcon from "@mui/icons-material/Security";
 import InfoIcon from "@mui/icons-material/Info";
 
-import { Product , RepoDetails} from "../../models/Product";
+import { Product, RepoDetails, RepoScanResults, SignatureVerificationResult,SecretLeakDetectionResult ,VulnerabilityScanResult,StaticAnalysisResult} from "../../models/Product";
 import { useUserStore } from "../../store/userStore";
 import { authorizeApprove } from "../../services/productService";
 
@@ -40,13 +40,35 @@ type ScanStatus = "idle" | "running" | "success" | "failed";
 
 export default function RepoScanAccordion({
   product,
-  repoDetails
+  repoDetails,
+  onRepoUpdate
 }: {
   product: Product;
-  repoDetails:RepoDetails
+  repoDetails: RepoDetails;
+  onRepoUpdate?: (updatedRepo: RepoDetails) => void;
 }) {
   const user = useUserStore((s) => s.user);
   const isAuthorized = authorizeApprove(user, product);
+
+  const handleScanUpdate = (
+    activity: keyof RepoScanResults, 
+    data: any
+  ) => {
+    if (!onRepoUpdate) return;
+
+    const currentScans = repoDetails.scans || {};
+    const updatedRepo = {
+      ...repoDetails,
+      scans: {
+        ...currentScans,
+        [activity]: {
+          ...(currentScans[activity] || {}),
+          ...data
+        }
+      }
+    };
+    onRepoUpdate(updatedRepo);
+  };
 
   return (
     <Stack spacing={2}>
@@ -54,21 +76,25 @@ export default function RepoScanAccordion({
         product={product}
         repoDetails={repoDetails}
         isAuthorized={isAuthorized}
+        onScanComplete={(res) => handleScanUpdate('signatureVerification', res)}
       />
       <GitleaksPanel
         product={product}
         repoDetails={repoDetails}
         isAuthorized={isAuthorized}
+        onScanComplete={(res) => handleScanUpdate('secretLeakDetection', res)}
       />
       <TrivyPanel
         product={product}
         repoDetails={repoDetails}
         isAuthorized={isAuthorized}
+        onScanComplete={(res) => handleScanUpdate('vulnerabilityScan', res)}
       />
       <OpenGrepPanel 
         product={product}
         repoDetails={repoDetails}
         isAuthorized={isAuthorized}
+        onScanComplete={(res) => handleScanUpdate('staticAnalysis', res)}
       />
     </Stack>
   );
@@ -81,27 +107,35 @@ function GPGVerificationPanel({
   product,
   repoDetails,
   isAuthorized,
+  onScanComplete 
 }: {
   product: Product;
-  repoDetails:RepoDetails;
+  repoDetails: RepoDetails;
   isAuthorized: boolean;
+  onScanComplete: (result: SignatureVerificationResult) => void;
 }) {
   const logEndRef = useRef<HTMLDivElement>(null);
   const scanIdRef = useRef<string | null>(null);
   const logCleanupRef = useRef<(() => void) | null>(null);
   const completeCleanupRef = useRef<(() => void) | null>(null);
+  
+  // Use a Ref to track accumulating logs safely during the callback
+  const logsRef = useRef<string[]>([]);
 
-  const [status, setStatus] = useState<ScanStatus>("idle");
-  const [logs, setLogs] = useState<string[]>([]);
-  const [progress, setProgress] = useState(0);
-  const [result, setResult] = useState<{
-    totalCommits?: number;
-    goodSignatures?: number;
-  } | null>(null);
+  // 1. Load Persisted Data
+  const savedScan = repoDetails.scans?.signatureVerification;
+
+  // 2. Initialize State
+  const [status, setStatus] = useState<ScanStatus>(savedScan?.status || "idle");
+  const [logs, setLogs] = useState<string[]>(savedScan?.logs || []);
+  const [progress, setProgress] = useState(savedScan?.status === 'success' ? 100 : 0);
+  const [result, setResult] = useState(savedScan?.summary || null);
+  const [showLogs, setShowLogs] = useState(() => {
+    return (savedScan?.logs?.length || 0) > 0;
+  });
 
   const [modalOpen, setModalOpen] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
-  const [showLogs, setShowLogs] = useState(false);
 
   // Auto-scroll logs
   useEffect(() => {
@@ -132,15 +166,18 @@ function GPGVerificationPanel({
     const scanId = crypto.randomUUID();
     scanIdRef.current = scanId;
 
+    // Reset local state and ref
     setLogs([]);
+    logsRef.current = [];
     setProgress(0);
     setStatus("running");
     setResult(null);
-    setShowLogs(false);
+    setShowLogs(true); // Always show logs when starting a new scan
     setModalOpen(true);
 
     const logCleanup = window.electronAPI.onScanLog(scanId, (data) => {
       setLogs((prev) => [...prev, data.log]);
+      logsRef.current.push(data.log); // Keep ref in sync for the final save
       setProgress(data.progress || 0);
     });
     logCleanupRef.current = logCleanup;
@@ -148,15 +185,26 @@ function GPGVerificationPanel({
     const completeCleanup = window.electronAPI.onScanComplete(scanId, (data) => {
       console.log("[GPG] Complete", data);
 
-      setStatus(data.success ? "success" : "failed");
+      const newStatus = data.success ? "success" : "failed";
+      setStatus(newStatus);
       setProgress(100);
 
-      if (data.totalCommits !== undefined) {
-        setResult({
+      let newSummary = undefined;
+      if (data.totalCommits !== undefined && data.goodSignatures !== undefined) {
+        newSummary = {
           totalCommits: data.totalCommits,
           goodSignatures: data.goodSignatures,
-        });
+        };
+        setResult(newSummary);
       }
+
+      // Use logsRef.current to ensure we save ALL logs, not stale state
+      onScanComplete({
+        status: newStatus,
+        timestamp: new Date().toISOString(),
+        logs: logsRef.current, 
+        summary: newSummary
+      });
 
       if (logCleanupRef.current) logCleanupRef.current();
       if (completeCleanupRef.current) completeCleanupRef.current();
@@ -176,11 +224,14 @@ function GPGVerificationPanel({
       if (result?.cancelled) {
         setStatus("failed");
         setLogs((prev) => [...prev, "\n❌ Scan was cancelled\n"]);
+        logsRef.current.push("\n❌ Scan was cancelled\n");
       }
     } catch (err: any) {
       console.error("[GPG] Error:", err);
       setStatus("failed");
-      setLogs((prev) => [...prev, `\n❌ Error: ${err.message}\n`]);
+      const errorMsg = `\n❌ Error: ${err.message}\n`;
+      setLogs((prev) => [...prev, errorMsg]);
+      logsRef.current.push(errorMsg);
     }
   }
 
@@ -190,7 +241,9 @@ function GPGVerificationPanel({
 
     console.log("[GPG] Cancelling");
     setIsCancelling(true);
-    setLogs((prev) => [...prev, "\n⏳ Cancelling scan...\n"]);
+    const msg = "\n⏳ Cancelling scan...\n";
+    setLogs((prev) => [...prev, msg]);
+    logsRef.current.push(msg);
 
     try {
       const result = await window.electronAPI.cancelScan({
@@ -199,13 +252,19 @@ function GPGVerificationPanel({
 
       if (result.cancelled) {
         setStatus("failed");
-        setLogs((prev) => [...prev, "✅ Scan cancelled successfully\n"]);
+        const cancelMsg = "✅ Scan cancelled successfully\n";
+        setLogs((prev) => [...prev, cancelMsg]);
+        logsRef.current.push(cancelMsg);
       } else {
-        setLogs((prev) => [...prev, "⚠️ No active scan found\n"]);
+        const warnMsg = "⚠️ No active scan found\n";
+        setLogs((prev) => [...prev, warnMsg]);
+        logsRef.current.push(warnMsg);
       }
     } catch (err: any) {
       console.error("[GPG] Cancel error:", err);
-      setLogs((prev) => [...prev, `❌ Cancel error: ${err.message}\n`]);
+      const errMsg = `❌ Cancel error: ${err.message}\n`;
+      setLogs((prev) => [...prev, errMsg]);
+      logsRef.current.push(errMsg);
     } finally {
       if (logCleanupRef.current) logCleanupRef.current();
       if (completeCleanupRef.current) completeCleanupRef.current();
@@ -566,26 +625,35 @@ function GitleaksPanel({
   product,
   repoDetails,
   isAuthorized,
+  onScanComplete
 }: {
   product: Product;
-  repoDetails:RepoDetails;
+  repoDetails: RepoDetails;
   isAuthorized: boolean;
+  onScanComplete?: (result: SecretLeakDetectionResult) => void;
 }) {
   const logEndRef = useRef<HTMLDivElement>(null);
   const scanIdRef = useRef<string | null>(null);
   const logCleanupRef = useRef<(() => void) | null>(null);
   const completeCleanupRef = useRef<(() => void) | null>(null);
 
-  const [status, setStatus] = useState<ScanStatus>("idle");
-  const [logs, setLogs] = useState<string[]>([]);
-  const [progress, setProgress] = useState(0);
-  const [result, setResult] = useState<{
-    findings?: number;
-  } | null>(null);
+  //  1: Use a Ref to track logs safely for the callback closure
+  const logsRef = useRef<string[]>([]);
+
+  // 1. Load Persisted Data
+  const savedScan = repoDetails.scans?.secretLeakDetection;
+
+  // 2. Initialize State with Persisted Data
+  const [status, setStatus] = useState<ScanStatus>(savedScan?.status || "idle");
+  const [logs, setLogs] = useState<string[]>(savedScan?.logs || []);
+  const [progress, setProgress] = useState(savedScan?.status === 'success' || savedScan?.status === 'failed' ? 100 : 0);
+  const [result, setResult] = useState(savedScan?.summary || null);
+  const [showLogs, setShowLogs] = useState(() => {
+    return (savedScan?.logs?.length || 0) > 0;
+  });
 
   const [modalOpen, setModalOpen] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
-  const [showLogs, setShowLogs] = useState(false);
 
   // Auto-scroll logs
   useEffect(() => {
@@ -616,15 +684,18 @@ function GitleaksPanel({
     const scanId = crypto.randomUUID();
     scanIdRef.current = scanId;
 
+    // Reset state
     setLogs([]);
+    logsRef.current = [];
     setProgress(0);
     setStatus("running");
     setResult(null);
-    setShowLogs(false);
+    setShowLogs(true);
     setModalOpen(true);
 
     const logCleanup = window.electronAPI.onScanLog(scanId, (data) => {
       setLogs((prev) => [...prev, data.log]);
+      logsRef.current.push(data.log); // Keep ref in sync
       setProgress(data.progress || 0);
     });
     logCleanupRef.current = logCleanup;
@@ -632,12 +703,25 @@ function GitleaksPanel({
     const completeCleanup = window.electronAPI.onScanComplete(scanId, (data) => {
       console.log("[GITLEAKS] Complete", data);
 
-      setStatus(data.success ? "success" : "failed");
+      const newStatus = data.success ? "success" : "failed";
+      setStatus(newStatus);
       setProgress(100);
 
+      let newSummary = undefined;
       if (data.findings !== undefined) {
-        setResult({
+        newSummary = {
           findings: data.findings,
+        };
+        setResult(newSummary);
+      }
+
+      //Bubble up result to parent for DB save
+      if (onScanComplete) {
+        onScanComplete({
+          status: newStatus,
+          timestamp: new Date().toISOString(),
+          logs: logsRef.current, // Use Ref to ensure full logs are saved
+          summary: newSummary
         });
       }
 
@@ -651,19 +735,22 @@ function GitleaksPanel({
 
     try {
       const result = await window.electronAPI.runGitleaks({
-        repoUrl:repoDetails.repoUrl,
-        branch:repoDetails.branch,
+        repoUrl: repoDetails.repoUrl,
+        branch: repoDetails.branch,
         scanId,
       });
 
       if (result?.cancelled) {
         setStatus("failed");
         setLogs((prev) => [...prev, "\n❌ Scan was cancelled\n"]);
+        logsRef.current.push("\n❌ Scan was cancelled\n");
       }
     } catch (err: any) {
       console.error("[GITLEAKS] Error:", err);
       setStatus("failed");
-      setLogs((prev) => [...prev, `\n❌ Error: ${err.message}\n`]);
+      const errMsg = `\n❌ Error: ${err.message}\n`;
+      setLogs((prev) => [...prev, errMsg]);
+      logsRef.current.push(errMsg);
     }
   }
 
@@ -673,7 +760,9 @@ function GitleaksPanel({
 
     console.log("[GITLEAKS] Cancelling");
     setIsCancelling(true);
-    setLogs((prev) => [...prev, "\n⏳ Cancelling scan...\n"]);
+    const msg = "\n⏳ Cancelling scan...\n";
+    setLogs((prev) => [...prev, msg]);
+    logsRef.current.push(msg);
 
     try {
       const result = await window.electronAPI.cancelScan({
@@ -682,13 +771,19 @@ function GitleaksPanel({
 
       if (result.cancelled) {
         setStatus("failed");
-        setLogs((prev) => [...prev, "✅ Scan cancelled successfully\n"]);
+        const cancelMsg = "✅ Scan cancelled successfully\n";
+        setLogs((prev) => [...prev, cancelMsg]);
+        logsRef.current.push(cancelMsg);
       } else {
-        setLogs((prev) => [...prev, "⚠️ No active scan found\n"]);
+        const warnMsg = "⚠️ No active scan found\n";
+        setLogs((prev) => [...prev, warnMsg]);
+        logsRef.current.push(warnMsg);
       }
     } catch (err: any) {
       console.error("[GITLEAKS] Cancel error:", err);
-      setLogs((prev) => [...prev, `❌ Cancel error: ${err.message}\n`]);
+      const errMsg = `❌ Cancel error: ${err.message}\n`;
+      setLogs((prev) => [...prev, errMsg]);
+      logsRef.current.push(errMsg);
     } finally {
       if (logCleanupRef.current) logCleanupRef.current();
       if (completeCleanupRef.current) completeCleanupRef.current();
@@ -722,7 +817,7 @@ function GitleaksPanel({
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Stack width="100%" spacing={1}>
             <Typography textAlign="center" fontWeight={700} fontSize={18}>
-              🔐 Secrets & Credentials Leakage Scan 🔐 
+              🔐 Secrets & Credentials Leakage Scan 🔐
             </Typography>
             <Typography
               textAlign="center"
@@ -796,9 +891,9 @@ function GitleaksPanel({
             </Stack>
 
             {result && (
-              <Alert severity={result.findings! > 0 ? "error" : "success"}>
+              <Alert severity={(result.findings ?? 0) > 0 ? "error" : "success"}>
                 <Typography variant="body2">
-                  {result.findings! > 0 ? (
+                  {(result.findings ?? 0) > 0 ? (
                     <>
                       <strong>⚠️ {result.findings} potential secrets found</strong>
                     </>
@@ -1041,26 +1136,36 @@ function TrivyPanel({
   product,
   repoDetails,
   isAuthorized,
+  onScanComplete 
 }: {
   product: Product;
-  repoDetails:RepoDetails
+  repoDetails: RepoDetails;
   isAuthorized: boolean;
+  onScanComplete?: (result: VulnerabilityScanResult) => void;
 }) {
   const logEndRef = useRef<HTMLDivElement>(null);
   const scanIdRef = useRef<string | null>(null);
   const logCleanupRef = useRef<(() => void) | null>(null);
   const completeCleanupRef = useRef<(() => void) | null>(null);
 
-  const [status, setStatus] = useState<ScanStatus>("idle");
-  const [logs, setLogs] = useState<string[]>([]);
-  const [progress, setProgress] = useState(0);
-  const [result, setResult] = useState<{
-    vulnerabilities?: number;
-  } | null>(null);
+  //  Use a Ref to track logs safely for the callback closure
+  const logsRef = useRef<string[]>([]);
+
+  //  1. Load Persisted Data safely
+  const savedScan = repoDetails.scans?.vulnerabilityScan;
+
+  //  2. Initialize State
+  const [status, setStatus] = useState<ScanStatus>(savedScan?.status || "idle");
+  const [logs, setLogs] = useState<string[]>(savedScan?.logs || []);
+  const [progress, setProgress] = useState(savedScan?.status === 'success' || savedScan?.status === 'failed' ? 100 : 0);
+  const [result, setResult] = useState(savedScan?.summary || null);
+  const [showLogs, setShowLogs] = useState(() => {
+    return (savedScan?.logs?.length || 0) > 0;
+  });
 
   const [modalOpen, setModalOpen] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
-  const [showLogs, setShowLogs] = useState(false);
+
 
   // Auto-scroll logs
   useEffect(() => {
@@ -1091,15 +1196,18 @@ function TrivyPanel({
     const scanId = crypto.randomUUID();
     scanIdRef.current = scanId;
 
+    // Reset state
     setLogs([]);
+    logsRef.current = [];
     setProgress(0);
     setStatus("running");
     setResult(null);
-    setShowLogs(false);
+    setShowLogs(true);
     setModalOpen(true);
 
     const logCleanup = window.electronAPI.onScanLog(scanId, (data) => {
       setLogs((prev) => [...prev, data.log]);
+      logsRef.current.push(data.log); // Keep ref in sync
       setProgress(data.progress || 0);
     });
     logCleanupRef.current = logCleanup;
@@ -1107,12 +1215,25 @@ function TrivyPanel({
     const completeCleanup = window.electronAPI.onScanComplete(scanId, (data) => {
       console.log("[TRIVY] Complete", data);
 
-      setStatus(data.success ? "success" : "failed");
+      const newStatus = data.success ? "success" : "failed";
+      setStatus(newStatus);
       setProgress(100);
 
+      let newSummary = undefined;
       if (data.vulnerabilities !== undefined) {
-        setResult({
+        newSummary = {
           vulnerabilities: data.vulnerabilities,
+        };
+        setResult(newSummary);
+      }
+
+      // Bubble up result to parent for DB save with correct logs
+      if (onScanComplete) {
+        onScanComplete({
+          status: newStatus,
+          timestamp: new Date().toISOString(),
+          logs: logsRef.current, 
+          summary: newSummary
         });
       }
 
@@ -1126,19 +1247,22 @@ function TrivyPanel({
 
     try {
       const result = await window.electronAPI.runTrivy({
-        repoUrl:repoDetails.repoUrl,
-        branch:repoDetails.branch,
+        repoUrl: repoDetails.repoUrl,
+        branch: repoDetails.branch,
         scanId,
       });
 
       if (result?.cancelled) {
         setStatus("failed");
         setLogs((prev) => [...prev, "\n❌ Scan was cancelled\n"]);
+        logsRef.current.push("\n❌ Scan was cancelled\n");
       }
     } catch (err: any) {
       console.error("[TRIVY] Error:", err);
       setStatus("failed");
-      setLogs((prev) => [...prev, `\n❌ Error: ${err.message}\n`]);
+      const errMsg = `\n❌ Error: ${err.message}\n`;
+      setLogs((prev) => [...prev, errMsg]);
+      logsRef.current.push(errMsg);
     }
   }
 
@@ -1148,7 +1272,9 @@ function TrivyPanel({
 
     console.log("[TRIVY] Cancelling");
     setIsCancelling(true);
-    setLogs((prev) => [...prev, "\n⏳ Cancelling scan...\n"]);
+    const msg = "\n⏳ Cancelling scan...\n";
+    setLogs((prev) => [...prev, msg]);
+    logsRef.current.push(msg);
 
     try {
       const result = await window.electronAPI.cancelScan({
@@ -1157,13 +1283,19 @@ function TrivyPanel({
 
       if (result.cancelled) {
         setStatus("failed");
-        setLogs((prev) => [...prev, "✅ Scan cancelled successfully\n"]);
+        const cancelMsg = "✅ Scan cancelled successfully\n";
+        setLogs((prev) => [...prev, cancelMsg]);
+        logsRef.current.push(cancelMsg);
       } else {
-        setLogs((prev) => [...prev, "⚠️ No active scan found\n"]);
+        const warnMsg = "⚠️ No active scan found\n";
+        setLogs((prev) => [...prev, warnMsg]);
+        logsRef.current.push(warnMsg);
       }
     } catch (err: any) {
       console.error("[TRIVY] Cancel error:", err);
-      setLogs((prev) => [...prev, `❌ Cancel error: ${err.message}\n`]);
+      const errMsg = `❌ Cancel error: ${err.message}\n`;
+      setLogs((prev) => [...prev, errMsg]);
+      logsRef.current.push(errMsg);
     } finally {
       if (logCleanupRef.current) logCleanupRef.current();
       if (completeCleanupRef.current) completeCleanupRef.current();
@@ -1379,7 +1511,7 @@ function TrivyPanel({
             alignItems="center"
           >
             <Typography variant="h6" fontWeight={600}>
-            🚨 SBOM & Vulnerability Scan 🚨
+              🚨 SBOM & Vulnerability Scan 🚨
             </Typography>
 
             {canClose && (
@@ -1516,28 +1648,35 @@ function OpenGrepPanel({
   product,
   repoDetails,
   isAuthorized,
+  onScanComplete
 }: {
   product: Product;
   repoDetails: RepoDetails;
   isAuthorized: boolean;
+  onScanComplete?: (result: StaticAnalysisResult) => void;
 }) {
   const logEndRef = useRef<HTMLDivElement>(null);
   const scanIdRef = useRef<string | null>(null);
   const logCleanupRef = useRef<(() => void) | null>(null);
   const completeCleanupRef = useRef<(() => void) | null>(null);
 
-  const [status, setStatus] = useState<ScanStatus>("idle");
-  const [logs, setLogs] = useState<string[]>([]);
-  const [progress, setProgress] = useState(0);
-  const [result, setResult] = useState<{
-    totalIssues?: number;
-    passedChecks?: number;
-    failedChecks?: number;
-  } | null>(null);
+  // Use a Ref to track logs safely for the callback closure
+  const logsRef = useRef<string[]>([]);
+
+  // 1. Load Persisted Data
+  const savedScan = repoDetails.scans?.staticAnalysis;
+
+  //  2. Initialize State with Persisted Data
+  const [status, setStatus] = useState<ScanStatus>(savedScan?.status || "idle");
+  const [logs, setLogs] = useState<string[]>(savedScan?.logs || []);
+  const [progress, setProgress] = useState(savedScan?.status === 'success' || savedScan?.status === 'failed' ? 100 : 0);
+  const [result, setResult] = useState(savedScan?.summary || null);
+  const [showLogs, setShowLogs] = useState(() => {
+    return (savedScan?.logs?.length || 0) > 0;
+  });
 
   const [modalOpen, setModalOpen] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
-  const [showLogs, setShowLogs] = useState(false);
 
   // Auto-scroll logs
   useEffect(() => {
@@ -1568,15 +1707,18 @@ function OpenGrepPanel({
     const scanId = crypto.randomUUID();
     scanIdRef.current = scanId;
 
+    // Reset state
     setLogs([]);
+    logsRef.current = [];
     setProgress(0);
     setStatus("running");
     setResult(null);
-    setShowLogs(false);
+    setShowLogs(true);
     setModalOpen(true);
 
     const logCleanup = window.electronAPI.onScanLog(scanId, (data) => {
       setLogs((prev) => [...prev, data.log]);
+      logsRef.current.push(data.log); // Keep ref in sync
       setProgress(data.progress || 0);
     });
     logCleanupRef.current = logCleanup;
@@ -1584,14 +1726,27 @@ function OpenGrepPanel({
     const completeCleanup = window.electronAPI.onScanComplete(scanId, (data) => {
       console.log("[OPENGREP] Complete", data);
 
-      setStatus(data.success ? "success" : "failed");
+      const newStatus = data.success ? "success" : "failed";
+      setStatus(newStatus);
       setProgress(100);
 
+      let newSummary = undefined;
       if (data.totalIssues !== undefined) {
-        setResult({
+        newSummary = {
           totalIssues: data.totalIssues,
           passedChecks: data.passedChecks,
           failedChecks: data.failedChecks,
+        };
+        setResult(newSummary);
+      }
+
+      // Bubble up result to parent for DB save
+      if (onScanComplete) {
+        onScanComplete({
+          status: newStatus,
+          timestamp: new Date().toISOString(),
+          logs: logsRef.current, // Use Ref to ensure full logs are saved
+          summary: newSummary
         });
       }
 
@@ -1614,11 +1769,14 @@ function OpenGrepPanel({
       if (result?.cancelled) {
         setStatus("failed");
         setLogs((prev) => [...prev, "\n❌ Scan was cancelled\n"]);
+        logsRef.current.push("\n❌ Scan was cancelled\n");
       }
     } catch (err: any) {
       console.error("[OPENGREP] Error:", err);
       setStatus("failed");
-      setLogs((prev) => [...prev, `\n❌ Error: ${err.message}\n`]);
+      const errMsg = `\n❌ Error: ${err.message}\n`;
+      setLogs((prev) => [...prev, errMsg]);
+      logsRef.current.push(errMsg);
     }
   }
 
@@ -1628,7 +1786,9 @@ function OpenGrepPanel({
 
     console.log("[OPENGREP] Cancelling");
     setIsCancelling(true);
-    setLogs((prev) => [...prev, "\n⏳ Cancelling scan...\n"]);
+    const msg = "\n⏳ Cancelling scan...\n";
+    setLogs((prev) => [...prev, msg]);
+    logsRef.current.push(msg);
 
     try {
       const result = await window.electronAPI.cancelScan({
@@ -1637,13 +1797,19 @@ function OpenGrepPanel({
 
       if (result.cancelled) {
         setStatus("failed");
-        setLogs((prev) => [...prev, "✅ Scan cancelled successfully\n"]);
+        const cancelMsg = "✅ Scan cancelled successfully\n";
+        setLogs((prev) => [...prev, cancelMsg]);
+        logsRef.current.push(cancelMsg);
       } else {
-        setLogs((prev) => [...prev, "⚠️ No active scan found\n"]);
+        const warnMsg = "⚠️ No active scan found\n";
+        setLogs((prev) => [...prev, warnMsg]);
+        logsRef.current.push(warnMsg);
       }
     } catch (err: any) {
       console.error("[OPENGREP] Cancel error:", err);
-      setLogs((prev) => [...prev, `❌ Cancel error: ${err.message}\n`]);
+      const errMsg = `❌ Cancel error: ${err.message}\n`;
+      setLogs((prev) => [...prev, errMsg]);
+      logsRef.current.push(errMsg);
     } finally {
       if (logCleanupRef.current) logCleanupRef.current();
       if (completeCleanupRef.current) completeCleanupRef.current();
