@@ -871,31 +871,26 @@ ${"═".repeat(79)}
 ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, componentConfigs }) => {
   debugLog(`[OPENGREP] Starting multi-language SAST analysis for ${repoUrl}`);
   
+  // 1. Validate Tool
   const opengrepPath = validateTool("opengrep");
   if (!opengrepPath) {
     event.sender.send(`scan-log:${scanId}`, {
       log: `\n❌ OpenGrep tool not found\n   Expected: ${toolPath("opengrep")}\n\n`,
       progress: 0,
     });
-    
-    event.sender.send(`scan-complete:${scanId}`, {
-      success: false,
-      error: "Tool not found",
-    });
-    
+    event.sender.send(`scan-complete:${scanId}`, { success: false, error: "Tool not found" });
     return { success: false, error: "Tool not found" };
   }
   
+  // 2. Clone Repository
   const repoPath = await cloneRepository(event, repoUrl, branch, scanId);
   if (!repoPath) {
-    event.sender.send(`scan-complete:${scanId}`, {
-      success: false,
-      error: "Clone failed",
-    });
+    event.sender.send(`scan-complete:${scanId}`, { success: false, error: "Clone failed" });
     return { success: false, error: "Clone failed" };
   }
 
   return new Promise((resolve) => {
+    // Initial Logs
     event.sender.send(`scan-log:${scanId}`, {
       log: `\n${"═".repeat(79)}\n🔬 STATIC APPLICATION SECURITY TESTING (SAST) \n${"═".repeat(79)}\n\n`,
       progress: 52,
@@ -918,10 +913,6 @@ ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, compone
       repoPath
     ];
 
-    event.sender.send(`scan-log:${scanId}`, {
-      log: `$ opengrep scan --config auto --json --verbose\n\n`,
-      progress: 55,
-    });
 
     event.sender.send(`scan-log:${scanId}`, {
       log: `🔍 Scanning entire repository recursively (all folders)...\n`,
@@ -936,10 +927,7 @@ ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, compone
     const spawnOptions: any = {
       cwd: repoPath,
       stdio: ["ignore", "pipe", "pipe"],
-      env: {
-        ...process.env,
-        NO_COLOR: "1",
-      },
+      env: { ...process.env, NO_COLOR: "1" },
       windowsHide: true,
       shell: false,
       detached: false,
@@ -954,17 +942,18 @@ ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, compone
     let stdoutData = "";
     let stderrData = "";
 
+    // Capture Progress
     child.stdout?.on("data", (data) => {
       if (cancelled) return;
       progressCounter++;
       stdoutData += data.toString();
-      
       event.sender.send(`scan-log:${scanId}`, {
         log: "",
         progress: Math.min(65 + Math.floor(progressCounter / 5), 85),
       });
     });
 
+    // Capture Verbose Details (Rules loaded, etc.)
     child.stderr?.on("data", (data) => {
       if (cancelled) return;
       stderrData += data.toString();
@@ -981,8 +970,8 @@ ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, compone
       debugLog(`[OPENGREP] Process exited with code: ${code}`);
 
       let totalIssues = 0;
-      let passedChecks = 0;
-      let failedChecks = 0;
+      let passedChecks = 0; // = Total Files Scanned
+      let failedChecks = 0; // = Total Issues Found
       let findings: any[] = [];
       let criticalCount = 0;
       let highCount = 0;
@@ -996,24 +985,27 @@ ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, compone
           
           findings = report.results || [];
           totalIssues = findings.length;
+          failedChecks = totalIssues;
 
           const scannedFiles = report.paths?.scanned || [];
           const skippedFiles = report.paths?.skipped || [];
+          
+          // CRITICAL FIX: Use the raw count as the absolute truth
+          passedChecks = scannedFiles.length; 
+          const totalFilesScanned = scannedFiles.length;
 
-          // Helper function to convert absolute path to relative
+          // --- Helper: Normalize Paths ---
           const repoPathNormalized = repoPath.replace(/\\/g, '/');
           
           function getRelativePath(absolutePath: string): string {
             const normalized = absolutePath.replace(/\\/g, '/');
-            
             if (normalized.startsWith(repoPathNormalized)) {
               return normalized.substring(repoPathNormalized.length + 1);
             }
-            
             return normalized;
           }
 
-          // Detect actual project directories
+          // --- 1. Detect Projects ---
           const ignoredDirs = new Set([
             '.git', '.idea', '.vscode', '.github', 
             'node_modules', 'dist', 'build', 'target', 
@@ -1023,24 +1015,21 @@ ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, compone
 
           const projectDirectories = new Set<string>();
           const filesByDirectory = new Map<string, number>();
-          let rootLevelFiles = 0;
           
           try {
             const repoContents = await fs.readdir(repoPath, { withFileTypes: true });
-            
             repoContents.forEach(item => {
               if (item.isDirectory() && !ignoredDirs.has(item.name)) {
                 projectDirectories.add(item.name);
                 filesByDirectory.set(item.name, 0);
               }
             });
-            
-            debugLog(`[OPENGREP] Found ${projectDirectories.size} project directories: ${Array.from(projectDirectories).join(', ')}`);
+            debugLog(`[OPENGREP] Found ${projectDirectories.size} project directories`);
           } catch (err: any) {
             debugLog(`Error reading repo directory: ${err.message}`);
           }
           
-          // Process scanned files
+          // --- 2. Process Files per Project ---
           scannedFiles.forEach((absolutePath: string) => {
             const relativePath = getRelativePath(absolutePath);
             const normalizedPath = relativePath.replace(/\\/g, '/');
@@ -1048,46 +1037,37 @@ ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, compone
             
             if (parts.length === 0) return;
             
-            if (parts.length === 1) {
-              rootLevelFiles++;
-            } else {
+            // Just count them for projects if applicable
+            if (parts.length > 1) {
               const topDir = parts[0];
-              
               if (projectDirectories.has(topDir)) {
                 filesByDirectory.set(topDir, (filesByDirectory.get(topDir) || 0) + 1);
               }
             }
           });
 
-          // Parse rules from verbose output (stderr)
+          // --- 3. Parse Rules Run (from stderr) ---
           const rulesRun = new Set<string>();
           let totalRulesCount = 0;
           
-          // Pattern to extract total rule count
           const ruleCountPattern = /(?:running|loaded|scanning with)\s+(\d+)\s+rules?/gi;
           const ruleCountMatch = ruleCountPattern.exec(stderrData);
           if (ruleCountMatch) {
             totalRulesCount = parseInt(ruleCountMatch[1]);
           }
           
-          // Pattern to extract individual rule IDs from verbose output
           const lines = stderrData.split('\n');
           lines.forEach(line => {
             const trimmed = line.trim();
-            
-            // Match patterns like "rule: java.lang.security..."
             const ruleMatch = trimmed.match(/^(?:rule|checking|running):\s*([a-zA-Z0-9._\-:\/]+)$/i);
-            if (ruleMatch) {
-              rulesRun.add(ruleMatch[1]);
-            }
+            if (ruleMatch) rulesRun.add(ruleMatch[1]);
             
-            // Match standalone rule IDs (contain dots and are reasonable length)
             if (trimmed.includes('.') && trimmed.length > 10 && trimmed.length < 100 && !trimmed.includes(' ') && /^[a-zA-Z0-9._\-:\/]+$/.test(trimmed)) {
               rulesRun.add(trimmed);
             }
           });
 
-          // Analyze findings
+          // --- 4. Analyze Findings ---
           const findingsByDirectory = new Map<string, any[]>();
           
           findings.forEach((f: any) => {
@@ -1097,9 +1077,7 @@ ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, compone
             else if (severity === "MEDIUM") mediumCount++;
             else lowCount++;
 
-            if (f.check_id) {
-              rulesRun.add(f.check_id);
-            }
+            if (f.check_id) rulesRun.add(f.check_id);
 
             const absolutePath = f.path || "";
             const relativePath = getRelativePath(absolutePath);
@@ -1108,56 +1086,26 @@ ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, compone
             
             if (parts.length > 1) {
               const topDir = parts[0];
-              
               if (projectDirectories.has(topDir)) {
-                if (!findingsByDirectory.has(topDir)) {
-                  findingsByDirectory.set(topDir, []);
-                }
+                if (!findingsByDirectory.has(topDir)) findingsByDirectory.set(topDir, []);
                 findingsByDirectory.get(topDir)!.push(f);
               }
             }
           });
-
-          passedChecks = scannedFiles.length;
-          failedChecks = totalIssues;
 
           event.sender.send(`scan-log:${scanId}`, {
             log: `\n✅ Scan completed successfully!\n\n`,
             progress: 88,
           });
 
-          // ==================== 1. PROJECT STRUCTURE ====================
+          // ==================== LOGS: FILES BY PROJECT ====================
+          // Calculate "Other" files by subtracting identified project files from the GRAND TOTAL
+          const filesInIdentifiedProjects = Array.from(filesByDirectory.values()).reduce((sum, count) => sum + count, 0);
+          const otherFiles = totalFilesScanned - filesInIdentifiedProjects;
+          
           const projectsWithFiles = Array.from(filesByDirectory.entries())
             .filter(([dir, count]) => count > 0 && projectDirectories.has(dir))
             .sort((a, b) => b[1] - a[1]);
-
-          if (projectsWithFiles.length > 0) {
-            event.sender.send(`scan-log:${scanId}`, {
-              log: `\n📦 DETECTED PROJECTS:\n${"═".repeat(79)}\n\n`,
-              progress: 88,
-            });
-
-            projectsWithFiles.forEach(([dir, count]) => {
-              const issues = findingsByDirectory.get(dir) || [];
-              const statusIcon = issues.length === 0 ? '✅' : issues.length <= 5 ? '🟡' : '🔴';
-              
-              event.sender.send(`scan-log:${scanId}`, {
-                log: `   ${statusIcon} ${dir}/ — ${count} files scanned${issues.length > 0 ? ` — ${issues.length} issue(s) found` : ' — Clean ✓'}\n`,
-                progress: 88,
-              });
-            });
-
-            if (rootLevelFiles > 0) {
-              event.sender.send(`scan-log:${scanId}`, {
-                log: `   📄 [root]/ — ${rootLevelFiles} config/metadata files\n`,
-                progress: 88,
-              });
-            }
-          }
-
-          // ==================== 2. FILES BY PROJECT ====================
-          const totalProjectFiles = Array.from(filesByDirectory.values()).reduce((sum, count) => sum + count, 0);
-          const totalFilesScanned = totalProjectFiles + rootLevelFiles;
 
           if (projectsWithFiles.length > 0) {
             event.sender.send(`scan-log:${scanId}`, {
@@ -1168,24 +1116,33 @@ ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, compone
             projectsWithFiles.forEach(([dir, count]) => {
               const issues = findingsByDirectory.get(dir) || [];
               const statusIcon = issues.length === 0 ? '✅' : issues.length <= 5 ? '🟡' : '🔴';
-              const percentage = totalProjectFiles > 0 ? Math.round((count / totalProjectFiles) * 100) : 0;
+              // Percentage based on ACTUAL total
+              const percentage = totalFilesScanned > 0 ? Math.round((count / totalFilesScanned) * 100) : 0;
               
               event.sender.send(`scan-log:${scanId}`, {
                 log: `  ${statusIcon} ${dir.padEnd(40)} ${count.toString().padStart(4)} files (${percentage.toString().padStart(2)}%)${issues.length > 0 ? ` — ${issues.length} issue(s)` : ''}\n`,
                 progress: 89,
               });
             });
-
-            if (rootLevelFiles > 0) {
-              const rootPercentage = Math.round((rootLevelFiles / totalFilesScanned) * 100);
-              event.sender.send(`scan-log:${scanId}`, {
-                log: `  📝 [root] (config/metadata)                 ${rootLevelFiles.toString().padStart(4)} files (${rootPercentage.toString().padStart(2)}%)\n`,
+            
+            // Show the remaining files as "Root/Misc" so numbers add up
+            if (otherFiles > 0) {
+               const rootPercentage = totalFilesScanned > 0 ? Math.round((otherFiles / totalFilesScanned) * 100) : 0;
+               event.sender.send(`scan-log:${scanId}`, {
+                log: `  📄 [root/misc] (config/metadata)           ${otherFiles.toString().padStart(4)} files (${rootPercentage.toString().padStart(2)}%)\n`,
                 progress: 89,
               });
             }
+          } else if (totalFilesScanned > 0) {
+              // No sub-projects detected, just show total
+              event.sender.send(`scan-log:${scanId}`, {
+                log: `\n📂 FILES SCANNED: ${totalFilesScanned} (root level or flat structure)\n`,
+                progress: 89,
+              });
           }
 
-          // ==================== 3. SECURITY RULES APPLIED ====================
+
+          // ==================== LOGS: SECURITY RULES APPLIED ====================
           event.sender.send(`scan-log:${scanId}`, {
             log: `\n\n🛡️  SECURITY RULES APPLIED:\n${"═".repeat(79)}\n\n`,
             progress: 90,
@@ -1199,7 +1156,6 @@ ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, compone
           }
 
           if (rulesRun.size > 0) {
-            // Parse categories from rule IDs
             const rulesByCategory = new Map<string, string[]>();
             rulesRun.forEach((ruleId: string) => {
               const parts = ruleId.split('.');
@@ -1212,20 +1168,14 @@ ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, compone
               else if (parts.includes('audit')) category = 'Security Audit';
               else if (parts.length >= 2) category = parts[1];
               
-              if (!rulesByCategory.has(category)) {
-                rulesByCategory.set(category, []);
-              }
+              if (!rulesByCategory.has(category)) rulesByCategory.set(category, []);
               rulesByCategory.get(category)!.push(ruleId);
             });
 
-            const sortedCategories = Array.from(rulesByCategory.entries())
-              .sort((a, b) => b[1].length - a[1].length);
+            const sortedCategories = Array.from(rulesByCategory.entries()).sort((a, b) => b[1].length - a[1].length);
             
             if (sortedCategories.length > 0) {
-              event.sender.send(`scan-log:${scanId}`, {
-                log: `   Sample Rules by Category:\n\n`,
-                progress: 90,
-              });
+              event.sender.send(`scan-log:${scanId}`, { log: `   Sample Rules by Category:\n\n`, progress: 90 });
 
               sortedCategories.slice(0, 8).forEach(([category, rules]) => {
                 event.sender.send(`scan-log:${scanId}`, {
@@ -1234,55 +1184,18 @@ ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, compone
                 });
                 
                 rules.slice(0, 3).forEach((ruleId: string) => {
-                  event.sender.send(`scan-log:${scanId}`, {
-                    log: `      • ${ruleId}\n`,
-                    progress: 90,
-                  });
+                  event.sender.send(`scan-log:${scanId}`, { log: `      • ${ruleId}\n`, progress: 90 });
                 });
                 
                 if (rules.length > 3) {
-                  event.sender.send(`scan-log:${scanId}`, {
-                    log: `      ... and ${rules.length - 3} more\n`,
-                    progress: 90,
-                  });
+                  event.sender.send(`scan-log:${scanId}`, { log: `      ... and ${rules.length - 3} more\n`, progress: 90 });
                 }
-                
-                event.sender.send(`scan-log:${scanId}`, {
-                  log: `\n`,
-                  progress: 90,
-                });
+                event.sender.send(`scan-log:${scanId}`, { log: `\n`, progress: 90 });
               });
-              
-              if (sortedCategories.length > 8) {
-                event.sender.send(`scan-log:${scanId}`, {
-                  log: `   ... and ${sortedCategories.length - 8} more categories\n\n`,
-                  progress: 90,
-                });
-              }
             }
           }
 
-          if (totalIssues === 0) {
-            event.sender.send(`scan-log:${scanId}`, {
-              log: `   ✅ Result: All ${totalFilesScanned} files passed all security checks\n`,
-              progress: 90,
-            });
-            event.sender.send(`scan-log:${scanId}`, {
-              log: `   ✅ Status: No vulnerabilities detected - Repository is secure!\n`,
-              progress: 90,
-            });
-          } else {
-            event.sender.send(`scan-log:${scanId}`, {
-              log: `   ⚠️  Result: ${totalIssues} security issue(s) detected in ${failedChecks} file(s)\n`,
-              progress: 90,
-            });
-            event.sender.send(`scan-log:${scanId}`, {
-              log: `   📊 Breakdown: ${criticalCount} critical, ${highCount} high, ${mediumCount} medium, ${lowCount} low\n`,
-              progress: 90,
-            });
-          }
-
-          // ==================== 4. SECURITY FINDINGS OR NO ISSUES ====================
+          // ==================== LOGS: FINDINGS ====================
           if (totalIssues > 0) {
             event.sender.send(`scan-log:${scanId}`, {
               log: `\n\n🚨 SECURITY FINDINGS:\n${"═".repeat(79)}\n\n`,
@@ -1297,10 +1210,7 @@ ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, compone
 │ 🔵 Low/Info             : ${lowCount.toString().padStart(4)}                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 `;
-            event.sender.send(`scan-log:${scanId}`, {
-              log: severityLog,
-              progress: 91,
-            });
+            event.sender.send(`scan-log:${scanId}`, { log: severityLog, progress: 91 });
 
             // Findings by project
             const sortedFindings = Array.from(findingsByDirectory.entries())
@@ -1308,22 +1218,16 @@ ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, compone
               .sort((a, b) => b[1].length - a[1].length);
 
             if (sortedFindings.length > 0) {
-              event.sender.send(`scan-log:${scanId}`, {
-                log: `\n📂 ISSUES BY PROJECT:\n${"─".repeat(79)}\n\n`,
-                progress: 91,
-              });
-
+              event.sender.send(`scan-log:${scanId}`, { log: `\n📂 ISSUES BY PROJECT:\n${"─".repeat(79)}\n\n`, progress: 91 });
               sortedFindings.forEach(([dir, dirFindings]) => {
                 const critical = dirFindings.filter(f => {
                   const sev = (f.extra?.severity || "WARNING").toUpperCase();
                   return sev === "ERROR" || sev === "CRITICAL";
                 }).length;
-                
                 const high = dirFindings.filter(f => {
                   const sev = (f.extra?.severity || "WARNING").toUpperCase();
                   return sev === "WARNING" || sev === "HIGH";
                 }).length;
-
                 event.sender.send(`scan-log:${scanId}`, {
                   log: `  📂 ${dir}/ — ${dirFindings.length} total | 🔴 ${critical} critical | 🟠 ${high} high\n`,
                   progress: 91,
@@ -1337,76 +1241,53 @@ ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, compone
               progress: 92,
             });
 
-            const allSortedFindings = findings.sort((a, b) => {
-              const severityOrder: Record<string, number> = {
-                ERROR: 4, CRITICAL: 4, WARNING: 3, HIGH: 3,
-                MEDIUM: 2, INFO: 1, LOW: 1,
-              };
-              const sevA = (a.extra?.severity || "WARNING").toUpperCase();
-              const sevB = (b.extra?.severity || "WARNING").toUpperCase();
-              return (severityOrder[sevB] || 0) - (severityOrder[sevA] || 0);
+            // FIX: Explicitly typed Map for sorting
+            const severityMap: Record<string, number> = { 
+              ERROR: 4, CRITICAL: 4, 
+              WARNING: 3, HIGH: 3, 
+              MEDIUM: 2, 
+              INFO: 1, LOW: 1 
+            };
+
+            const allSortedFindings = findings.sort((a: any, b: any) => {
+               const sevA = (a.extra?.severity || "WARNING").toUpperCase();
+               const sevB = (b.extra?.severity || "WARNING").toUpperCase();
+               return (severityMap[sevB] || 0) - (severityMap[sevA] || 0);
             });
 
-            const topFindings = allSortedFindings.slice(0, 10);
-
-            topFindings.forEach((finding: any, index: number) => {
-              const severity = (finding.extra?.severity || "WARNING").toUpperCase();
-              const severityIcon = 
-                severity === "ERROR" || severity === "CRITICAL" ? "🔴 CRITICAL" :
-                severity === "WARNING" || severity === "HIGH" ? "🟠 HIGH    " :
-                severity === "MEDIUM" ? "🟡 MEDIUM  " : "🔵 LOW     ";
-
+            allSortedFindings.slice(0, 10).forEach((finding: any, index: number) => {
+              const sev = (finding.extra?.severity || "WARNING").toUpperCase();
+              const sevIcon = (sev === "ERROR" || sev === "CRITICAL") ? "🔴 CRITICAL" : (sev === "WARNING" || sev === "HIGH") ? "🟠 HIGH    " : "🔵 LOW     ";
               const absolutePath = finding.path || "N/A";
               const relativePath = getRelativePath(absolutePath);
               const shortPath = relativePath.length > 60 ? '...' + relativePath.slice(-57) : relativePath;
 
               const findingLog = `
-${index + 1}. ${severityIcon} │ ${finding.check_id || 'Unknown Rule'}
+${index + 1}. ${sevIcon} │ ${finding.check_id || 'Unknown Rule'}
    File: ${shortPath}
    Line: ${finding.start?.line || '?'}
    ${finding.extra?.message || finding.message || 'No description'}
 ${"─".repeat(79)}
 `;
-              
-              event.sender.send(`scan-log:${scanId}`, {
-                log: findingLog,
-                progress: 92 + Math.floor(((index + 1) / topFindings.length) * 3),
-              });
+              event.sender.send(`scan-log:${scanId}`, { log: findingLog, progress: 93 });
             });
-
-            if (totalIssues > 10) {
-              event.sender.send(`scan-log:${scanId}`, {
-                log: `\n   ... and ${totalIssues - 10} more findings (check opengrep-report.json for details)\n`,
-                progress: 95,
-              });
-            }
-
           } else {
-            event.sender.send(`scan-log:${scanId}`, {
+             event.sender.send(`scan-log:${scanId}`, {
               log: `\n\n✅ NO SECURITY ISSUES DETECTED!\n${"═".repeat(79)}\n\n`,
               progress: 95,
             });
-
             event.sender.send(`scan-log:${scanId}`, {
-              log: `🎉 All ${totalFilesScanned} files passed security analysis.\n`,
-              progress: 95,
-            });
-            
-            event.sender.send(`scan-log:${scanId}`, {
-              log: `🛡️  No vulnerabilities found. Repository is secure!\n`,
+              log: `🎉 All ${totalFilesScanned} files passed security analysis.\n🛡️  No vulnerabilities found. Repository is secure!\n`,
               progress: 95,
             });
           }
 
           // ==================== 5. FINAL SUMMARY ====================
           const projectsList = projectsWithFiles.length > 0 
-            ? projectsWithFiles.map(([dir]) => dir).slice(0, 3).join(', ') + 
-              (projectsWithFiles.length > 3 ? `, +${projectsWithFiles.length - 3} more` : '')
-            : 'No projects detected';
+            ? projectsWithFiles.map(([dir]) => dir).slice(0, 3).join(', ') + (projectsWithFiles.length > 3 ? `, +${projectsWithFiles.length - 3} more` : '')
+            : 'No sub-projects detected';
 
           const summary_text = `
-
-
 ╔═══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                               ║
 ║                        📊  SAST ANALYSIS SUMMARY  📊                         ║
@@ -1418,16 +1299,18 @@ Branch            : ${branch}
 Scan Engine       : OpenGrep (Open Source SAST)
 
 📁 SCAN COVERAGE
-${"─".repeat(79)}
-  Projects Scanned        : ${projectsWithFiles.length} (${projectsList})
-  Project Files           : ${totalProjectFiles}
-  Root/Config Files       : ${rootLevelFiles}
+───────────────────────────────────────────────────────────────────────────────
   Total Files Scanned     : ${totalFilesScanned}
+  Projects Scanned        : ${projectsWithFiles.length} (${projectsList})
   Files Skipped           : ${skippedFiles.length}
   Rules Applied           : ${totalRulesCount > 0 ? totalRulesCount : 'Auto (Community Rules)'}
 
+  Breakdown:
+   - Project Code         : ${filesInIdentifiedProjects}
+   - Config/Root/Misc     : ${otherFiles}
+
 🔍 FINDINGS SUMMARY
-${"─".repeat(79)}
+───────────────────────────────────────────────────────────────────────────────
   Total Issues            : ${totalIssues}
   🔴 Critical/Error       : ${criticalCount}
   🟠 High/Warning         : ${highCount}
@@ -1435,40 +1318,14 @@ ${"─".repeat(79)}
   🔵 Low/Info             : ${lowCount}
 
 🎯 SECURITY VERDICT
-${"─".repeat(79)}
+───────────────────────────────────────────────────────────────────────────────
 ${totalIssues === 0 
-  ? `  ✅ SECURE — All ${projectsWithFiles.length} project(s) passed security checks
-  ✅ No vulnerabilities detected
-  ✅ Safe to deploy to production`
+  ? `  ✅ SECURE — All code passed security checks\n  ✅ No vulnerabilities detected\n  ✅ Safe to deploy to production`
   : criticalCount > 0
-  ? `  🚨 CRITICAL RISK — ${criticalCount} critical vulnerabilities detected
-  ⛔ DO NOT DEPLOY until all critical issues are fixed
-  🔧 Immediate remediation required`
-  : highCount > 0
-  ? `  🟠 HIGH RISK — ${highCount} high severity issues found
-  ⚠️  Review and fix before deployment
-  🔧 Remediation recommended`
-  : totalIssues <= 5
-  ? `  🟡 LOW RISK — ${totalIssues} minor issues detected
-  ℹ️  Review findings before release
-  🔧 Non-critical remediation`
-  : `  🟡 MEDIUM RISK — ${totalIssues} security issues found
-  ⚠️  Security review required before production
-  🔧 Address issues before deployment`
+  ? `  🚨 CRITICAL RISK — ${criticalCount} critical vulnerabilities detected\n  ⛔ DO NOT DEPLOY until all critical issues are fixed\n  🔧 Immediate remediation required`
+  : `  ⚠️  RISKS DETECTED — ${totalIssues} issues found\n  🔧 Review required`
 }
-
-📝 RECOMMENDATION
-${"─".repeat(79)}
-${totalIssues === 0
-  ? `  All security checks passed across ${projectsWithFiles.length} project(s). Production-ready.`
-  : criticalCount > 0
-  ? `  Fix ${criticalCount} critical vulnerability(ies) immediately. DO NOT RELEASE.`
-  : totalIssues <= 5
-  ? `  Review and fix ${totalIssues} minor issue(s). Low priority.`
-  : `  Address ${totalIssues} security issue(s) before production deployment.`
-}
-
-${"═".repeat(79)}
+═══════════════════════════════════════════════════════════════════════════════
 `;
 
           event.sender.send(`scan-log:${scanId}`, {
@@ -1478,25 +1335,18 @@ ${"═".repeat(79)}
 
         } catch (err: any) {
           debugLog(`Error parsing OpenGrep report: ${err.message}`);
-          
           event.sender.send(`scan-log:${scanId}`, {
             log: `\n❌ Error parsing report: ${err.message}\n`,
             progress: 100,
           });
         }
       } else {
-        debugLog(`[OPENGREP] Report file not found at: ${reportPath}`);
-        
         event.sender.send(`scan-log:${scanId}`, {
           log: `\n⚠️ No report file generated\n`,
           progress: 100,
         });
-
         if (stderrData.trim()) {
-          event.sender.send(`scan-log:${scanId}`, {
-            log: `\n❌ Error details:\n${stderrData}\n`,
-            progress: 100,
-          });
+           event.sender.send(`scan-log:${scanId}`, { log: `\n❌ Error details:\n${stderrData}\n`, progress: 100 });
         }
       }
 
@@ -1504,9 +1354,9 @@ ${"═".repeat(79)}
       
       event.sender.send(`scan-complete:${scanId}`, {
         success,
-        totalIssues,
-        passedChecks,
-        failedChecks,
+        totalIssues: totalIssues,
+        passedChecks: passedChecks,
+        failedChecks: failedChecks,
         error: success ? undefined : `Scan exited with code ${code}`,
       });
 
@@ -1515,35 +1365,22 @@ ${"═".repeat(79)}
 
     child.on("error", (err) => {
       activeProcesses.delete(scanProcessId);
-      
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `\n❌ OpenGrep process error: ${err.message}\n`,
-        progress: 0,
-      });
-      
-      event.sender.send(`scan-complete:${scanId}`, {
-        success: false,
-        error: err.message,
-      });
-      
+      event.sender.send(`scan-log:${scanId}`, { log: `\n❌ OpenGrep process error: ${err.message}\n`, progress: 0 });
+      event.sender.send(`scan-complete:${scanId}`, { success: false, error: err.message });
       resolve({ success: false, error: err.message });
     });
 
     ipcMain.once(`scan:cancel-${scanId}`, () => {
       cancelled = true;
       debugLog(`Cancelling OpenGrep scan: ${scanId}`);
-      
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `\n⚠️ Scan cancelled by user\n`,
-        progress: 0,
-      });
-      
+      event.sender.send(`scan-log:${scanId}`, { log: `\n⚠️ Scan cancelled by user\n`, progress: 0 });
       killProcess(child, scanProcessId);
       activeProcesses.delete(scanProcessId);
       resolve({ success: false, cancelled: true });
     });
   });
 });
+
 
 
 
