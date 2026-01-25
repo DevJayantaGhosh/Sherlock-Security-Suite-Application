@@ -545,6 +545,36 @@ ${"═".repeat(79)}
       });
     });
   });
+  function formatTrivyReport(results) {
+    if (!results.Results || results.Results.length === 0) return "";
+    let report = "\n🔎 DETAILED VULNERABILITY REPORT\n";
+    report += "════════════════════════════════════════════════════════════\n";
+    results.Results.forEach((target) => {
+      if (target.Vulnerabilities && target.Vulnerabilities.length > 0) {
+        report += `
+📂 Target: ${target.Target}
+`;
+        report += `   Type:   ${target.Type}
+`;
+        report += "   ────────────────────────────────────────────────────────\n";
+        target.Vulnerabilities.forEach((vuln) => {
+          const severityIcon = vuln.Severity === "CRITICAL" ? "🔴" : vuln.Severity === "HIGH" ? "🟠" : vuln.Severity === "MEDIUM" ? "🟡" : "🔵";
+          report += `   ${severityIcon} [${vuln.Severity}] ${vuln.VulnerabilityID}
+`;
+          report += `      📦 Package: ${vuln.PkgName} (${vuln.InstalledVersion})
+`;
+          report += `      ⚠️ Title:   ${vuln.Title || "N/A"}
+`;
+          if (vuln.FixedVersion) {
+            report += `      ✅ Fixed in: ${vuln.FixedVersion}
+`;
+          }
+          report += "\n";
+        });
+      }
+    });
+    return report;
+  }
   ipcMain.handle("scan:trivy", async (event, { repoUrl, branch, scanId }) => {
     debugLog(`[TRIVY] Starting SBOM scan for ${repoUrl}`);
     const trivyPath = validateTool("trivy");
@@ -591,7 +621,7 @@ ${"═".repeat(60)}
       });
       const child = spawn(
         trivyPath,
-        ["fs", "--security-checks", "vuln,config", "--format", "json", repoPath],
+        ["fs", "--scanners", "vuln,misconfig", "--format", "json", repoPath],
         {
           detached: true,
           stdio: ["ignore", "pipe", "pipe"],
@@ -612,10 +642,13 @@ ${"═".repeat(60)}
       });
       (_b = child.stderr) == null ? void 0 : _b.on("data", (data) => {
         if (cancelled) return;
-        event.sender.send(`scan-log:${scanId}`, {
-          log: data.toString(),
-          progress: 85
-        });
+        const msg = data.toString();
+        if (!msg.includes("Update") && !msg.includes("deprecated")) {
+          event.sender.send(`scan-log:${scanId}`, {
+            log: msg,
+            progress: 85
+          });
+        }
       });
       child.on("close", (code) => {
         var _a2;
@@ -634,6 +667,11 @@ ${"═".repeat(60)}
               },
               0
             )) || 0;
+            const detailedReport = formatTrivyReport(results);
+            event.sender.send(`scan-log:${scanId}`, {
+              log: detailedReport,
+              progress: 95
+            });
             const summary = `
 
 ╔═══════════════════════════════════════════════════════════════════════════════╗
@@ -658,6 +696,7 @@ ${"═".repeat(79)}
             });
             resolve({ success: true, vulnerabilities: vulns });
           } catch (err) {
+            console.error("Trivy Parse Error:", err);
             event.sender.send(`scan-complete:${scanId}`, {
               success: false,
               error: "Failed to parse Trivy results"
