@@ -11,16 +11,17 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
 
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { authorizeApprove, getProducts } from "../services/productService";
+// ✅ IMPORT updateProduct to handle the MongoDB call
+import { authorizeApprove, getProducts, updateProduct } from "../services/productService";
 import { useUserStore } from "../store/userStore";
 
 import RepoScanAccordion from "../components/security/RepoScanAccordion";
 import DependencyAudit from "../components/security/DependencyAudit";
 
-import { Product } from "../models/Product";
-import { motion, Variants } from "framer-motion";  // ✅ Added Variants
+import { Product, RepoDetails } from "../models/Product";
+import { motion, Variants } from "framer-motion";
 
-// ✅ Animation Variants with proper typing
+// --- ANIMATION VARIANTS ---
 const containerVariants: Variants = {
   hidden: { opacity: 0 },
   visible: {
@@ -110,13 +111,48 @@ export default function ProductSecurityScanPage() {
       console.log("[SECURITY SCAN PAGE] Unmounting");
     };
   }, []);
-
-  // Cleanup on route change
+  
+    // Cleanup on route change
   useEffect(() => {
     return () => {
       console.log("[SECURITY SCAN PAGE] Route changing from:", location.pathname);
     };
   }, [location.pathname]);
+
+  // ✅ HANDLER: Updates State & Calls DB Service
+  const handleRepoUpdate = async (repoIndex: number, updatedRepo: RepoDetails) => {
+    if (!product) return;
+
+    console.group("🔄 [Repo Update Debug]");
+    console.log("1. Previous Product State:", product);
+    console.log(`2. Updating Repo at Index [${repoIndex}]`);
+    console.log("3. New Repo Details:", updatedRepo);
+
+    // 1. Create a safe copy of the repos array
+    const updatedRepos = [...product.repos];
+    updatedRepos[repoIndex] = updatedRepo;
+
+    // 2. Create the new product object
+    const updatedProduct = { 
+      ...product, 
+      repos: updatedRepos 
+    };
+
+    console.log("4. Final New Product (Sending to DB):", updatedProduct);
+    console.groupEnd();
+
+    // 3. Update Local State (Immediate UI feedback)
+    setProduct(updatedProduct);
+
+    // 4. Save to Backend/DB
+    try {
+      // Calls your service which should fire the API request to MongoDB
+      await updateProduct(updatedProduct); 
+      console.log(`✅ [DB SUCCESS] Saved scan results for repo ${repoIndex}`);
+    } catch (error) {
+      console.error("❌ [DB FAILURE] Failed to save scan results:", error);
+    }
+  };
 
   if (!product) {
     return (
@@ -177,7 +213,7 @@ export default function ProductSecurityScanPage() {
   return (
     <Box sx={{ pt: 10, pb: 8, minHeight: "100vh" }}>
       <Container maxWidth="lg">
-        {/* ✅ Animated Container */}
+        {/* Animated Container */}
         <motion.div
           variants={containerVariants}
           initial="hidden"
@@ -191,9 +227,7 @@ export default function ProductSecurityScanPage() {
                   <Typography variant="h4" fontWeight={800}>
                     Security Scan — {product.name}
                   </Typography>
-                  <Typography color="text.secondary" sx={{ mt: 1 }}>
-                    {product.description}
-                  </Typography>
+                  <Typography color="text.secondary" sx={{ mt: 1 }}>{product.description}</Typography>
                   <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
                     <Chip label={`v${product.version}`} size="small" />
                     <Chip label={product.status} size="small" color={product.status === "Approved" ? "success" : "warning"} />
@@ -230,14 +264,14 @@ export default function ProductSecurityScanPage() {
             </motion.div>
           )}
 
-          {/* Repository Scans */}
+          {/* Scans Header */}
           <motion.div variants={itemVariants}>
             <Typography variant="h5" fontWeight={700} sx={{ mb: 2 }}>
               Repository Security Scans
             </Typography>
           </motion.div>
 
-          {/* ✅ Staggered Repo Scans */}
+          {/* Scans List */}
           <Stack spacing={3}>
             {product.repos.map((repo, idx) => (
               <motion.div
@@ -247,6 +281,8 @@ export default function ProductSecurityScanPage() {
                 <RepoScanAccordion
                   product={product}
                   repoDetails={repo}
+                  // Pass the update handler to bubble up changes
+                  onRepoUpdate={(updatedRepo) => handleRepoUpdate(idx, updatedRepo)}
                 />
               </motion.div>
             ))}
