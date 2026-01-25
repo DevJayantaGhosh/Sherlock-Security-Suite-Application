@@ -101,32 +101,118 @@ let productDB: Product[] = [
   status: "Pending",
 }
 ,
-  {
-    id: "3",
-    name: "File Upload Service",
-    version: "1.2.0",
-    description: "Large file upload POC with chunking support.",
-    productDirector: "u1",
-    securityHead: "u2",
-    releaseEngineers: ["u3"],
-    repos: [
-      {
-        repoUrl: "https://github.com/DevJayantaGhosh/large-fileupload-poc.git",
-        branch: "main",
-        componentConfigs: [
-          {
-            language: "javascript-typescript",
-            buildCommand: "",
-            workingDirectory: "",
+{
+  "id": "prod_example_01",
+  "name": "E-Commerce Payment Gateway",
+  "version": "2.4.1",
+  "description": "Core payment processing service handling transactions and secure checkout.",
+  "productDirector": "u1",
+  "securityHead": "u2",
+  "releaseEngineers": ["u3", "u4"],
+  
+  "repos": [
+    {
+      "repoUrl": "https://github.com/example/payment-gateway-service.git",
+      "branch": "release/v2.4",
+      "componentConfigs": [
+        {
+          "language": "java",
+          "buildCommand": "mvn clean install",
+          "workingDirectory": "/backend"
+        },
+        {
+          "language": "javascript-typescript",
+          "buildCommand": "npm install && npm build",
+          "workingDirectory": "/dashboard-ui"
+        }
+      ],
+      "scans": {
+        "signatureVerification": {
+          "status": "success",
+          "timestamp": "2026-01-26T10:00:00.000Z",
+          "logs": [
+            "Fetching GPG keys from key server...",
+            "Verifying 45 commits...",
+            "All commits signed by authorized developers."
+          ],
+          "summary": {
+            "totalCommits": 45,
+            "goodSignatures": 45
+          }
+        },
+        "secretLeakDetection": {
+          "status": "failed",
+          "timestamp": "2026-01-26T10:05:00.000Z",
+          "logs": [
+            "Starting Gitleaks scan...",
+            "Scanning history...",
+            "CRITICAL: Found AWS Access Key in src/config/aws.js"
+          ],
+          "summary": {
+            "findings": 1
+          }
+        },
+        "vulnerabilityScan": {
+          "status": "success",
+          "timestamp": "2026-01-26T10:10:00.000Z",
+          "logs": [
+            "Updating Trivy DB...",
+            "Scanning package-lock.json...",
+            "Scanning pom.xml...",
+            "Found 12 vulnerabilities."
+          ],
+          "summary": {
+            "vulnerabilities": 12,
+            "critical": 0,
+            "high": 2,
+            "medium": 5,
+            "low": 5
+          }
+        },
+        "staticAnalysis": {
+          "status": "success",
+          "timestamp": "2026-01-26T10:15:00.000Z",
+          "logs": [
+            "[OPENGREP] Starting scan...",
+            "Running with configs: auto, p/owasp-top-ten, p/secrets",
+            "Scanned 150 files.",
+            "Found 8 issues."
+          ],
+          "summary": {
+            "totalIssues": 8,
+            "passedChecks": 150,
+            "failedChecks": 8
           },
-        ],
-      },
-    ],
-    dependencies: ["Node", "Express", "AWS S3"],
-    createdBy: "u1",
-    createdAt: new Date().toISOString(),
-    status: "Pending",
-  },
+          "componentResults": [
+            {
+              "componentName": "Backend Service",
+              "language": "java",
+              "issuesCount": 3,
+              "isPassing": true
+            },
+            {
+              "componentName": "Admin Dashboard",
+              "language": "javascript-typescript",
+              "issuesCount": 5,
+              "isPassing": false
+            }
+          ]
+        }
+      }
+    }
+  ],
+  
+  "dependencies": ["Spring Boot 3.2", "React 18", "PostgreSQL", "Redis"],
+  
+  "createdBy": "u1",
+  "createdAt": "2026-01-20T08:30:00.000Z",
+  "updatedBy": "u3",
+  "updatedAt": "2026-01-26T10:20:00.000Z",
+  
+  "status": "Pending",
+  "remark": "Waiting for Secret Leak remediation before final approval."
+},
+
 ];
 
 /* ======================================================
