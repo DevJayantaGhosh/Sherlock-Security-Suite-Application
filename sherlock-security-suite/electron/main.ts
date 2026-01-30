@@ -1382,108 +1382,118 @@ ${totalIssues === 0
 });
 
 /* ============================================================
-   GENERATE KEYS (Uses existing validateTool)
+   KEY GENERATION
 ============================================================ */
 ipcMain.handle("crypto:generate-keys", async (event, { type, size, curve, password, outputDir, scanId }) => {
-  
   // 1. Validate Tool
   const exePath = validateTool("KeyGenerator");
-  
   if (!exePath) {
-     event.sender.send(`scan-log:${scanId}`, { 
-        log: `\n❌ TOOL ERROR: KeyGenerator not found or not executable.\nExpected at: ${toolPath("KeyGenerator")}\n`, 
-        progress: 0 
-     });
-     return { success: false, error: "Tool not found" };
+    event.sender.send(`scan-log:${scanId}`, { 
+      log: `\n❌ TOOL ERROR: KeyGenerator not found!\nExpected: ${toolPath("KeyGenerator")}\n`, 
+      progress: 0 
+    });
+    return { success: false, error: "Tool not found" };
   }
 
   return new Promise((resolve) => {
-    // 2. Initial Logs (SECURE: Password not shown)
+    // 2. HEADER
     event.sender.send(`scan-log:${scanId}`, {
-      log: `\n${"═".repeat(60)}\n🔑 INITIALIZING KEY GENERATION SEQUENCE\n${"═".repeat(60)}\n\n`,
-      progress: 10,
+      log: `\n${"═".repeat(65)}\n🔑 KEY GENERATION STARTED\n${"═".repeat(65)}\n\n` +
+           `🔹 Algorithm: ${type.toUpperCase()}${type === 'rsa' ? ` (${size} bits)` : ` (${curve})`}\n` +
+           `🔹 Output: ${outputDir}\n` +
+           `🔹 Security: ${password ? "🔒 Protected" : "⚠️ No Password"}\n\n`,
+      progress: 5,
     });
 
-    event.sender.send(`scan-log:${scanId}`, {
-      log: `🔹 Algorithm : ${type.toUpperCase()}\n🔹 Output Dir: ${outputDir}\n🔹 Security  : ${password ? "Password Protected 🔒" : "No Password ⚠️"}\n\n`,
-      progress: 15,
-    });
-
-    // 3. Construct Args
-    const args = ["generate", type];
-    if (type === "rsa" && size) args.push("-s", size.toString());
+    // 3. Build Args (❌ NO -v flag)
+    const args: string[] = ["generate", type];
+    if (type === "rsa" && size) args.push("-s", `${size}`);
     if (type === "ecdsa" && curve) args.push("-c", curve);
     if (password) args.push("-p", password);
     args.push("-o", outputDir);
-    args.push("-v"); // Verbose
+    // ✅ NO "-v" flag - exactly matches your working command
 
-    // 4. Spawn
-    const child = spawn(exePath, args);
-    activeProcesses.set(scanId, child);
+    // 4. LOG COMMAND
+    const commandDisplay = `KeyGenerator.exe ${args.join(" ")}`;
+    event.sender.send(`scan-log:${scanId}`, {
+      log: `🔍 RUNNING:\n  ${commandDisplay}\n\n⏳ Executing...\n`,
+      progress: 10,
+    });
+
+    // 5. ✅ DIRECT SPAWN - No dynamic imports
+    const child = spawn(exePath, args, { 
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
     
+    activeProcesses.set(scanId, child);
     let buffer = "";
     let cancelled = false;
 
-    // 5. Stream
-    child.stdout.on("data", (chunk) => {
-      if (cancelled) return;
-      const text = chunk.toString();
-      buffer += text;
-      event.sender.send(`scan-log:${scanId}`, { log: text, progress: 50 });
-    });
+    // 6. STDOUT
+    if (child.stdout) {
+      child.stdout.on("data", (chunk: Buffer) => {
+        if (cancelled) return;
+        const text = chunk.toString();
+        buffer += text;
+        event.sender.send(`scan-log:${scanId}`, { log: text, progress: 60 });
+      });
+    }
 
-    child.stderr.on("data", (chunk) => {
-      if (cancelled) return;
-      const text = chunk.toString();
-      buffer += text;
-      event.sender.send(`scan-log:${scanId}`, { log: `[STDERR] ${text}`, progress: 50 });
-    });
+    // 7. STDERR (RED)
+    if (child.stderr) {
+      child.stderr.on("data", (chunk: Buffer) => {
+        if (cancelled) return;
+        const text = chunk.toString();
+        buffer += text;
+        event.sender.send(`scan-log:${scanId}`, { log: `\n🔴 [ERROR] ${text.trim()}\n`, progress: 50 });
+      });
+    }
 
-    // 6. Complete
-    child.on("close", (code) => {
+    // 8. Process Exit + File Check
+    child.on("close", (code: number | null) => {
       activeProcesses.delete(scanId);
       if (cancelled) return;
-
-      const success = code === 0;
       
-      // Extract paths for summary
-      const pubMatch = buffer.match(/Public:\s*(.*)/i);
-      const privMatch = buffer.match(/Private:\s*(.*)/i);
-      const pubPath = pubMatch ? pubMatch[1].trim() : "N/A";
-      const privPath = privMatch ? privMatch[1].trim() : "N/A";
+      const trueSuccess = code === 0 ;
 
-      const summary = `
+      // 9. FINAL REPORT
+      let finalReport = `
 ╔══════════════════════════════════════════════════════════════════════╗
 ║                    KEY GENERATION REPORT                             ║
 ╚══════════════════════════════════════════════════════════════════════╝
+      \n\n`;
+      finalReport += `    RESULT     : ${code === 0 ? "✅ SUCCESS" : `❌ FAILED (${code})`}\n`;
+      finalReport += `    Algorithm  : ${type.toUpperCase()}\n`;
+      finalReport += `    Timestamp  : ${new Date().toLocaleTimeString()}\n`;
+      if (trueSuccess) {
+        finalReport += `✅ KEYS READY FOR SIGNING!\n`;
+      } else {
+        finalReport += `⚠️  Check error logs above\n`;
+      }
 
- Status       : ${success ? "✅ SUCCESS" : "❌ FAILED"}
- Algorithm    : ${type.toUpperCase()}
- Timestamp    : ${new Date().toLocaleTimeString()}
+      finalReport += `${"═".repeat(70)}`;
 
- 📂 Generated Files:
- ───────────────────
- 🔑 Public Key : ${path.basename(pubPath)}
- 🗝️ Private Key: ${path.basename(privPath)}
-
- 📂 Location:
- ${outputDir}
-
-${"═".repeat(70)}
-`;
-
-      event.sender.send(`scan-log:${scanId}`, { log: summary, progress: 100 });
-      event.sender.send(`scan-complete:${scanId}`, { success });
-      resolve({ success });
+      event.sender.send(`scan-log:${scanId}`, { log: finalReport, progress: 100 });
+      event.sender.send(`scan-complete:${scanId}`, { success: trueSuccess });
+      resolve({ success: trueSuccess });
     });
 
-    // 7. Cancel
+    // 10. Errors
+    child.on("error", (error: Error) => {
+      activeProcesses.delete(scanId);
+      event.sender.send(`scan-log:${scanId}`, { 
+        log: `\n💥 SPAWN ERROR: ${error.message}`, 
+        progress: 0 
+      });
+      resolve({ success: false, error: error.message });
+    });
+
+    // 11. Cancel
     ipcMain.once(`scan:cancel-${scanId}`, () => {
-        cancelled = true;
-        if (child.pid) try { process.kill(child.pid); } catch(e) {}
-        activeProcesses.delete(scanId);
-        event.sender.send(`scan-log:${scanId}`, { log: "\n⚠️ PROCESS CANCELLED BY USER\n", progress: 0 });
-        resolve({ success: false, cancelled: true });
+      cancelled = true;
+      if (child.pid) process.kill(child.pid, 'SIGTERM');
+      event.sender.send(`scan-log:${scanId}`, { log: `\n🛑 CANCELLED\n`, progress: 0 });
+      resolve({ success: false, cancelled: true });
     });
   });
 });
@@ -1532,7 +1542,6 @@ ipcMain.handle("crypto:sign-artifact", async (event, { repoUrl, branch, privateK
       "-c", repoPath,
       "-k", privateKeyPath,
       "-o", outputSigPath,
-      "-v"
     ];
     if (password) args.push("-p", password);
 
@@ -1564,7 +1573,6 @@ ipcMain.handle("crypto:sign-artifact", async (event, { repoUrl, branch, privateK
 
       const success = code === 0;
 
-      // Use fsSync (since you already imported it) for file check
       let sigSize = "0 B";
       if (success && fsSync.existsSync(outputSigPath)) {
           sigSize = `${fsSync.statSync(outputSigPath).size} bytes`;
