@@ -1576,10 +1576,10 @@ ipcMain.handle("crypto:sign-artifact", async (event, { repoUrl, branch, privateK
  Timestamp   : ${new Date().toLocaleTimeString()}
 
  🔏 Signature Details:
- ─────────────────────
- 📄 File              : signature.sig
+ ───────────────────────────────────────────────
+ 📄 File              : ${outputSigPath}
  💾 Size             : ${sigSize}
- 🔑 Key Used   : ${path.basename(privateKeyPath)}
+ 🔑 Key Used   : ${privateKeyPath}
 
 \n ${"═".repeat(70)}
 `;
