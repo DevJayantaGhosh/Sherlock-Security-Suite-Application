@@ -34,6 +34,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
   }) =>
     ipcRenderer.invoke("scan:opengrep", payload),
   
+  // Cryptographic Signing Workflow
+  selectFolder: () => ipcRenderer.invoke("dialog:select-folder"),
+  selectFile: () => ipcRenderer.invoke("dialog:select-file"),
+  
+  generateKeys: (payload: any) => ipcRenderer.invoke("crypto:generate-keys", payload),
+  signArtifact: (payload: any) => ipcRenderer.invoke("crypto:sign-artifact", payload),
+
   // Cancel scan
   cancelScan: (payload: { scanId: string }) =>
     ipcRenderer.invoke("scan:cancel", payload),

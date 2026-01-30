@@ -14,6 +14,11 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
   runTrivy: (payload) => electron.ipcRenderer.invoke("scan:trivy", payload),
   // OpenGrep SAST Scan
   runOpenGrep: (payload) => electron.ipcRenderer.invoke("scan:opengrep", payload),
+  // Cryptographic Signing Workflow
+  selectFolder: () => electron.ipcRenderer.invoke("dialog:select-folder"),
+  selectFile: () => electron.ipcRenderer.invoke("dialog:select-file"),
+  generateKeys: (payload) => electron.ipcRenderer.invoke("crypto:generate-keys", payload),
+  signArtifact: (payload) => electron.ipcRenderer.invoke("crypto:sign-artifact", payload),
   // Cancel scan
   cancelScan: (payload) => electron.ipcRenderer.invoke("scan:cancel", payload),
   // Listen to logs

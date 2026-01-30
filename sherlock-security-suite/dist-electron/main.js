@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, dialog } from "electron";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { spawn } from "child_process";
@@ -1234,6 +1234,226 @@ ${stderrData}
         resolve({ success: false, cancelled: true });
       });
     });
+  });
+  ipcMain.handle("crypto:generate-keys", async (event, { type, size, curve, password, outputDir, scanId }) => {
+    const exePath = validateTool("KeyGenerator");
+    if (!exePath) {
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `
+❌ TOOL ERROR: KeyGenerator not found or not executable.
+Expected at: ${toolPath("KeyGenerator")}
+`,
+        progress: 0
+      });
+      return { success: false, error: "Tool not found" };
+    }
+    return new Promise((resolve) => {
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `
+${"═".repeat(60)}
+🔑 INITIALIZING KEY GENERATION SEQUENCE
+${"═".repeat(60)}
+
+`,
+        progress: 10
+      });
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `🔹 Algorithm : ${type.toUpperCase()}
+🔹 Output Dir: ${outputDir}
+🔹 Security  : ${password ? "Password Protected 🔒" : "No Password ⚠️"}
+
+`,
+        progress: 15
+      });
+      const args = ["generate", type];
+      if (type === "rsa" && size) args.push("-s", size.toString());
+      if (type === "ecdsa" && curve) args.push("-c", curve);
+      if (password) args.push("-p", password);
+      args.push("-o", outputDir);
+      args.push("-v");
+      const child = spawn(exePath, args);
+      activeProcesses.set(scanId, child);
+      let buffer = "";
+      let cancelled = false;
+      child.stdout.on("data", (chunk) => {
+        if (cancelled) return;
+        const text = chunk.toString();
+        buffer += text;
+        event.sender.send(`scan-log:${scanId}`, { log: text, progress: 50 });
+      });
+      child.stderr.on("data", (chunk) => {
+        if (cancelled) return;
+        const text = chunk.toString();
+        buffer += text;
+        event.sender.send(`scan-log:${scanId}`, { log: `[STDERR] ${text}`, progress: 50 });
+      });
+      child.on("close", (code) => {
+        activeProcesses.delete(scanId);
+        if (cancelled) return;
+        const success = code === 0;
+        const pubMatch = buffer.match(/Public:\s*(.*)/i);
+        const privMatch = buffer.match(/Private:\s*(.*)/i);
+        const pubPath = pubMatch ? pubMatch[1].trim() : "N/A";
+        const privPath = privMatch ? privMatch[1].trim() : "N/A";
+        const summary = `
+╔══════════════════════════════════════════════════════════════════════╗
+║                    KEY GENERATION REPORT                             ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+ Status       : ${success ? "✅ SUCCESS" : "❌ FAILED"}
+ Algorithm    : ${type.toUpperCase()}
+ Timestamp    : ${(/* @__PURE__ */ new Date()).toLocaleTimeString()}
+
+ 📂 Generated Files:
+ ───────────────────
+ 🔑 Public Key : ${path.basename(pubPath)}
+ 🗝️ Private Key: ${path.basename(privPath)}
+
+ 📂 Location:
+ ${outputDir}
+
+${"═".repeat(70)}
+`;
+        event.sender.send(`scan-log:${scanId}`, { log: summary, progress: 100 });
+        event.sender.send(`scan-complete:${scanId}`, { success });
+        resolve({ success });
+      });
+      ipcMain.once(`scan:cancel-${scanId}`, () => {
+        cancelled = true;
+        if (child.pid) try {
+          process.kill(child.pid);
+        } catch (e) {
+        }
+        activeProcesses.delete(scanId);
+        event.sender.send(`scan-log:${scanId}`, { log: "\n⚠️ PROCESS CANCELLED BY USER\n", progress: 0 });
+        resolve({ success: false, cancelled: true });
+      });
+    });
+  });
+  ipcMain.handle("crypto:sign-artifact", async (event, { repoUrl, branch, privateKeyPath, password, scanId }) => {
+    const exePath = validateTool("SoftwareSigner");
+    if (!exePath) {
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `
+❌ TOOL ERROR: SoftwareSigner not found.
+Expected at: ${toolPath("SoftwareSigner")}
+`,
+        progress: 0
+      });
+      return { success: false, error: "Tool not found" };
+    }
+    const repoPath = await cloneRepository(event, repoUrl, branch, scanId);
+    if (!repoPath) {
+      event.sender.send(`scan-complete:${scanId}`, { success: false, error: "Clone Failed" });
+      return { success: false, error: "Clone Failed" };
+    }
+    return new Promise((resolve) => {
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `
+${"═".repeat(60)}
+🔏 INITIATING CRYPTOGRAPHIC SIGNING
+${"═".repeat(60)}
+
+`,
+        progress: 30
+      });
+      const outputSigPath = path.join(repoPath, "signature.sig");
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `🔹 Target Repo : ${repoUrl}
+🔹 Branch      : ${branch}
+🔹 Signing Key : ${path.basename(privateKeyPath)}
+🔹 Security    : ${password ? "Password Protected 🔒" : "No Password ⚠️"}
+🔹 Output Path : ${outputSigPath}
+
+`,
+        progress: 35
+      });
+      const args = [
+        "sign",
+        "-c",
+        repoPath,
+        "-k",
+        privateKeyPath,
+        "-o",
+        outputSigPath,
+        "-v"
+      ];
+      if (password) args.push("-p", password);
+      const child = spawn(exePath, args);
+      activeProcesses.set(scanId, child);
+      let cancelled = false;
+      child.stdout.on("data", (chunk) => {
+        if (cancelled) return;
+        const text = chunk.toString();
+        event.sender.send(`scan-log:${scanId}`, { log: text, progress: 60 });
+      });
+      child.stderr.on("data", (chunk) => {
+        if (cancelled) return;
+        const text = chunk.toString();
+        event.sender.send(`scan-log:${scanId}`, { log: `[STDERR] ${text}`, progress: 60 });
+      });
+      child.on("close", (code) => {
+        activeProcesses.delete(scanId);
+        if (cancelled) return;
+        const success = code === 0;
+        let sigSize = "0 B";
+        if (success && fsSync.existsSync(outputSigPath)) {
+          sigSize = `${fsSync.statSync(outputSigPath).size} bytes`;
+        }
+        const summary = `
+╔══════════════════════════════════════════════════════════════════════╗
+║                  DIGITAL SIGNATURE REPORT                            ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+ Status       : ${success ? "✅ SIGNED & VERIFIED" : "❌ SIGNING FAILED"}
+ Repository   : ${repoUrl}
+ Branch       : ${branch}
+ Timestamp    : ${(/* @__PURE__ */ new Date()).toLocaleTimeString()}
+
+ 🔏 Signature Details:
+ ─────────────────────
+ 📄 File      : signature.sig
+ 💾 Size      : ${sigSize}
+ 🔑 Key Used  : ${path.basename(privateKeyPath)}
+
+${"═".repeat(70)}
+`;
+        event.sender.send(`scan-log:${scanId}`, { log: summary, progress: 100 });
+        event.sender.send(`scan-complete:${scanId}`, { success });
+        resolve({ success });
+      });
+      ipcMain.once(`scan:cancel-${scanId}`, () => {
+        cancelled = true;
+        if (child.pid) try {
+          process.kill(child.pid);
+        } catch (e) {
+        }
+        activeProcesses.delete(scanId);
+        event.sender.send(`scan-log:${scanId}`, { log: "\n⚠️ PROCESS CANCELLED BY USER\n", progress: 0 });
+        resolve({ success: false, cancelled: true });
+      });
+    });
+  });
+  ipcMain.handle("dialog:select-folder", async (event) => {
+    const win2 = BrowserWindow.fromWebContents(event.sender);
+    if (!win2) return null;
+    const { filePaths, canceled } = await dialog.showOpenDialog(win2, {
+      properties: ["openDirectory", "createDirectory", "promptToCreate"],
+      title: "Select Output Directory",
+      buttonLabel: "Select Folder"
+    });
+    return canceled || filePaths.length === 0 ? null : filePaths[0];
+  });
+  ipcMain.handle("dialog:select-file", async (event) => {
+    const win2 = BrowserWindow.fromWebContents(event.sender);
+    if (!win2) return null;
+    const { filePaths, canceled } = await dialog.showOpenDialog(win2, {
+      properties: ["openFile"],
+      filters: [{ name: "Keys", extensions: ["pem", "key", "sig"] }],
+      title: "Select Private Key",
+      buttonLabel: "Select Key"
+    });
+    return canceled || filePaths.length === 0 ? null : filePaths[0];
   });
   ipcMain.handle("scan:cancel", async (event, { scanId }) => {
     debugLog(`Cancel requested: ${scanId}`);

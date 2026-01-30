@@ -1,5 +1,5 @@
 // electron/main.ts
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { spawn, ChildProcess } from "child_process";
@@ -42,7 +42,7 @@ function getOsFolder() {
   return "linux";
 }
 
-function toolPath(tool: "gitleaks" | "trivy" | "opengrep"): string {
+function toolPath(tool: "gitleaks" | "trivy" | "opengrep" | "KeyGenerator" | "SoftwareSigner"): string {
   const ext = process.platform === "win32" ? ".exe" : "";
   const toolFile = tool + ext;
   return path.join(
@@ -54,7 +54,7 @@ function toolPath(tool: "gitleaks" | "trivy" | "opengrep"): string {
   );
 }
 
-function validateTool(tool: "gitleaks" | "trivy" | "opengrep"): string | null {
+function validateTool(tool: "gitleaks" | "trivy" | "opengrep" | "KeyGenerator" | "SoftwareSigner"): string | null {
   const fullPath = toolPath(tool);
   
   if (!fsSync.existsSync(fullPath)) {
@@ -1381,12 +1381,265 @@ ${totalIssues === 0
   });
 });
 
+/* ============================================================
+   GENERATE KEYS (Uses existing validateTool)
+============================================================ */
+ipcMain.handle("crypto:generate-keys", async (event, { type, size, curve, password, outputDir, scanId }) => {
+  
+  // 1. Validate Tool
+  const exePath = validateTool("KeyGenerator");
+  
+  if (!exePath) {
+     event.sender.send(`scan-log:${scanId}`, { 
+        log: `\n❌ TOOL ERROR: KeyGenerator not found or not executable.\nExpected at: ${toolPath("KeyGenerator")}\n`, 
+        progress: 0 
+     });
+     return { success: false, error: "Tool not found" };
+  }
+
+  return new Promise((resolve) => {
+    // 2. Initial Logs (SECURE: Password not shown)
+    event.sender.send(`scan-log:${scanId}`, {
+      log: `\n${"═".repeat(60)}\n🔑 INITIALIZING KEY GENERATION SEQUENCE\n${"═".repeat(60)}\n\n`,
+      progress: 10,
+    });
+
+    event.sender.send(`scan-log:${scanId}`, {
+      log: `🔹 Algorithm : ${type.toUpperCase()}\n🔹 Output Dir: ${outputDir}\n🔹 Security  : ${password ? "Password Protected 🔒" : "No Password ⚠️"}\n\n`,
+      progress: 15,
+    });
+
+    // 3. Construct Args
+    const args = ["generate", type];
+    if (type === "rsa" && size) args.push("-s", size.toString());
+    if (type === "ecdsa" && curve) args.push("-c", curve);
+    if (password) args.push("-p", password);
+    args.push("-o", outputDir);
+    args.push("-v"); // Verbose
+
+    // 4. Spawn
+    const child = spawn(exePath, args);
+    activeProcesses.set(scanId, child);
+    
+    let buffer = "";
+    let cancelled = false;
+
+    // 5. Stream
+    child.stdout.on("data", (chunk) => {
+      if (cancelled) return;
+      const text = chunk.toString();
+      buffer += text;
+      event.sender.send(`scan-log:${scanId}`, { log: text, progress: 50 });
+    });
+
+    child.stderr.on("data", (chunk) => {
+      if (cancelled) return;
+      const text = chunk.toString();
+      buffer += text;
+      event.sender.send(`scan-log:${scanId}`, { log: `[STDERR] ${text}`, progress: 50 });
+    });
+
+    // 6. Complete
+    child.on("close", (code) => {
+      activeProcesses.delete(scanId);
+      if (cancelled) return;
+
+      const success = code === 0;
+      
+      // Extract paths for summary
+      const pubMatch = buffer.match(/Public:\s*(.*)/i);
+      const privMatch = buffer.match(/Private:\s*(.*)/i);
+      const pubPath = pubMatch ? pubMatch[1].trim() : "N/A";
+      const privPath = privMatch ? privMatch[1].trim() : "N/A";
+
+      const summary = `
+╔══════════════════════════════════════════════════════════════════════╗
+║                    KEY GENERATION REPORT                             ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+ Status       : ${success ? "✅ SUCCESS" : "❌ FAILED"}
+ Algorithm    : ${type.toUpperCase()}
+ Timestamp    : ${new Date().toLocaleTimeString()}
+
+ 📂 Generated Files:
+ ───────────────────
+ 🔑 Public Key : ${path.basename(pubPath)}
+ 🗝️ Private Key: ${path.basename(privPath)}
+
+ 📂 Location:
+ ${outputDir}
+
+${"═".repeat(70)}
+`;
+
+      event.sender.send(`scan-log:${scanId}`, { log: summary, progress: 100 });
+      event.sender.send(`scan-complete:${scanId}`, { success });
+      resolve({ success });
+    });
+
+    // 7. Cancel
+    ipcMain.once(`scan:cancel-${scanId}`, () => {
+        cancelled = true;
+        if (child.pid) try { process.kill(child.pid); } catch(e) {}
+        activeProcesses.delete(scanId);
+        event.sender.send(`scan-log:${scanId}`, { log: "\n⚠️ PROCESS CANCELLED BY USER\n", progress: 0 });
+        resolve({ success: false, cancelled: true });
+    });
+  });
+});
+
+
+/* ============================================================
+   SIGN ARTIFACT (Uses existing validateTool + cloneRepository)
+============================================================ */
+ipcMain.handle("crypto:sign-artifact", async (event, { repoUrl, branch, privateKeyPath, password, scanId }) => {
+  
+  // 1. Validate Tool
+  const exePath = validateTool("SoftwareSigner");
+  
+  if (!exePath) {
+     event.sender.send(`scan-log:${scanId}`, { 
+        log: `\n❌ TOOL ERROR: SoftwareSigner not found.\nExpected at: ${toolPath("SoftwareSigner")}\n`, 
+        progress: 0 
+     });
+     return { success: false, error: "Tool not found" };
+  }
+
+  // 2. Clone Repo
+  const repoPath = await cloneRepository(event, repoUrl, branch, scanId);
+  if (!repoPath) {
+     event.sender.send(`scan-complete:${scanId}`, { success: false, error: "Clone Failed" });
+     return { success: false, error: "Clone Failed" };
+  }
+
+  return new Promise((resolve) => {
+    // 3. Log (SECURE: Password not shown)
+    event.sender.send(`scan-log:${scanId}`, {
+      log: `\n${"═".repeat(60)}\n🔏 INITIATING CRYPTOGRAPHIC SIGNING\n${"═".repeat(60)}\n\n`,
+      progress: 30,
+    });
+
+    const outputSigPath = path.join(repoPath, "signature.sig");
+
+    event.sender.send(`scan-log:${scanId}`, {
+      log: `🔹 Target Repo : ${repoUrl}\n🔹 Branch      : ${branch}\n🔹 Signing Key : ${path.basename(privateKeyPath)}\n🔹 Security    : ${password ? "Password Protected 🔒" : "No Password ⚠️"}\n🔹 Output Path : ${outputSigPath}\n\n`,
+      progress: 35,
+    });
+
+    // 4. Args
+    const args = [
+      "sign",
+      "-c", repoPath,
+      "-k", privateKeyPath,
+      "-o", outputSigPath,
+      "-v"
+    ];
+    if (password) args.push("-p", password);
+
+    // 5. Spawn
+    const child = spawn(exePath, args);
+    activeProcesses.set(scanId, child);
+
+    let buffer = "";
+    let cancelled = false;
+
+    child.stdout.on("data", (chunk) => {
+      if (cancelled) return;
+      const text = chunk.toString();
+      buffer += text;
+      event.sender.send(`scan-log:${scanId}`, { log: text, progress: 60 });
+    });
+
+    child.stderr.on("data", (chunk) => {
+      if (cancelled) return;
+      const text = chunk.toString();
+      buffer += text;
+      event.sender.send(`scan-log:${scanId}`, { log: `[STDERR] ${text}`, progress: 60 });
+    });
+
+    // 6. Complete
+    child.on("close", (code) => {
+      activeProcesses.delete(scanId);
+      if (cancelled) return;
+
+      const success = code === 0;
+
+      // Use fsSync (since you already imported it) for file check
+      let sigSize = "0 B";
+      if (success && fsSync.existsSync(outputSigPath)) {
+          sigSize = `${fsSync.statSync(outputSigPath).size} bytes`;
+      }
+
+      const summary = `
+╔══════════════════════════════════════════════════════════════════════╗
+║                  DIGITAL SIGNATURE REPORT                            ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+ Status       : ${success ? "✅ SIGNED & VERIFIED" : "❌ SIGNING FAILED"}
+ Repository   : ${repoUrl}
+ Branch       : ${branch}
+ Timestamp    : ${new Date().toLocaleTimeString()}
+
+ 🔏 Signature Details:
+ ─────────────────────
+ 📄 File      : signature.sig
+ 💾 Size      : ${sigSize}
+ 🔑 Key Used  : ${path.basename(privateKeyPath)}
+
+${"═".repeat(70)}
+`;
+
+      event.sender.send(`scan-log:${scanId}`, { log: summary, progress: 100 });
+      event.sender.send(`scan-complete:${scanId}`, { success });
+      resolve({ success });
+    });
+
+    // 7. Cancel
+    ipcMain.once(`scan:cancel-${scanId}`, () => {
+        cancelled = true;
+        if (child.pid) try { process.kill(child.pid); } catch(e) {}
+        activeProcesses.delete(scanId);
+        event.sender.send(`scan-log:${scanId}`, { log: "\n⚠️ PROCESS CANCELLED BY USER\n", progress: 0 });
+        resolve({ success: false, cancelled: true });
+    });
+  });
+});
 
 
 
 
 
 
+/* ============================================================
+   DIALOG HANDLERS (Fixed to be Modal)
+============================================================ */
+ipcMain.handle("dialog:select-folder", async (event) => {
+  // Get the window that triggered this event
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win) return null;
+
+  const { filePaths, canceled } = await dialog.showOpenDialog(win, {
+    properties: ["openDirectory", "createDirectory", "promptToCreate"],
+    title: "Select Output Directory",
+    buttonLabel: "Select Folder"
+  });
+  
+  return (canceled || filePaths.length === 0) ? null : filePaths[0];
+});
+
+ipcMain.handle("dialog:select-file", async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win) return null;
+
+  const { filePaths, canceled } = await dialog.showOpenDialog(win, {
+    properties: ["openFile"],
+    filters: [{ name: "Keys", extensions: ["pem", "key", "sig"] }],
+    title: "Select Private Key",
+    buttonLabel: "Select Key"
+  });
+
+  return (canceled || filePaths.length === 0) ? null : filePaths[0];
+});
 
 
   /* --------------------------------------------------------

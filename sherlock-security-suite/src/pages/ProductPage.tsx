@@ -102,6 +102,10 @@ export default function ProductPage() {
     navigate(`/product/${productId}/security-scan`);
   }
 
+  function navigateToCryptoSign(productId: string) {
+    navigate(`/product/${productId}/cryptographic-signing`);
+  }
+
   function navigateToRelease(productId: string) {
     navigate(`/product/${productId}/releases`);
   }
@@ -122,6 +126,33 @@ export default function ProductPage() {
       navigateToSecurityScan(p.id);
     }
   }
+
+  // --- Cryptographic Signing Handler ---
+  function openCryptoSignClick(p: Product) {
+    // 1. Check Status: Must be Approved (Security Check passed)
+    // if (p.status !== "Approved") {
+    //   confirmAndExec(
+    //     "Cryptographic Signing Restricted",
+    //     "This product is not yet 'Approved'. Security checks must be completed and approved before cryptographic signing can occur.",
+    //     () => { /* Do nothing on confirm, just close dialog */ }
+    //   );
+    //   return;
+    // }
+
+    // 2. Check Permission: Reuse release authorization or create specific sign auth
+    const canSign = authorizeRelease(user, p); 
+    
+    if (!canSign) {
+      confirmAndExec(
+        "Restricted Access",
+        "You do not have permission to digitally sign artifacts. This action is restricted to Release Engineers.",
+        () => navigateToCryptoSign(p.id) // Allow view-only access if desired
+      );
+    } else {
+      navigateToCryptoSign(p.id);
+    }
+  }
+
 
   function openReleaseWorkflowClick(p: Product) {
     const canRelease = authorizeRelease(user, p);
@@ -227,6 +258,7 @@ export default function ProductPage() {
                 )
               }
               onSecurityScan={() => openSecurityScanClick(p)}
+              onCryptographicSign={() => openCryptoSignClick(p)}
               onRelease={() => openReleaseWorkflowClick(p)}
             />
           ))}
