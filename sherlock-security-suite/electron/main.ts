@@ -1385,7 +1385,6 @@ ${totalIssues === 0
    KEY GENERATION
 ============================================================ */
 ipcMain.handle("crypto:generate-keys", async (event, { type, size, curve, password, outputDir, scanId }) => {
-  // 1. Validate Tool
   const exePath = validateTool("KeyGenerator");
   if (!exePath) {
     event.sender.send(`scan-log:${scanId}`, { 
@@ -1396,7 +1395,7 @@ ipcMain.handle("crypto:generate-keys", async (event, { type, size, curve, passwo
   }
 
   return new Promise((resolve) => {
-    // 2. HEADER
+
     event.sender.send(`scan-log:${scanId}`, {
       log: `\n${"═".repeat(65)}\n🔑 KEY GENERATION STARTED\n${"═".repeat(65)}\n\n` +
            `🔹 Algorithm: ${type.toUpperCase()}${type === 'rsa' ? ` (${size} bits)` : ` (${curve})`}\n` +
@@ -1405,22 +1404,18 @@ ipcMain.handle("crypto:generate-keys", async (event, { type, size, curve, passwo
       progress: 5,
     });
 
-    // 3. Build Args (❌ NO -v flag)
     const args: string[] = ["generate", type];
     if (type === "rsa" && size) args.push("-s", `${size}`);
     if (type === "ecdsa" && curve) args.push("-c", curve);
     if (password) args.push("-p", password);
     args.push("-o", outputDir);
-    // ✅ NO "-v" flag - exactly matches your working command
 
-    // 4. LOG COMMAND
     const commandDisplay = `KeyGenerator.exe ${args.join(" ")}`;
     event.sender.send(`scan-log:${scanId}`, {
       log: `🔍 RUNNING:\n  ${commandDisplay}\n\n⏳ Executing...\n`,
       progress: 10,
     });
 
-    // 5. ✅ DIRECT SPAWN - No dynamic imports
     const child = spawn(exePath, args, { 
       stdio: ['ignore', 'pipe', 'pipe']
     });
@@ -1429,7 +1424,6 @@ ipcMain.handle("crypto:generate-keys", async (event, { type, size, curve, passwo
     let buffer = "";
     let cancelled = false;
 
-    // 6. STDOUT
     if (child.stdout) {
       child.stdout.on("data", (chunk: Buffer) => {
         if (cancelled) return;
@@ -1439,7 +1433,6 @@ ipcMain.handle("crypto:generate-keys", async (event, { type, size, curve, passwo
       });
     }
 
-    // 7. STDERR (RED)
     if (child.stderr) {
       child.stderr.on("data", (chunk: Buffer) => {
         if (cancelled) return;
@@ -1449,36 +1442,33 @@ ipcMain.handle("crypto:generate-keys", async (event, { type, size, curve, passwo
       });
     }
 
-    // 8. Process Exit + File Check
     child.on("close", (code: number | null) => {
       activeProcesses.delete(scanId);
       if (cancelled) return;
       
-      const trueSuccess = code === 0 ;
+      const trueSuccess = code === 0;
 
-      // 9. FINAL REPORT
-      let finalReport = `
-╔══════════════════════════════════════════════════════════════════════╗
-║                    KEY GENERATION REPORT                             ║
-╚══════════════════════════════════════════════════════════════════════╝
-      \n\n`;
-      finalReport += `    RESULT     : ${code === 0 ? "✅ SUCCESS" : `❌ FAILED (${code})`}\n`;
-      finalReport += `    Algorithm  : ${type.toUpperCase()}\n`;
-      finalReport += `    Timestamp  : ${new Date().toLocaleTimeString()}\n`;
+      let finalReport = `╔══════════════════════════════════════════════════════════════════════╗\n`;
+      finalReport +=    `                    KEY GENERATION REPORT                               \n`;
+      finalReport +=    `╚══════════════════════════════════════════════════════════════════════╝\n\n`;
+      finalReport += `    RESULT             : ${code === 0 ? "✅ SUCCESS" : "❌ FAILED (" + code + ")"}\n`;
+      finalReport += `    Algorithm         : ${type.toUpperCase()}\n`;
+      finalReport += `    Timestamp      : ${new Date().toLocaleTimeString()}\n`;
+      
       if (trueSuccess) {
-        finalReport += `✅ KEYS READY FOR SIGNING!\n`;
+        finalReport += `    ✅ KEYS READY FOR SIGNING!\n`;
       } else {
-        finalReport += `⚠️  Check error logs above\n`;
+        finalReport += `    ⚠️  Check error logs above\n`;
       }
-
-      finalReport += `${"═".repeat(70)}`;
+      
+      finalReport += `\n${"═".repeat(70)}`;
 
       event.sender.send(`scan-log:${scanId}`, { log: finalReport, progress: 100 });
       event.sender.send(`scan-complete:${scanId}`, { success: trueSuccess });
       resolve({ success: trueSuccess });
     });
 
-    // 10. Errors
+
     child.on("error", (error: Error) => {
       activeProcesses.delete(scanId);
       event.sender.send(`scan-log:${scanId}`, { 
@@ -1488,7 +1478,6 @@ ipcMain.handle("crypto:generate-keys", async (event, { type, size, curve, passwo
       resolve({ success: false, error: error.message });
     });
 
-    // 11. Cancel
     ipcMain.once(`scan:cancel-${scanId}`, () => {
       cancelled = true;
       if (child.pid) process.kill(child.pid, 'SIGTERM');
@@ -1500,11 +1489,10 @@ ipcMain.handle("crypto:generate-keys", async (event, { type, size, curve, passwo
 
 
 /* ============================================================
-   SIGN ARTIFACT (Uses existing validateTool + cloneRepository)
+   SIGN ARTIFACT 
 ============================================================ */
 ipcMain.handle("crypto:sign-artifact", async (event, { repoUrl, branch, privateKeyPath, password, scanId }) => {
   
-  // 1. Validate Tool
   const exePath = validateTool("SoftwareSigner");
   
   if (!exePath) {
@@ -1515,7 +1503,7 @@ ipcMain.handle("crypto:sign-artifact", async (event, { repoUrl, branch, privateK
      return { success: false, error: "Tool not found" };
   }
 
-  // 2. Clone Repo
+  //  Clone Repo
   const repoPath = await cloneRepository(event, repoUrl, branch, scanId);
   if (!repoPath) {
      event.sender.send(`scan-complete:${scanId}`, { success: false, error: "Clone Failed" });
@@ -1523,7 +1511,7 @@ ipcMain.handle("crypto:sign-artifact", async (event, { repoUrl, branch, privateK
   }
 
   return new Promise((resolve) => {
-    // 3. Log (SECURE: Password not shown)
+    // Log (SECURE: Password not shown)
     event.sender.send(`scan-log:${scanId}`, {
       log: `\n${"═".repeat(60)}\n🔏 INITIATING CRYPTOGRAPHIC SIGNING\n${"═".repeat(60)}\n\n`,
       progress: 30,
@@ -1536,7 +1524,6 @@ ipcMain.handle("crypto:sign-artifact", async (event, { repoUrl, branch, privateK
       progress: 35,
     });
 
-    // 4. Args
     const args = [
       "sign",
       "-c", repoPath,
@@ -1545,7 +1532,7 @@ ipcMain.handle("crypto:sign-artifact", async (event, { repoUrl, branch, privateK
     ];
     if (password) args.push("-p", password);
 
-    // 5. Spawn
+
     const child = spawn(exePath, args);
     activeProcesses.set(scanId, child);
 
@@ -1566,7 +1553,7 @@ ipcMain.handle("crypto:sign-artifact", async (event, { repoUrl, branch, privateK
       event.sender.send(`scan-log:${scanId}`, { log: `[STDERR] ${text}`, progress: 60 });
     });
 
-    // 6. Complete
+
     child.on("close", (code) => {
       activeProcesses.delete(scanId);
       if (cancelled) return;
@@ -1580,21 +1567,21 @@ ipcMain.handle("crypto:sign-artifact", async (event, { repoUrl, branch, privateK
 
       const summary = `
 ╔══════════════════════════════════════════════════════════════════════╗
-║                  DIGITAL SIGNATURE REPORT                            ║
+                    DIGITAL SIGNATURE REPORT                            
 ╚══════════════════════════════════════════════════════════════════════╝
 
- Status       : ${success ? "✅ SIGNED & VERIFIED" : "❌ SIGNING FAILED"}
- Repository   : ${repoUrl}
- Branch       : ${branch}
- Timestamp    : ${new Date().toLocaleTimeString()}
+ Status             : ${success ? "✅ SIGNED & VERIFIED" : "❌ SIGNING FAILED"}
+ Repository    : ${repoUrl}
+ Branch           : ${branch}
+ Timestamp   : ${new Date().toLocaleTimeString()}
 
  🔏 Signature Details:
  ─────────────────────
- 📄 File      : signature.sig
- 💾 Size      : ${sigSize}
- 🔑 Key Used  : ${path.basename(privateKeyPath)}
+ 📄 File              : signature.sig
+ 💾 Size             : ${sigSize}
+ 🔑 Key Used   : ${path.basename(privateKeyPath)}
 
-${"═".repeat(70)}
+\n ${"═".repeat(70)}
 `;
 
       event.sender.send(`scan-log:${scanId}`, { log: summary, progress: 100 });
@@ -1602,7 +1589,7 @@ ${"═".repeat(70)}
       resolve({ success });
     });
 
-    // 7. Cancel
+
     ipcMain.once(`scan:cancel-${scanId}`, () => {
         cancelled = true;
         if (child.pid) try { process.kill(child.pid); } catch(e) {}
@@ -1619,7 +1606,7 @@ ${"═".repeat(70)}
 
 
 /* ============================================================
-   DIALOG HANDLERS (Fixed to be Modal)
+   DIALOG HANDLERS 
 ============================================================ */
 ipcMain.handle("dialog:select-folder", async (event) => {
   // Get the window that triggered this event
