@@ -51,7 +51,7 @@ const getLogStyle = (text: string) => {
   if (text.includes("🔑") || text.includes("🔍") || text.includes("INITIATED") || text.includes("STARTED")) 
     return { color: "#00e5ff", fontWeight: "bold" };
   if (text.includes("🔹")) return { color: "#b39ddb" }; 
-  if (text.includes("═")) return { color: "rgba(255,255,255,0.2)" };
+  if (text.includes("═")) return { color: "rgb(38, 194, 191)" };
   return { color: "#e0e0e0" };
 };
 
@@ -94,7 +94,6 @@ interface LogTerminalProps {
 const LogTerminal = ({ logs, isVisible, isRunning, onCancel, title, color }: LogTerminalProps) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // ✅ FIXED: Scroll ONLY terminal container - NEVER page
   useEffect(() => {
     if (isVisible && scrollContainerRef.current) {
       const container = scrollContainerRef.current;
@@ -249,7 +248,7 @@ export default function ProductCryptoSigningPage() {
     }
   };
 
-  // ✅ CLEAN: No log creation - just calls backend
+
   const runKeyGeneration = async () => {
     if (!product || !outputDir || !window.electronAPI) return;
     
@@ -273,8 +272,6 @@ export default function ProductCryptoSigningPage() {
         scanId 
       });
       
-      // // Auto-fill signing password
-      // if (keyPassword) setSignPassword(keyPassword);
       
     } catch (e: any) {
       setKeyGenLogs(prev => [...prev, `\n❌ Frontend Error: ${e.message}`]);
