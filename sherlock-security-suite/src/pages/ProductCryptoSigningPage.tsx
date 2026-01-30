@@ -3,22 +3,25 @@ import {
   Box, Button, Container, Paper, Stack,
   Typography, Chip, TextField, MenuItem,
   IconButton, Collapse, InputAdornment,
-  CircularProgress, Tooltip
+  CircularProgress, Tooltip, Dialog, DialogContent
 } from "@mui/material";
 
 import { useParams, useNavigate } from "react-router-dom";
-import { motion, Variants } from "framer-motion";
+import { motion, Variants, AnimatePresence } from "framer-motion";
 
 // Icons
 import VpnKeyIcon from "@mui/icons-material/VpnKey";
 import FingerprintIcon from "@mui/icons-material/Fingerprint";
 import FolderOpenIcon from "@mui/icons-material/FolderOpen";
-import SaveIcon from "@mui/icons-material/Save";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import TerminalIcon from "@mui/icons-material/Terminal";
 import CancelIcon from "@mui/icons-material/Cancel";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import DownloadIcon from "@mui/icons-material/Download";
+import TokenIcon from "@mui/icons-material/Token"; // Blockchain Icon
+import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
+import CloudUploadIcon from "@mui/icons-material/CloudUpload";
+import LinkIcon from "@mui/icons-material/Link";
 
 import { getProducts } from "../services/productService";
 import { Product } from "../models/Product";
@@ -48,7 +51,7 @@ const CyberFingerprint = ({ isActive }: { isActive: boolean }) => {
     <Box sx={{ position: "relative", width: 80, height: 80, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <FingerprintIcon
         sx={{
-          fontSize: 80,
+          fontSize: 100,
           color: isActive ? "#00e5ff" : "rgba(255, 255, 255, 0.15)",
           transition: "all 0.5s ease",
           filter: isActive ? "drop-shadow(0 0 15px rgba(0, 229, 255, 0.5))" : "none",
@@ -66,6 +69,57 @@ const CyberFingerprint = ({ isActive }: { isActive: boolean }) => {
           }}
         />
       )}
+    </Box>
+  );
+};
+
+// --- COMPONENT: BLOCKCHAIN LOADER ANIMATION ---
+const BlockchainLoader = () => {
+  return (
+    <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 300 }}>
+      {/* Central Block */}
+      <Box sx={{ position: "relative", width: 100, height: 100 }}>
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+          style={{
+            position: "absolute", inset: 0,
+            border: "4px solid #ffc107", borderRadius: "12px",
+            borderStyle: "dashed"
+          }}
+        />
+        <motion.div
+          animate={{ scale: [0.8, 1.2, 0.8], opacity: [0.5, 1, 0.5] }}
+          transition={{ duration: 2, repeat: Infinity }}
+          style={{
+            position: "absolute", inset: 15,
+            background: "rgba(255, 193, 7, 0.2)",
+            borderRadius: "8px",
+            display: "flex", alignItems: "center", justifyContent: "center"
+          }}
+        >
+          <TokenIcon sx={{ fontSize: 40, color: "#ffc107" }} />
+        </motion.div>
+      </Box>
+
+      {/* Data Stream Lines */}
+      <Stack direction="row" spacing={1} mt={4}>
+        {[1, 2, 3, 4, 5].map((i) => (
+          <motion.div
+            key={i}
+            animate={{ height: [10, 30, 10], backgroundColor: ["#333", "#ffc107", "#333"] }}
+            transition={{ duration: 1, repeat: Infinity, delay: i * 0.1 }}
+            style={{ width: 6, borderRadius: 4 }}
+          />
+        ))}
+      </Stack>
+
+      <Typography variant="h6" sx={{ color: "#ffc107", mt: 3, fontWeight: "bold", letterSpacing: 2 }}>
+        IMMUTABLE LEDGER SYNC
+      </Typography>
+      <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.5)", fontFamily: "monospace" }}>
+        Hashing Signature & Minting Transaction...
+      </Typography>
     </Box>
   );
 };
@@ -91,7 +145,7 @@ const LogTerminal = ({ logs, isVisible, isRunning, onCancel, title, color }: Log
     const element = document.createElement("a");
     const file = new Blob([logs.join("")], { type: "text/plain" });
     element.href = URL.createObjectURL(file);
-    element.download = `${title.replace(/\s+/g, "_")}_Log_${new Date().toISOString().slice(0,10)}.txt`;
+    element.download = `${title.replace(/\s+/g, "_")}_Log.txt`;
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
@@ -101,44 +155,19 @@ const LogTerminal = ({ logs, isVisible, isRunning, onCancel, title, color }: Log
     <Collapse in={isVisible}>
       <Box sx={{ mt: 3, borderTop: `1px solid rgba(255,255,255,0.1)`, pt: 2 }}>
         <Paper sx={{ bgcolor: "#0a0a0a", border: "1px solid #333", overflow: "hidden" }}>
-          
-          {/* Terminal Header */}
           <Box sx={{ px: 2, py: 1, borderBottom: "1px solid #333", display: "flex", justifyContent: "space-between", alignItems: "center", bgcolor: "#151515" }}>
             <Stack direction="row" spacing={1} alignItems="center">
               <TerminalIcon sx={{ color: color, fontSize: 18 }} />
-              <Typography variant="caption" color="text.secondary" fontFamily="monospace" fontWeight={700}>
-                {title}
-              </Typography>
+              <Typography variant="caption" color="text.secondary" fontFamily="monospace" fontWeight={700}>{title}</Typography>
             </Stack>
-            
             <Stack direction="row" spacing={1}>
-                {logs.length > 0 && (
-                    <Tooltip title="Download Logs">
-                        <IconButton size="small" onClick={handleDownload} sx={{ color: "text.secondary", "&:hover": { color: "white" } }}>
-                            <DownloadIcon fontSize="small" />
-                        </IconButton>
-                    </Tooltip>
-                )}
-                {isRunning && (
-                    <Button size="small" color="error" startIcon={<CancelIcon />} onClick={onCancel} sx={{ textTransform: 'none', fontSize: 12 }}>
-                        Abort
-                    </Button>
-                )}
+                {logs.length > 0 && (<Tooltip title="Download Logs"><IconButton size="small" onClick={handleDownload} sx={{ color: "text.secondary", "&:hover": { color: "white" } }}><DownloadIcon fontSize="small" /></IconButton></Tooltip>)}
+                {isRunning && (<Button size="small" color="error" startIcon={<CancelIcon />} onClick={onCancel} sx={{ textTransform: 'none', fontSize: 12 }}>Abort</Button>)}
             </Stack>
           </Box>
-
-          {/* Terminal Body */}
           <Box sx={{ p: 2, height: 250, overflowY: "auto", fontFamily: "Consolas, monospace", fontSize: 13, bgcolor: "#0a0a0a" }}>
-            {logs.length === 0 && (
-              <Typography color="text.secondary" textAlign="center" mt={8} variant="caption" display="block">
-                Waiting for process start...
-              </Typography>
-            )}
-            {logs.map((log, i) => (
-              <Typography key={i} component="pre" sx={{ m: 0, whiteSpace: "pre-wrap", color: log.includes("❌") ? "#ff5252" : log.includes("✅") ? "#69f0ae" : log.includes("WARN") ? "#ffd740" : "#e0e0e0" }}>
-                {log}
-              </Typography>
-            ))}
+            {logs.length === 0 && (<Typography color="text.secondary" textAlign="center" mt={8} variant="caption" display="block">Waiting for process start...</Typography>)}
+            {logs.map((log, i) => (<Typography key={i} component="pre" sx={{ m: 0, whiteSpace: "pre-wrap", color: log.includes("❌") ? "#ff5252" : log.includes("✅") ? "#69f0ae" : log.includes("WARN") ? "#ffd740" : "#e0e0e0" }}>{log}</Typography>))}
             <div ref={logEndRef} />
           </Box>
         </Paper>
@@ -146,7 +175,6 @@ const LogTerminal = ({ logs, isVisible, isRunning, onCancel, title, color }: Log
     </Collapse>
   );
 };
-
 
 export default function ProductCryptoSigningPage() {
   const { id } = useParams();
@@ -171,6 +199,13 @@ export default function ProductCryptoSigningPage() {
   const [isSigningRunning, setIsSigningRunning] = useState(false);
   const [signingLogs, setSigningLogs] = useState<string[]>([]);
 
+  // --- BLOCKCHAIN STATE ---
+  const [walletAddress, setWalletAddress] = useState("");
+  const [signatureFile, setSignatureFile] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+  const [txHash, setTxHash] = useState("");
+  const [showBlockchainModal, setShowBlockchainModal] = useState(false);
+
   const currentScanId = useRef<string | null>(null);
 
   useEffect(() => {
@@ -190,6 +225,11 @@ export default function ProductCryptoSigningPage() {
     if (path) setPrivateKeyPath(path);
   };
 
+  const handleSelectSigFile = async () => {
+    const path = await window.electronAPI.selectFile();
+    if (path) setSignatureFile(path);
+  };
+
   const handleCancel = async () => {
     if (currentScanId.current) {
         const msg = "\n⏳ Requesting Cancellation...";
@@ -203,20 +243,14 @@ export default function ProductCryptoSigningPage() {
     if (!product) return;
     setIsKeyGenRunning(true);
     setKeyGenLogs([]); 
-    
     const scanId = crypto.randomUUID();
     currentScanId.current = scanId;
     const cleanup = window.electronAPI.onScanLog(scanId, (data) => setKeyGenLogs((prev) => [...prev, data.log]));
-
     try {
-      const result = await window.electronAPI.generateKeys({
-        type: algo, size: keySize, curve: curve, password: keyPassword, outputDir, scanId
-      });
-
+      const result = await window.electronAPI.generateKeys({ type: algo, size: keySize, curve: curve, password: keyPassword, outputDir, scanId });
       if (result.success) {
         let filename = algo === "rsa" ? `rsa-${keySize}-private.pem` : `${algo}-${curve.toLowerCase()}-private.pem`;
-        const predictedPath = `${outputDir}\\${filename}`;
-        setPrivateKeyPath(predictedPath);
+        setPrivateKeyPath(`${outputDir}\\${filename}`);
       }
     } catch (e: any) {
         setKeyGenLogs((prev) => [...prev, `\n❌ Error: ${e.message}`]);
@@ -235,19 +269,33 @@ export default function ProductCryptoSigningPage() {
     const scanId = crypto.randomUUID();
     currentScanId.current = scanId;
     const cleanup = window.electronAPI.onScanLog(scanId, (data) => setSigningLogs((prev) => [...prev, data.log]));
-
     try {
       const targetRepo = product.repos[selectedRepoIndex];
-      await window.electronAPI.signArtifact({
-        repoUrl: targetRepo.repoUrl, branch: targetRepo.branch, privateKeyPath, password: signPassword, scanId
-      });
-    } catch (e: any) {
-        setSigningLogs((prev) => [...prev, `\n❌ Error: ${e.message}`]);
-    } finally {
-      cleanup();
-      setIsSigningRunning(false);
-      currentScanId.current = null;
-    }
+      const result = await window.electronAPI.signArtifact({ repoUrl: targetRepo.repoUrl, branch: targetRepo.branch, privateKeyPath, password: signPassword, scanId });
+      if(result.success) {
+          // Attempt to predict signature location (optional UX improvement)
+          setSignatureFile("signature.sig (Ready for Upload)");
+      }
+    } catch (e: any) { setSigningLogs((prev) => [...prev, `\n❌ Error: ${e.message}`]); } 
+    finally { cleanup(); setIsSigningRunning(false); currentScanId.current = null; }
+  };
+
+  // ---TODO : BLOCKCHAIN HANDLERS -----------------------
+  const connectWallet = async () => {
+      // Simulation
+      setWalletAddress("0x71C...9A23");
+  };
+
+  const uploadToBlockchain = async () => {
+      setShowBlockchainModal(true);
+      setIsUploading(true);
+      setTxHash("");
+      
+      // Simulate Process
+      setTimeout(() => {
+          setIsUploading(false);
+          setTxHash("0x8f2d...3b1a");
+      }, 4500);
   };
 
   if (!product) return null;
@@ -257,35 +305,33 @@ export default function ProductCryptoSigningPage() {
       <Container maxWidth="lg">
         <motion.div variants={containerVariants} initial="hidden" animate="visible">
           
-          {/* HEADER */}
+          {/*.......................... HEADER................................................ */}
           <motion.div variants={itemVariants}>
             <Paper sx={{ p: 3, mb: 4, background: "linear-gradient(140deg,#0c1023,#090c1c)", border: "1px solid rgba(255,255,255,0.08)" }}>
               <Stack direction="row" justifyContent="space-between" alignItems="center">
                 <Box>
-                  <Typography variant="h4" fontWeight={800} sx={{ color: "#ffffff" }}>
-                    Cryptographic Signing Station
-                  </Typography>
+                  <Typography variant="h4" fontWeight={800} sx={{ color: "#ffffff" }}>Cryptographic Signing Station</Typography>
                   <Typography color="text.secondary" sx={{ mt: 1 }}>{product.name}</Typography>
                   <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
                     <Chip label={`v${product.version}`} size="small" variant="outlined" sx={{ color: "white", borderColor: "rgba(255,255,255,0.2)" }} />
                     <Chip label={product.status} size="small" color="success" icon={<CheckCircleIcon />} />
                   </Stack>
                 </Box>
-                <CyberFingerprint isActive={isSigningRunning || isKeyGenRunning} />
+                <CyberFingerprint isActive={true} />
               </Stack>
             </Paper>
           </motion.div>
 
           <Stack spacing={4}>
             
-            {/* 1. KEY GENERATION CARD */}
+            {/* 1...................... KEY GENERATION CARD................................ */}
             <motion.div variants={itemVariants}>
               <Paper sx={{ p: 3, borderLeft: "4px solid #7b5cff" }}>
                 <Typography variant="h6" fontWeight={700} gutterBottom display="flex" alignItems="center" gap={1}>
                   <VpnKeyIcon color="primary" /> Key Generation
                 </Typography>
                 <Typography variant="body2" color="text.secondary" mb={3}>
-                  Generate compliant RSA or ECDSA key pairs.
+                  Generate RSA or ECDSA key pairs.
                 </Typography>
                 
                 {/* Inputs */}
@@ -311,7 +357,7 @@ export default function ProductCryptoSigningPage() {
                   </Stack>
                   <Stack direction="row" spacing={2}>
                     <TextField fullWidth label="Output Directory" value={outputDir} InputProps={{ readOnly: true, endAdornment: (<InputAdornment position="end"><IconButton onClick={handleSelectFolder} disabled={isKeyGenRunning}><FolderOpenIcon /></IconButton></InputAdornment>) }} />
-                    <Button variant="contained" onClick={runKeyGeneration} disabled={!outputDir || isKeyGenRunning} sx={{ minWidth: 160, bgcolor: "#7b5cff" }} startIcon={isKeyGenRunning ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}>Generate</Button>
+                    <Button variant="contained" onClick={runKeyGeneration} disabled={!outputDir || isKeyGenRunning} sx={{ minWidth: 160, bgcolor: "#7b5cff" }} startIcon={isKeyGenRunning ? <CircularProgress size={20} color="inherit" /> : <VpnKeyIcon />}>Generate</Button>
                   </Stack>
                 </Stack>
 
@@ -327,14 +373,14 @@ export default function ProductCryptoSigningPage() {
               </Paper>
             </motion.div>
 
-            {/* 2. DIGITAL SIGNING CARD */}
+            {/* 2. .....................DIGITAL SIGNING CARD......................... */}
             <motion.div variants={itemVariants}>
               <Paper sx={{ p: 3, borderLeft: "4px solid #00e5ff" }}>
                 <Typography variant="h6" fontWeight={700} gutterBottom display="flex" alignItems="center" gap={1}>
                   <FingerprintIcon sx={{ color: "#00e5ff" }} /> Digital Signing
                 </Typography>
                 <Typography variant="body2" color="text.secondary" mb={3}>
-                  Clone repository, verify integrity, and apply digital signature.
+                  Clone repository and apply cryptographic digital signature.
                 </Typography>
 
                 {/* Inputs */}
@@ -352,22 +398,128 @@ export default function ProductCryptoSigningPage() {
                     {isSigningRunning ? "Signing in Progress..." : "Sign Artifact"}
                   </Button>
                 </Stack>
+                <LogTerminal logs={signingLogs} isVisible={signingLogs.length > 0 || isSigningRunning} isRunning={isSigningRunning} onCancel={handleCancel} title="SIGNING OUTPUT" color="#00e5ff" />
+              </Paper>
+            </motion.div>
 
-                {/* ATTACHED LOG TERMINAL */}
-                <LogTerminal 
-                    logs={signingLogs} 
-                    isVisible={signingLogs.length > 0 || isSigningRunning} 
-                    isRunning={isSigningRunning} 
-                    onCancel={handleCancel}
-                    title="SIGNING PROCESS OUTPUT"
-                    color="#00e5ff"
-                />
+
+            {/* 3...................... BLOCKCHAIN LEDGER CARD ....................................*/}
+            <motion.div variants={itemVariants}>
+              <Paper sx={{ p: 3, borderLeft: "4px solid #ffc107", background: "linear-gradient(90deg, rgba(255, 193, 7, 0.05), transparent)" }}>
+                <Typography variant="h6" fontWeight={700} gutterBottom display="flex" alignItems="center" gap={1}>
+                  <TokenIcon sx={{ color: "#ffc107" }} /> Blockchain Ledger Archival
+                </Typography>
+                <Typography variant="body2" color="text.secondary" mb={3}>
+                   Upload the generated signature hash to the Ethereum network for immutable proof of existence.
+                </Typography>
+
+                <Stack spacing={3}>
+                   {/* Wallet Connection */}
+                   <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ p: 2, bgcolor: "rgba(255,193,7,0.05)", borderRadius: 1, border: "1px dashed rgba(255,193,7,0.3)" }}>
+                      <Box display="flex" alignItems="center" gap={2}>
+                          <AccountBalanceWalletIcon sx={{ color: walletAddress ? "#69f0ae" : "text.secondary" }} />
+                          <Box>
+                              <Typography variant="subtitle2" color="white">
+                                  {walletAddress ? "Wallet Connected" : "No Wallet Connected"}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary" fontFamily="monospace">
+                                  {walletAddress || "Connect MetaMask to proceed"}
+                              </Typography>
+                          </Box>
+                      </Box>
+                      {!walletAddress && (
+                          <Button variant="outlined" onClick={connectWallet} sx={{ color: "#ffc107", borderColor: "#ffc107" }}>
+                              Connect Wallet
+                          </Button>
+                      )}
+                   </Stack>
+
+                   {/* Upload Section */}
+                   <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+                      <TextField 
+                          fullWidth 
+                          label="Signature File" 
+                          value={signatureFile} 
+                          InputProps={{ 
+                              readOnly: true, 
+                              endAdornment: (<InputAdornment position="end"><IconButton onClick={handleSelectSigFile}><FolderOpenIcon /></IconButton></InputAdornment>) 
+                          }} 
+                      />
+                      <Button 
+                          variant="contained" 
+                          size="large"
+                          disabled={!walletAddress || !signatureFile}
+                          onClick={uploadToBlockchain}
+                          sx={{ 
+                              bgcolor: "#ffc107", color: "black", fontWeight: "bold", minWidth: 200,
+                              "&:hover": { bgcolor: "#ffb300" }
+                          }}
+                          startIcon={<CloudUploadIcon />}
+                      >
+                          Upload to Ledger
+                      </Button>
+                   </Stack>
+                </Stack>
               </Paper>
             </motion.div>
 
           </Stack>
         </motion.div>
       </Container>
+
+      {/* --- BLOCKCHAIN TRANSACTION MODAL --- */}
+      <Dialog 
+        open={showBlockchainModal} 
+        maxWidth="sm" 
+        fullWidth
+        PaperProps={{
+            sx: {
+                bgcolor: "#050505",
+                border: "1px solid #333",
+                boxShadow: "0 0 80px rgba(255, 193, 7, 0.15)",
+                borderRadius: 4
+            }
+        }}
+      >
+        <DialogContent sx={{ p: 5, textAlign: "center", position: "relative", overflow: "hidden" }}>
+           <AnimatePresence mode="wait">
+             {isUploading ? (
+                <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                    <BlockchainLoader />
+                </motion.div>
+             ) : (
+                <motion.div key="success" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}>
+                    <Box sx={{ py: 2 }}>
+                        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 200, damping: 10 }}>
+                            <CheckCircleIcon sx={{ fontSize: 90, color: "#69f0ae", mb: 3 }} />
+                        </motion.div>
+                        <Typography variant="h5" color="white" fontWeight="bold" gutterBottom>Transaction Confirmed</Typography>
+                        <Typography color="text.secondary" sx={{ mb: 4 }}>
+                            The signature has been successfully mined into block <Box component="span" color="#ffc107">#182934</Box>.
+                        </Typography>
+
+                        <Paper sx={{ p: 2, bgcolor: "#111", border: "1px solid #333", mb: 4, textAlign: "left" }}>
+                            <Typography variant="caption" color="text.secondary" display="block" mb={1}>TRANSACTION HASH</Typography>
+                            <Stack direction="row" alignItems="center" justifyContent="space-between">
+                                <Typography variant="body2" color="#ffc107" fontFamily="monospace" sx={{ wordBreak: "break-all" }}>
+                                    {txHash}
+                                </Typography>
+                                <Tooltip title="View on Etherscan">
+                                    <IconButton size="small" sx={{ color: "white" }}><LinkIcon fontSize="small" /></IconButton>
+                                </Tooltip>
+                            </Stack>
+                        </Paper>
+
+                        <Button variant="outlined" color="inherit" onClick={() => setShowBlockchainModal(false)} fullWidth>
+                            Close Receipt
+                        </Button>
+                    </Box>
+                </motion.div>
+             )}
+           </AnimatePresence>
+        </DialogContent>
+      </Dialog>
+
     </Box>
   );
 }
