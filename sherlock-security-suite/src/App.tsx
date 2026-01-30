@@ -14,6 +14,7 @@ import RegisterPage from "./pages/RegisterPage";
 import ProductPage from "./pages/ProductPage";
 import ProductReleasePage from "./pages/ProductReleasePage";
 import ProductSecurityScanPage from "./pages/ProductSecurityScanPage";
+import ProductCryptoSigningPage from "./pages/ProductCryptoSigningPage";
 
 export default function App() {
   return (
@@ -50,6 +51,15 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <ProductSecurityScanPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/product/:id/cryptographic-signing"
+            element={
+              <ProtectedRoute>
+                <ProductCryptoSigningPage />
               </ProtectedRoute>
             }
           />

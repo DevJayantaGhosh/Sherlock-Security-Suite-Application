@@ -69,6 +69,27 @@ interface Window {
       failedChecks?: number;
     }>;
 
+    selectFolder(): Promise<string | null>;
+    selectFile(): Promise<string | null>;
+    // Key Generation
+    generateKeys(payload: {
+      type: "rsa" | "ecdsa";
+      size?: number;     // Optional (for RSA)
+      curve?: string;    // Optional (for ECDSA)
+      password?: string;
+      outputDir: string;
+      scanId: string;
+    }): Promise<{ success: boolean; error?: string }>;
+
+    // Artifact Signing (UPDATED)
+    signArtifact(payload: {
+      repoUrl: string;       // Changed from contentPath
+      branch: string;        
+      privateKeyPath: string;
+      password?: string;
+      scanId: string;
+    }): Promise<{ success: boolean; error?: string }>;
+    
     cancelScan(payload: { scanId: string }): Promise<{ cancelled: boolean }>;
 
     onScanLog(
