@@ -1240,8 +1240,8 @@ ${stderrData}
     if (!exePath) {
       event.sender.send(`scan-log:${scanId}`, {
         log: `
-❌ TOOL ERROR: KeyGenerator not found or not executable.
-Expected at: ${toolPath("KeyGenerator")}
+❌ TOOL ERROR: KeyGenerator not found!
+Expected: ${toolPath("KeyGenerator")}
 `,
         progress: 0
       });
@@ -1250,82 +1250,97 @@ Expected at: ${toolPath("KeyGenerator")}
     return new Promise((resolve) => {
       event.sender.send(`scan-log:${scanId}`, {
         log: `
-${"═".repeat(60)}
-🔑 INITIALIZING KEY GENERATION SEQUENCE
-${"═".repeat(60)}
+${"═".repeat(65)}
+🔑 KEY GENERATION STARTED
+${"═".repeat(65)}
+
+🔹 Algorithm: ${type.toUpperCase()}${type === "rsa" ? ` (${size} bits)` : ` (${curve})`}
+🔹 Output: ${outputDir}
+🔹 Security: ${password ? "🔒 Protected" : "⚠️ No Password"}
 
 `,
-        progress: 10
-      });
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `🔹 Algorithm : ${type.toUpperCase()}
-🔹 Output Dir: ${outputDir}
-🔹 Security  : ${password ? "Password Protected 🔒" : "No Password ⚠️"}
-
-`,
-        progress: 15
+        progress: 5
       });
       const args = ["generate", type];
-      if (type === "rsa" && size) args.push("-s", size.toString());
+      if (type === "rsa" && size) args.push("-s", `${size}`);
       if (type === "ecdsa" && curve) args.push("-c", curve);
       if (password) args.push("-p", password);
       args.push("-o", outputDir);
-      args.push("-v");
-      const child = spawn(exePath, args);
+      const commandDisplay = `KeyGenerator.exe ${args.join(" ")}`;
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `🔍 RUNNING:
+  ${commandDisplay}
+
+⏳ Executing...
+`,
+        progress: 10
+      });
+      const child = spawn(exePath, args, {
+        stdio: ["ignore", "pipe", "pipe"]
+      });
       activeProcesses.set(scanId, child);
-      let buffer = "";
       let cancelled = false;
-      child.stdout.on("data", (chunk) => {
-        if (cancelled) return;
-        const text = chunk.toString();
-        buffer += text;
-        event.sender.send(`scan-log:${scanId}`, { log: text, progress: 50 });
-      });
-      child.stderr.on("data", (chunk) => {
-        if (cancelled) return;
-        const text = chunk.toString();
-        buffer += text;
-        event.sender.send(`scan-log:${scanId}`, { log: `[STDERR] ${text}`, progress: 50 });
-      });
+      if (child.stdout) {
+        child.stdout.on("data", (chunk) => {
+          if (cancelled) return;
+          const text = chunk.toString();
+          event.sender.send(`scan-log:${scanId}`, { log: text, progress: 60 });
+        });
+      }
+      if (child.stderr) {
+        child.stderr.on("data", (chunk) => {
+          if (cancelled) return;
+          const text = chunk.toString();
+          event.sender.send(`scan-log:${scanId}`, { log: `
+🔴 [ERROR] ${text.trim()}
+`, progress: 50 });
+        });
+      }
       child.on("close", (code) => {
         activeProcesses.delete(scanId);
         if (cancelled) return;
-        const success = code === 0;
-        const pubMatch = buffer.match(/Public:\s*(.*)/i);
-        const privMatch = buffer.match(/Private:\s*(.*)/i);
-        const pubPath = pubMatch ? pubMatch[1].trim() : "N/A";
-        const privPath = privMatch ? privMatch[1].trim() : "N/A";
-        const summary = `
-╔══════════════════════════════════════════════════════════════════════╗
-║                    KEY GENERATION REPORT                             ║
-╚══════════════════════════════════════════════════════════════════════╝
-
- Status       : ${success ? "✅ SUCCESS" : "❌ FAILED"}
- Algorithm    : ${type.toUpperCase()}
- Timestamp    : ${(/* @__PURE__ */ new Date()).toLocaleTimeString()}
-
- 📂 Generated Files:
- ───────────────────
- 🔑 Public Key : ${path.basename(pubPath)}
- 🗝️ Private Key: ${path.basename(privPath)}
-
- 📂 Location:
- ${outputDir}
-
-${"═".repeat(70)}
+        const trueSuccess = code === 0;
+        let finalReport = `╔══════════════════════════════════════════════════════════════════════╗
 `;
-        event.sender.send(`scan-log:${scanId}`, { log: summary, progress: 100 });
-        event.sender.send(`scan-complete:${scanId}`, { success });
-        resolve({ success });
+        finalReport += `                    KEY GENERATION REPORT                               
+`;
+        finalReport += `╚══════════════════════════════════════════════════════════════════════╝
+
+`;
+        finalReport += `    RESULT             : ${code === 0 ? "✅ SUCCESS" : "❌ FAILED (" + code + ")"}
+`;
+        finalReport += `    Algorithm         : ${type.toUpperCase()}
+`;
+        finalReport += `    Timestamp      : ${(/* @__PURE__ */ new Date()).toLocaleTimeString()}
+`;
+        if (trueSuccess) {
+          finalReport += `    ✅ KEYS READY FOR SIGNING!
+`;
+        } else {
+          finalReport += `    ⚠️  Check error logs above
+`;
+        }
+        finalReport += `
+${"═".repeat(70)}`;
+        event.sender.send(`scan-log:${scanId}`, { log: finalReport, progress: 100 });
+        event.sender.send(`scan-complete:${scanId}`, { success: trueSuccess });
+        resolve({ success: trueSuccess });
+      });
+      child.on("error", (error) => {
+        activeProcesses.delete(scanId);
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `
+💥 SPAWN ERROR: ${error.message}`,
+          progress: 0
+        });
+        resolve({ success: false, error: error.message });
       });
       ipcMain.once(`scan:cancel-${scanId}`, () => {
         cancelled = true;
-        if (child.pid) try {
-          process.kill(child.pid);
-        } catch (e) {
-        }
-        activeProcesses.delete(scanId);
-        event.sender.send(`scan-log:${scanId}`, { log: "\n⚠️ PROCESS CANCELLED BY USER\n", progress: 0 });
+        if (child.pid) process.kill(child.pid, "SIGTERM");
+        event.sender.send(`scan-log:${scanId}`, { log: `
+🛑 CANCELLED
+`, progress: 0 });
         resolve({ success: false, cancelled: true });
       });
     });
@@ -1375,8 +1390,7 @@ ${"═".repeat(60)}
         "-k",
         privateKeyPath,
         "-o",
-        outputSigPath,
-        "-v"
+        outputSigPath
       ];
       if (password) args.push("-p", password);
       const child = spawn(exePath, args);
@@ -1402,21 +1416,22 @@ ${"═".repeat(60)}
         }
         const summary = `
 ╔══════════════════════════════════════════════════════════════════════╗
-║                  DIGITAL SIGNATURE REPORT                            ║
+                    DIGITAL SIGNATURE REPORT                            
 ╚══════════════════════════════════════════════════════════════════════╝
 
- Status       : ${success ? "✅ SIGNED & VERIFIED" : "❌ SIGNING FAILED"}
- Repository   : ${repoUrl}
- Branch       : ${branch}
- Timestamp    : ${(/* @__PURE__ */ new Date()).toLocaleTimeString()}
+ Status             : ${success ? "✅ SIGNED & VERIFIED" : "❌ SIGNING FAILED"}
+ Repository    : ${repoUrl}
+ Branch           : ${branch}
+ Timestamp   : ${(/* @__PURE__ */ new Date()).toLocaleTimeString()}
 
  🔏 Signature Details:
- ─────────────────────
- 📄 File      : signature.sig
- 💾 Size      : ${sigSize}
- 🔑 Key Used  : ${path.basename(privateKeyPath)}
+ ───────────────────────────────────────────────
+ 📄 File              : ${outputSigPath}
+ 💾 Size             : ${sigSize}
+ 🔑 Key Used   : ${privateKeyPath}
 
-${"═".repeat(70)}
+
+ ${"═".repeat(70)}
 `;
         event.sender.send(`scan-log:${scanId}`, { log: summary, progress: 100 });
         event.sender.send(`scan-complete:${scanId}`, { success });
