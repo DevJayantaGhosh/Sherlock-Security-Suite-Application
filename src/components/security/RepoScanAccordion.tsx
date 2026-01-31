@@ -17,8 +17,7 @@ import {
   IconButton,
   CircularProgress,
   Collapse,
-  Paper,
-  Chip,
+  Paper
 } from "@mui/material";
 
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
@@ -30,7 +29,6 @@ import CloseIcon from "@mui/icons-material/Close";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
 import SecurityIcon from "@mui/icons-material/Security";
-import InfoIcon from "@mui/icons-material/Info";
 
 import { Product, RepoDetails, RepoScanResults, SignatureVerificationResult,SecretLeakDetectionResult ,VulnerabilityScanResult,StaticAnalysisResult} from "../../models/Product";
 import { useUserStore } from "../../store/userStore";
@@ -73,25 +71,21 @@ export default function RepoScanAccordion({
   return (
     <Stack spacing={2}>
       <GPGVerificationPanel
-        product={product}
         repoDetails={repoDetails}
         isAuthorized={isAuthorized}
         onScanComplete={(res) => handleScanUpdate('signatureVerification', res)}
       />
       <GitleaksPanel
-        product={product}
         repoDetails={repoDetails}
         isAuthorized={isAuthorized}
         onScanComplete={(res) => handleScanUpdate('secretLeakDetection', res)}
       />
       <TrivyPanel
-        product={product}
         repoDetails={repoDetails}
         isAuthorized={isAuthorized}
         onScanComplete={(res) => handleScanUpdate('vulnerabilityScan', res)}
       />
       <OpenGrepPanel 
-        product={product}
         repoDetails={repoDetails}
         isAuthorized={isAuthorized}
         onScanComplete={(res) => handleScanUpdate('staticAnalysis', res)}
@@ -104,12 +98,10 @@ export default function RepoScanAccordion({
    GPG VERIFICATION PANEL
 ============================================================ */
 function GPGVerificationPanel({
-  product,
   repoDetails,
   isAuthorized,
   onScanComplete 
 }: {
-  product: Product;
   repoDetails: RepoDetails;
   isAuthorized: boolean;
   onScanComplete: (result: SignatureVerificationResult) => void;
@@ -622,12 +614,10 @@ function GPGVerificationPanel({
    GITLEAKS PANEL
 ============================================================ */
 function GitleaksPanel({
-  product,
   repoDetails,
   isAuthorized,
   onScanComplete
 }: {
-  product: Product;
   repoDetails: RepoDetails;
   isAuthorized: boolean;
   onScanComplete?: (result: SecretLeakDetectionResult) => void;
@@ -1133,12 +1123,10 @@ function GitleaksPanel({
    TRIVY PANEL
 ============================================================ */
 function TrivyPanel({
-  product,
   repoDetails,
   isAuthorized,
   onScanComplete 
 }: {
-  product: Product;
   repoDetails: RepoDetails;
   isAuthorized: boolean;
   onScanComplete?: (result: VulnerabilityScanResult) => void;
@@ -1645,12 +1633,10 @@ function TrivyPanel({
    OPENGREP PANEL - Multi-Language SAST
 ============================================================ */
 function OpenGrepPanel({
-  product,
   repoDetails,
   isAuthorized,
   onScanComplete
 }: {
-  product: Product;
   repoDetails: RepoDetails;
   isAuthorized: boolean;
   onScanComplete?: (result: StaticAnalysisResult) => void;
@@ -1822,14 +1808,6 @@ function OpenGrepPanel({
 
   const isRunning = status === "running";
   const canClose = !isRunning && !isCancelling;
-
-  const getRiskPercentage = () => {
-    if (!result?.totalIssues) return 0;
-    if (result.totalIssues <= 5) return 25;
-    if (result.totalIssues <= 15) return 50;
-    if (result.totalIssues <= 30) return 75;
-    return 100;
-  };
 
   return (
     <>
