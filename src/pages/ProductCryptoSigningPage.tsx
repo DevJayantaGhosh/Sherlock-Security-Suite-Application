@@ -187,6 +187,7 @@ export default function ProductCryptoSigningPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const user = useUserStore((s) => s.user);
+  console.log(user)
   const [product, setProduct] = useState<Product | null>(null);
 
   // KEY GENERATION STATE

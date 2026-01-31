@@ -116,6 +116,6 @@ export function logoutLocal() {
 }
 
 export function registerLocal(userName:string,email: string,password:string) {
-
+ console.log(userName,email,password)
   return ;
 }

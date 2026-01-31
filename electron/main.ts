@@ -550,7 +550,7 @@ ipcMain.handle("scan:gitleaks", async (event, { repoUrl, branch, scanId }) => {
       });
     });
 
-    child.on("close", async (code) => {
+    child.on("close", async () => {
       activeProcesses.delete(scanId);
       
       if (cancelled) {
@@ -868,7 +868,7 @@ ${"═".repeat(79)}
 /* ============================================================
    OPENGREP - MULTI-LANGUAGE STATIC APPLICATION SECURITY SCANNING
 ============================================================ */
-ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, componentConfigs }) => {
+ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId }) => {
   debugLog(`[OPENGREP] Starting multi-language SAST analysis for ${repoUrl}`);
   
   // 1. Validate Tool
@@ -1214,7 +1214,7 @@ ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId, compone
 
             // Findings by project
             const sortedFindings = Array.from(findingsByDirectory.entries())
-              .filter(([dir, issues]) => issues.length > 0)
+              .filter(([issues]) => issues.length > 0)
               .sort((a, b) => b[1].length - a[1].length);
 
             if (sortedFindings.length > 0) {
@@ -1639,7 +1639,7 @@ ipcMain.handle("dialog:select-file", async (event) => {
   /* --------------------------------------------------------
      CANCEL HANDLER
   -------------------------------------------------------- */
-  ipcMain.handle("scan:cancel", async (event, { scanId }) => {
+  ipcMain.handle("scan:cancel", async (_, { scanId }) => {
     debugLog(`Cancel requested: ${scanId}`);
     
     return new Promise<{ cancelled: boolean }>((resolve) => {
@@ -1742,7 +1742,7 @@ function createWindow() {
     }
   });
   
-  win.webContents.on("before-input-event", (event, input) => {
+  win.webContents.on("before-input-event", (_, input) => {
     if (input.type === "keyDown") {
       if (input.key === "F12" || (input.control && input.shift && input.key === "I")) {
         if (win?.webContents.isDevToolsOpened()) {

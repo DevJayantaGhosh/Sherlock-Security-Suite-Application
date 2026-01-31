@@ -25,6 +25,7 @@
     "@mui/icons-material": "^7.3.5",
     "@mui/material": "^7.3.5",
     "axios": "^1.13.2",
+    "ethers": "^6.16.0",
     "framer-motion": "^12.23.24",
     "node-fetch": "^3.3.2",
     "openai": "^6.10.0",
