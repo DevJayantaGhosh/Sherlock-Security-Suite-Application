@@ -1410,9 +1410,8 @@ ipcMain.handle("crypto:generate-keys", async (event, { type, size, curve, passwo
     if (password) args.push("-p", password);
     args.push("-o", outputDir);
 
-    const commandDisplay = `KeyGenerator.exe ${args.join(" ")}`;
     event.sender.send(`scan-log:${scanId}`, {
-      log: `🔍 RUNNING:\n  ${commandDisplay}\n\n⏳ Executing...\n`,
+      log: `⏳ Executing...\n`,
       progress: 10,
     });
 
