@@ -15,7 +15,6 @@ import {
 } from "@mui/material";
 
 import AddIcon from "@mui/icons-material/Add";
-import RemoveIcon from "@mui/icons-material/Remove";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 
 import { useEffect, useState } from "react";
@@ -23,7 +22,6 @@ import { useEffect, useState } from "react";
 import {
   Product,
   RepoDetails,
-  ComponentConfiguration,
 } from "../../models/Product";
 import { createProduct, updateProduct } from "../../services/productService";
 import { useUserStore } from "../../store/userStore";
@@ -106,13 +104,6 @@ export default function ProductDialog({
       {
         repoUrl: "",
         branch: "",
-        componentConfigs: [
-          {
-            language: "",
-            buildCommand: "",
-            workingDirectory: "",
-          },
-        ],
       },
     ],
     dependencies: [],
@@ -137,18 +128,11 @@ export default function ProductDialog({
           rest.repos.length > 0
             ? rest.repos.map((r) => ({
                 ...r,
-                componentConfigs:
-                  r.componentConfigs && r.componentConfigs.length > 0
-                    ? r.componentConfigs
-                    : [{ language: "", buildCommand: "", workingDirectory: "" }],
               }))
             : [
                 {
                   repoUrl: "",
                   branch: "",
-                  componentConfigs: [
-                    { language: "", buildCommand: "", workingDirectory: "" },
-                  ],
                 },
               ],
       });
@@ -187,15 +171,6 @@ export default function ProductDialog({
     form.repos.forEach((repo, repoIdx) => {
       if (!repo.repoUrl) e[`repo-${repoIdx}-url`] = "Repo URL required";
       if (!repo.branch) e[`repo-${repoIdx}-branch`] = "Branch required";
-
-      if (!repo.componentConfigs || repo.componentConfigs.length === 0) {
-        e[`repo-${repoIdx}-components`] = "At least one component required";
-      } else {
-        repo.componentConfigs.forEach((comp, compIdx) => {
-          if (!comp.language)
-            e[`repo-${repoIdx}-comp-${compIdx}-lang`] = "Language required";
-        });
-      }
     });
 
     setErrors(e);
@@ -224,9 +199,6 @@ export default function ProductDialog({
         {
           repoUrl: "",
           branch: "",
-          componentConfigs: [
-            { language: "", buildCommand: "", workingDirectory: "" },
-          ],
         },
       ],
     });
@@ -239,45 +211,6 @@ export default function ProductDialog({
     });
   }
 
-  /* -----------------------------------------------------
-     COMPONENT OPERATIONS
-  ----------------------------------------------------- */
-
-  function setComponentField<K extends keyof ComponentConfiguration>(
-    repoIdx: number,
-    compIdx: number,
-    key: K,
-    value: any
-  ) {
-    const repos = [...form.repos];
-    const components = [...(repos[repoIdx].componentConfigs || [])];
-    components[compIdx] = { ...components[compIdx], [key]: value };
-    repos[repoIdx] = { ...repos[repoIdx], componentConfigs: components };
-    setForm({ ...form, repos });
-  }
-
-  function addComponent(repoIdx: number) {
-    const repos = [...form.repos];
-    const components = repos[repoIdx].componentConfigs || [];
-    repos[repoIdx] = {
-      ...repos[repoIdx],
-      componentConfigs: [
-        ...components,
-        { language: "", buildCommand: "", workingDirectory: "" },
-      ],
-    };
-    setForm({ ...form, repos });
-  }
-
-  function removeComponent(repoIdx: number, compIdx: number) {
-    const repos = [...form.repos];
-    const components = repos[repoIdx].componentConfigs || [];
-    repos[repoIdx] = {
-      ...repos[repoIdx],
-      componentConfigs: components.filter((_, idx) => idx !== compIdx),
-    };
-    setForm({ ...form, repos });
-  }
 
   /* -----------------------------------------------------
      SUBMIT
@@ -544,111 +477,7 @@ export default function ProductDialog({
                 onChange={(e) => setRepoField(repoIdx, "branch", e.target.value)}
               />
             </Box>
-
-            {/* COMPONENTS SECTION */}
-            <Divider sx={{ my: 2 }} />
-
-            <Box
-              sx={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                mb: 1,
-              }}
-            >
-              <Typography variant="caption" fontWeight={600} color="text.secondary">
-                Component Configuration
-              </Typography>
-
-              {!isView && (
-                <Button
-                  startIcon={<AddIcon />}
-                  onClick={() => addComponent(repoIdx)}
-                  size="small"
-                  variant="text"
-                >
-                  Add Component
-                </Button>
-              )}
-            </Box>
-
-            {repo.componentConfigs?.map((comp, compIdx) => (
-              <Box
-                key={compIdx}
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: "1.5fr 2fr 1.5fr auto",
-                  gap: 1,
-                  alignItems: "center",
-                  mb: 1,
-                }}
-              >
-                <TextField
-                  select
-                  label="Language"
-                  size="small"
-                  value={comp.language}
-                  error={!!errors[`repo-${repoIdx}-comp-${compIdx}-lang`]}
-                  helperText={errors[`repo-${repoIdx}-comp-${compIdx}-lang`]}
-                  disabled={isView}
-                  onChange={(e) =>
-                    setComponentField(
-                      repoIdx,
-                      compIdx,
-                      "language",
-                      e.target.value
-                    )
-                  }
-                >
-                  {LANGUAGES.map((lang) => (
-                    <MenuItem key={lang} value={lang}>
-                      {lang}
-                    </MenuItem>
-                  ))}
-                </TextField>
-
-                <TextField
-                  label="Build Command (optional)"
-                  size="small"
-                  placeholder="mvn clean compile -DskipTests"
-                  value={comp.buildCommand || ""}
-                  disabled={isView}
-                  onChange={(e) =>
-                    setComponentField(
-                      repoIdx,
-                      compIdx,
-                      "buildCommand",
-                      e.target.value
-                    )
-                  }
-                />
-
-                <TextField
-                  label="Working Directory (optional)"
-                  size="small"
-                  placeholder="backend-service"
-                  value={comp.workingDirectory || ""}
-                  disabled={isView}
-                  onChange={(e) =>
-                    setComponentField(
-                      repoIdx,
-                      compIdx,
-                      "workingDirectory",
-                      e.target.value
-                    )
-                  }
-                />
-
-                {!isView && (repo.componentConfigs?.length || 0) > 1 && (
-                  <IconButton
-                    size="small"
-                    onClick={() => removeComponent(repoIdx, compIdx)}
-                  >
-                    <RemoveIcon fontSize="small" />
-                  </IconButton>
-                )}
-              </Box>
-            ))}
+           
           </Paper>
         ))}
 
