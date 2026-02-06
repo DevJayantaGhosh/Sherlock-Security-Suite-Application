@@ -51,19 +51,8 @@ const DEPENDENCIES = [
   "PostgreSQL",
 ];
 
-const LANGUAGES = [
-  "c-cpp",
-  "csharp",
-  "go",
-  "java",
-  "javascript-typescript",
-  "python",
-  "ruby",
-  "rust",
-  "swift",
-];
 
-// ✅ SEMVER regex (no leading v)
+// SEMVER regex (no leading v)
 const SEMVER_REGEX = /^(\d+)\.(\d+)\.(\d+)(-(alpha|beta|rc))?$/;
 
 /* -----------------------------------------------------
