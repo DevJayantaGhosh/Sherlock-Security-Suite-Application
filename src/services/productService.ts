@@ -19,18 +19,6 @@ let productDB: Product[] = [
       {
         repoUrl: "https://github.com/projectcs23m513/bad-project",
         branch: "test",
-        componentConfigs: [
-          {
-            language: "java",
-            buildCommand: "mvn clean compile -DskipTests",
-            workingDirectory: "",
-          },
-          {
-            language: "c-cpp",
-            buildCommand: "cmake --build build",
-            workingDirectory: "native-module",
-          },
-        ],
       },
     ],
     dependencies: ["Node", "Express", "Docker"],
@@ -50,18 +38,6 @@ let productDB: Product[] = [
     {
       repoUrl: "https://github.com/DevJayantaGhosh/Sherlock-Security-Suite-Services.git",
       branch: "main",
-      componentConfigs: [
-        {
-          language: "java",
-          buildCommand: "mvn clean compile -DskipTests",
-          workingDirectory: "project-management-service",
-        },
-        {
-          language: "java",
-          buildCommand: "mvn clean compile -DskipTests",
-          workingDirectory: "user-management-service",
-        },
-      ],
     },
   ],
   dependencies: ["Spring Boot", "MySQL", "Spring Security"],
@@ -81,18 +57,6 @@ let productDB: Product[] = [
     {
       repoUrl: "https://github.com/DevJayantaGhosh/Sherlock-Security-Suite-Services.git",
       branch: "main",
-      componentConfigs: [
-        {
-          language: "java",
-          // ✅ NO buildCommand - uses build-mode=none automatically
-          workingDirectory: "project-management-service",
-        },
-        {
-          language: "java",
-          // ✅ NO buildCommand - uses build-mode=none automatically  
-          workingDirectory: "user-management-service",
-        },
-      ],
     },
   ],
   dependencies: ["Spring Boot", "MySQL", "Spring Security"],
@@ -114,18 +78,6 @@ let productDB: Product[] = [
     {
       "repoUrl": "https://github.com/example/payment-gateway-service.git",
       "branch": "release/v2.4",
-      "componentConfigs": [
-        {
-          "language": "java",
-          "buildCommand": "mvn clean install",
-          "workingDirectory": "/backend"
-        },
-        {
-          "language": "javascript-typescript",
-          "buildCommand": "npm install && npm build",
-          "workingDirectory": "/dashboard-ui"
-        }
-      ],
       "scans": {
         "signatureVerification": {
           "status": "success",

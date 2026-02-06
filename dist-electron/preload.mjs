@@ -1,1 +1,38 @@
-"use strict";const e=require("electron");e.contextBridge.exposeInMainWorld("electronWindow",{minimize:()=>e.ipcRenderer.invoke("window:minimize"),maximize:()=>e.ipcRenderer.invoke("window:maximize"),close:()=>e.ipcRenderer.invoke("window:close")});e.contextBridge.exposeInMainWorld("electronAPI",{verifyGPG:n=>e.ipcRenderer.invoke("scan:verify-gpg",n),runGitleaks:n=>e.ipcRenderer.invoke("scan:gitleaks",n),runTrivy:n=>e.ipcRenderer.invoke("scan:trivy",n),runOpenGrep:n=>e.ipcRenderer.invoke("scan:opengrep",n),selectFolder:()=>e.ipcRenderer.invoke("dialog:select-folder"),selectFile:()=>e.ipcRenderer.invoke("dialog:select-file"),generateKeys:n=>e.ipcRenderer.invoke("crypto:generate-keys",n),signArtifact:n=>e.ipcRenderer.invoke("crypto:sign-artifact",n),cancelScan:n=>e.ipcRenderer.invoke("scan:cancel",n),onScanLog:(n,c)=>{const r=`scan-log:${n}`,i=(t,o)=>c(o);return e.ipcRenderer.on(r,i),()=>e.ipcRenderer.removeListener(r,i)},onScanComplete:(n,c)=>{const r=`scan-complete:${n}`,i=(t,o)=>c(o);return e.ipcRenderer.on(r,i),()=>e.ipcRenderer.removeListener(r,i)}});
+"use strict";
+const electron = require("electron");
+electron.contextBridge.exposeInMainWorld("electronWindow", {
+  minimize: () => electron.ipcRenderer.invoke("window:minimize"),
+  maximize: () => electron.ipcRenderer.invoke("window:maximize"),
+  close: () => electron.ipcRenderer.invoke("window:close")
+});
+electron.contextBridge.exposeInMainWorld("electronAPI", {
+  // GPG Verification
+  verifyGPG: (payload) => electron.ipcRenderer.invoke("scan:verify-gpg", payload),
+  // Gitleaks Scan
+  runGitleaks: (payload) => electron.ipcRenderer.invoke("scan:gitleaks", payload),
+  // Trivy Scan
+  runTrivy: (payload) => electron.ipcRenderer.invoke("scan:trivy", payload),
+  // OpenGrep SAST Scan
+  runOpenGrep: (payload) => electron.ipcRenderer.invoke("scan:opengrep", payload),
+  // Cryptographic Signing Workflow
+  selectFolder: () => electron.ipcRenderer.invoke("dialog:select-folder"),
+  selectFile: () => electron.ipcRenderer.invoke("dialog:select-file"),
+  generateKeys: (payload) => electron.ipcRenderer.invoke("crypto:generate-keys", payload),
+  signArtifact: (payload) => electron.ipcRenderer.invoke("crypto:sign-artifact", payload),
+  // Cancel scan
+  cancelScan: (payload) => electron.ipcRenderer.invoke("scan:cancel", payload),
+  // Listen to logs
+  onScanLog: (scanId, callback) => {
+    const channel = `scan-log:${scanId}`;
+    const handler = (_event, data) => callback(data);
+    electron.ipcRenderer.on(channel, handler);
+    return () => electron.ipcRenderer.removeListener(channel, handler);
+  },
+  // Listen to completion
+  onScanComplete: (scanId, callback) => {
+    const channel = `scan-complete:${scanId}`;
+    const handler = (_event, data) => callback(data);
+    electron.ipcRenderer.on(channel, handler);
+    return () => electron.ipcRenderer.removeListener(channel, handler);
+  }
+});

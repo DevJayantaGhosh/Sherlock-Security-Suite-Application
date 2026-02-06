@@ -76,18 +76,10 @@ export interface RepoScanResults {
 // CORE ENTITIES
 // ------------------------------------------------------------------
 
-// Component configuration for monorepos
-export interface ComponentConfiguration {
-  language: string;              
-  buildCommand?: string;         
-  workingDirectory?: string;     
-}
-
 // Repository details
 export interface RepoDetails {
   repoUrl: string;
   branch: string;
-  componentConfigs?: ComponentConfiguration[];
   
   // Centralized scan results for this repo
   scans?: RepoScanResults;
