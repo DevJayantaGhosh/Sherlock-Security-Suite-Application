@@ -1,191 +1,435 @@
-import { app as ae, BrowserWindow as pe, ipcMain as O, dialog as ye } from "electron";
-import { fileURLToPath as Me } from "node:url";
-import D from "node:path";
-import { spawn as I } from "child_process";
-import ie from "fs/promises";
-import Y from "fs";
-const Te = D.dirname(Me(import.meta.url));
-process.env.APP_ROOT = D.join(Te, "..");
-const de = process.env.VITE_DEV_SERVER_URL, He = D.join(process.env.APP_ROOT, "dist-electron"), Ae = D.join(process.env.APP_ROOT, "dist");
-process.env.VITE_PUBLIC = de ? D.join(process.env.APP_ROOT, "public") : Ae;
-let m = null, Z = null;
-const h = /* @__PURE__ */ new Map(), ge = /* @__PURE__ */ new Map();
-function E(S) {
-  console.log(`[ELECTRON][${(/* @__PURE__ */ new Date()).toISOString()}] ${S}`);
+import { app as ge, BrowserWindow as he, ipcMain as x, dialog as ye } from "electron";
+import { fileURLToPath as De } from "node:url";
+import V from "node:path";
+import { spawn as ee } from "child_process";
+import ue from "fs/promises";
+import H from "fs";
+import Pe from "path";
+import _e from "os";
+import Le from "crypto";
+function Ge(d) {
+  return d && d.__esModule && Object.prototype.hasOwnProperty.call(d, "default") ? d.default : d;
 }
-function xe() {
+var K = { exports: {} };
+const be = "17.2.4", xe = {
+  version: be
+};
+var Te;
+function Ve() {
+  if (Te) return K.exports;
+  Te = 1;
+  const d = H, e = Pe, t = _e, n = Le, T = xe.version, c = [
+    "🔐 encrypt with Dotenvx: https://dotenvx.com",
+    "🔐 prevent committing .env to code: https://dotenvx.com/precommit",
+    "🔐 prevent building .env in docker: https://dotenvx.com/prebuild",
+    "📡 add observability to secrets: https://dotenvx.com/ops",
+    "👥 sync secrets across teammates & machines: https://dotenvx.com/ops",
+    "🗂️ backup and recover secrets: https://dotenvx.com/ops",
+    "✅ audit secrets and track compliance: https://dotenvx.com/ops",
+    "🔄 add secrets lifecycle management: https://dotenvx.com/ops",
+    "🔑 add access controls to secrets: https://dotenvx.com/ops",
+    "🛠️  run anywhere with `dotenvx run -- yourcommand`",
+    "⚙️  specify custom .env file path with { path: '/custom/path/.env' }",
+    "⚙️  enable debug logging with { debug: true }",
+    "⚙️  override existing env vars with { override: true }",
+    "⚙️  suppress all logs with { quiet: true }",
+    "⚙️  write to custom object with { processEnv: myObject }",
+    "⚙️  load multiple .env files with { path: ['.env.local', '.env'] }"
+  ];
+  function u() {
+    return c[Math.floor(Math.random() * c.length)];
+  }
+  function m(r) {
+    return typeof r == "string" ? !["false", "0", "no", "off", ""].includes(r.toLowerCase()) : !!r;
+  }
+  function A() {
+    return process.stdout.isTTY;
+  }
+  function l(r) {
+    return A() ? `\x1B[2m${r}\x1B[0m` : r;
+  }
+  const g = /(?:^|^)\s*(?:export\s+)?([\w.-]+)(?:\s*=\s*?|:\s+?)(\s*'(?:\\'|[^'])*'|\s*"(?:\\"|[^"])*"|\s*`(?:\\`|[^`])*`|[^#\r\n]+)?\s*(?:#.*)?(?:$|$)/mg;
+  function o(r) {
+    const N = {};
+    let R = r.toString();
+    R = R.replace(/\r\n?/mg, `
+`);
+    let C;
+    for (; (C = g.exec(R)) != null; ) {
+      const P = C[1];
+      let $ = C[2] || "";
+      $ = $.trim();
+      const p = $[0];
+      $ = $.replace(/^(['"`])([\s\S]*)\1$/mg, "$2"), p === '"' && ($ = $.replace(/\\n/g, `
+`), $ = $.replace(/\\r/g, "\r")), N[P] = $;
+    }
+    return N;
+  }
+  function i(r) {
+    r = r || {};
+    const N = W(r);
+    r.path = N;
+    const R = D.configDotenv(r);
+    if (!R.parsed) {
+      const p = new Error(`MISSING_DATA: Cannot parse ${N} for an unknown reason`);
+      throw p.code = "MISSING_DATA", p;
+    }
+    const C = y(r).split(","), P = C.length;
+    let $;
+    for (let p = 0; p < P; p++)
+      try {
+        const _ = C[p].trim(), I = M(R, _);
+        $ = D.decrypt(I.ciphertext, I.key);
+        break;
+      } catch (_) {
+        if (p + 1 >= P)
+          throw _;
+      }
+    return D.parse($);
+  }
+  function w(r) {
+    console.error(`[dotenv@${T}][WARN] ${r}`);
+  }
+  function a(r) {
+    console.log(`[dotenv@${T}][DEBUG] ${r}`);
+  }
+  function G(r) {
+    console.log(`[dotenv@${T}] ${r}`);
+  }
+  function y(r) {
+    return r && r.DOTENV_KEY && r.DOTENV_KEY.length > 0 ? r.DOTENV_KEY : process.env.DOTENV_KEY && process.env.DOTENV_KEY.length > 0 ? process.env.DOTENV_KEY : "";
+  }
+  function M(r, N) {
+    let R;
+    try {
+      R = new URL(N);
+    } catch (_) {
+      if (_.code === "ERR_INVALID_URL") {
+        const I = new Error("INVALID_DOTENV_KEY: Wrong format. Must be in valid uri format like dotenv://:key_1234@dotenvx.com/vault/.env.vault?environment=development");
+        throw I.code = "INVALID_DOTENV_KEY", I;
+      }
+      throw _;
+    }
+    const C = R.password;
+    if (!C) {
+      const _ = new Error("INVALID_DOTENV_KEY: Missing key part");
+      throw _.code = "INVALID_DOTENV_KEY", _;
+    }
+    const P = R.searchParams.get("environment");
+    if (!P) {
+      const _ = new Error("INVALID_DOTENV_KEY: Missing environment part");
+      throw _.code = "INVALID_DOTENV_KEY", _;
+    }
+    const $ = `DOTENV_VAULT_${P.toUpperCase()}`, p = r.parsed[$];
+    if (!p) {
+      const _ = new Error(`NOT_FOUND_DOTENV_ENVIRONMENT: Cannot locate environment ${$} in your .env.vault file.`);
+      throw _.code = "NOT_FOUND_DOTENV_ENVIRONMENT", _;
+    }
+    return { ciphertext: p, key: C };
+  }
+  function W(r) {
+    let N = null;
+    if (r && r.path && r.path.length > 0)
+      if (Array.isArray(r.path))
+        for (const R of r.path)
+          d.existsSync(R) && (N = R.endsWith(".vault") ? R : `${R}.vault`);
+      else
+        N = r.path.endsWith(".vault") ? r.path : `${r.path}.vault`;
+    else
+      N = e.resolve(process.cwd(), ".env.vault");
+    return d.existsSync(N) ? N : null;
+  }
+  function Z(r) {
+    return r[0] === "~" ? e.join(t.homedir(), r.slice(1)) : r;
+  }
+  function X(r) {
+    const N = m(process.env.DOTENV_CONFIG_DEBUG || r && r.debug), R = m(process.env.DOTENV_CONFIG_QUIET || r && r.quiet);
+    (N || !R) && G("Loading env from encrypted .env.vault");
+    const C = D._parseVault(r);
+    let P = process.env;
+    return r && r.processEnv != null && (P = r.processEnv), D.populate(P, C, r), { parsed: C };
+  }
+  function z(r) {
+    const N = e.resolve(process.cwd(), ".env");
+    let R = "utf8", C = process.env;
+    r && r.processEnv != null && (C = r.processEnv);
+    let P = m(C.DOTENV_CONFIG_DEBUG || r && r.debug), $ = m(C.DOTENV_CONFIG_QUIET || r && r.quiet);
+    r && r.encoding ? R = r.encoding : P && a("No encoding is specified. UTF-8 is used by default");
+    let p = [N];
+    if (r && r.path)
+      if (!Array.isArray(r.path))
+        p = [Z(r.path)];
+      else {
+        p = [];
+        for (const k of r.path)
+          p.push(Z(k));
+      }
+    let _;
+    const I = {};
+    for (const k of p)
+      try {
+        const B = D.parse(d.readFileSync(k, { encoding: R }));
+        D.populate(I, B, r);
+      } catch (B) {
+        P && a(`Failed to load ${k} ${B.message}`), _ = B;
+      }
+    const q = D.populate(C, I, r);
+    if (P = m(C.DOTENV_CONFIG_DEBUG || P), $ = m(C.DOTENV_CONFIG_QUIET || $), P || !$) {
+      const k = Object.keys(q).length, B = [];
+      for (const Ee of p)
+        try {
+          const re = e.relative(process.cwd(), Ee);
+          B.push(re);
+        } catch (re) {
+          P && a(`Failed to load ${Ee} ${re.message}`), _ = re;
+        }
+      G(`injecting env (${k}) from ${B.join(",")} ${l(`-- tip: ${u()}`)}`);
+    }
+    return _ ? { parsed: I, error: _ } : { parsed: I };
+  }
+  function se(r) {
+    if (y(r).length === 0)
+      return D.configDotenv(r);
+    const N = W(r);
+    return N ? D._configVault(r) : (w(`You set DOTENV_KEY but you are missing a .env.vault file at ${N}. Did you forget to build it?`), D.configDotenv(r));
+  }
+  function Y(r, N) {
+    const R = Buffer.from(N.slice(-64), "hex");
+    let C = Buffer.from(r, "base64");
+    const P = C.subarray(0, 12), $ = C.subarray(-16);
+    C = C.subarray(12, -16);
+    try {
+      const p = n.createDecipheriv("aes-256-gcm", R, P);
+      return p.setAuthTag($), `${p.update(C)}${p.final()}`;
+    } catch (p) {
+      const _ = p instanceof RangeError, I = p.message === "Invalid key length", q = p.message === "Unsupported state or unable to authenticate data";
+      if (_ || I) {
+        const k = new Error("INVALID_DOTENV_KEY: It must be 64 characters long (or more)");
+        throw k.code = "INVALID_DOTENV_KEY", k;
+      } else if (q) {
+        const k = new Error("DECRYPTION_FAILED: Please check your DOTENV_KEY");
+        throw k.code = "DECRYPTION_FAILED", k;
+      } else
+        throw p;
+    }
+  }
+  function v(r, N, R = {}) {
+    const C = !!(R && R.debug), P = !!(R && R.override), $ = {};
+    if (typeof N != "object") {
+      const p = new Error("OBJECT_REQUIRED: Please check the processEnv argument being passed to populate");
+      throw p.code = "OBJECT_REQUIRED", p;
+    }
+    for (const p of Object.keys(N))
+      Object.prototype.hasOwnProperty.call(r, p) ? (P === !0 && (r[p] = N[p], $[p] = N[p]), C && a(P === !0 ? `"${p}" is already defined and WAS overwritten` : `"${p}" is already defined and was NOT overwritten`)) : (r[p] = N[p], $[p] = N[p]);
+    return $;
+  }
+  const D = {
+    configDotenv: z,
+    _configVault: X,
+    _parseVault: i,
+    config: se,
+    decrypt: Y,
+    parse: o,
+    populate: v
+  };
+  return K.exports.configDotenv = D.configDotenv, K.exports._configVault = D._configVault, K.exports._parseVault = D._parseVault, K.exports.config = D.config, K.exports.decrypt = D.decrypt, K.exports.parse = D.parse, K.exports.populate = D.populate, K.exports = D, K.exports;
+}
+var Ie = Ve();
+const ke = /* @__PURE__ */ Ge(Ie), me = V.dirname(De(import.meta.url));
+process.env.APP_ROOT = V.join(me, "..");
+const $e = process.env.VITE_DEV_SERVER_URL, Xe = V.join(process.env.APP_ROOT, "dist-electron"), Ne = V.join(process.env.APP_ROOT, "dist");
+process.env.VITE_PUBLIC = $e ? V.join(process.env.APP_ROOT, "public") : Ne;
+const Me = [
+  V.join(process.env.APP_ROOT, ".env"),
+  // ROOT .env (dev + prod)
+  V.join(me, ".env"),
+  // src/.env fallback
+  V.join(process.resourcesPath || me, ".env")
+  // Packaged app
+];
+ke.config({ path: Me.find((d) => H.existsSync(d)) });
+console.log("✅ .env loaded:", process.env.GITHUB_PAT ? "GITHUB_PAT found" : "No token");
+let U = null, pe = null;
+const S = /* @__PURE__ */ new Map(), fe = /* @__PURE__ */ new Map();
+function O(d) {
+  console.log(`[ELECTRON][${(/* @__PURE__ */ new Date()).toISOString()}] ${d}`);
+}
+function ve() {
   return process.platform === "win32" ? "win" : process.platform === "darwin" ? "darwin" : "linux";
 }
-function X(S) {
-  const e = process.platform === "win32" ? ".exe" : "", r = S + e;
-  return D.join(
+function oe(d) {
+  const e = process.platform === "win32" ? ".exe" : "", t = d + e;
+  return V.join(
     process.env.APP_ROOT,
     "tools",
-    xe(),
-    S,
-    r
+    ve(),
+    d,
+    t
   );
 }
-function ne(S) {
-  const e = X(S);
-  if (!Y.existsSync(e))
-    return E(`Tool not found: ${e}`), null;
+function ce(d) {
+  const e = oe(d);
+  if (!H.existsSync(e))
+    return O(`Tool not found: ${e}`), null;
   try {
-    Y.accessSync(e, Y.constants.X_OK);
+    H.accessSync(e, H.constants.X_OK);
   } catch {
-    if (E(`${S} not executable: ${e}`), process.platform !== "win32")
+    if (O(`${d} not executable: ${e}`), process.platform !== "win32")
       try {
-        Y.chmodSync(e, 493), E(`Set execute permission on ${e}`);
-      } catch (t) {
-        return E(`Failed to set permissions: ${t.message}`), null;
+        H.chmodSync(e, 493), O(`Set execute permission on ${e}`);
+      } catch (n) {
+        return O(`Failed to set permissions: ${n.message}`), null;
       }
   }
-  return E(`Found ${S} at: ${e}`), e;
+  return O(`Found ${d} at: ${e}`), e;
 }
-function B(S, e) {
-  if (!S || !S.pid) {
-    E(`No PID for ${e}`);
+function Q(d, e) {
+  if (!d || !d.pid) {
+    O(`No PID for ${e}`);
     return;
   }
-  E(`Killing ${e} (PID: ${S.pid})`);
+  O(`Killing ${e} (PID: ${d.pid})`);
   try {
     if (process.platform === "win32")
-      I("taskkill", ["/pid", S.pid.toString(), "/f", "/t"], {
+      ee("taskkill", ["/pid", d.pid.toString(), "/f", "/t"], {
         stdio: "ignore"
       });
     else
       try {
-        process.kill(-S.pid, "SIGKILL");
+        process.kill(-d.pid, "SIGKILL");
       } catch {
-        S.kill("SIGKILL");
+        d.kill("SIGKILL");
       }
-  } catch (r) {
-    E(`Kill error ${e}: ${r.message}`);
+  } catch (t) {
+    O(`Kill error ${e}: ${t.message}`);
     try {
-      S.kill("SIGKILL");
+      d.kill("SIGKILL");
     } catch {
     }
   }
 }
-async function le(S, e, r, t) {
-  var R;
-  const s = `${e}:${r}`;
-  if (ge.has(s)) {
-    const $ = ge.get(s);
+function Fe() {
+  return process.env.GITHUB_PAT || null;
+}
+async function ae(d, e, t, n) {
+  const s = `${e}:${t}`;
+  if (fe.has(s)) {
+    const l = fe.get(s);
     try {
-      return await ie.access(D.join($, ".git")), E(`Using cached repo: ${$}`), S.sender.send(`scan-log:${t}`, {
+      return await ue.access(V.join(l, ".git")), O(`Using cached repo: ${l}`), d.sender.send(`scan-log:${n}`, {
         log: `✅ Using cached repository
-   Path: ${$}
-   Branch: ${r}
+   Path: ${l}
+   Branch: ${t}
 
 `,
         progress: 50
-      }), $;
+      }), l;
     } catch {
-      ge.delete(s);
+      fe.delete(s);
     }
   }
-  E(`Cloning ${e} (branch: ${r})`), S.sender.send(`scan-log:${t}`, {
+  d.sender.send(`scan-log:${n}`, {
     log: `
 ${"═".repeat(60)}
 📦 CLONING REPOSITORY
 ${"═".repeat(60)}
 `,
     progress: 5
-  }), S.sender.send(`scan-log:${t}`, {
+  }), d.sender.send(`scan-log:${n}`, {
     log: `Repository: ${e}
-Branch: ${r}
+Branch: ${t}
 
 `,
     progress: 10
   });
-  const C = ((R = e.split("/").pop()) == null ? void 0 : R.replace(".git", "")) || "repo", l = Date.now(), o = D.join(
-    ae.getPath("temp"),
-    "cipher-scans",
-    `${C}-${r.replace(/\//g, "-")}-${l}`
+  const T = Fe();
+  let c = e;
+  T && !e.includes("x-access-token") && (c = e.replace("https://", `https://x-access-token:${T}@`));
+  const u = e.split("/").pop()?.replace(".git", "") || "repo", m = Date.now(), A = V.join(
+    ge.getPath("temp"),
+    "software-security-scans",
+    `${u}-${t.replace(/\//g, "-")}-${m}`
   );
   try {
-    return await ie.mkdir(o, { recursive: !0 }), await new Promise(($) => {
-      var y, T;
-      const g = ["clone", "-b", r, "--single-branch", e, o];
-      S.sender.send(`scan-log:${t}`, {
-        log: `$ git clone -b ${r} --single-branch ${e}
+    return await ue.mkdir(A, { recursive: !0 }), await new Promise((l) => {
+      const g = ["clone", "-b", t, "--single-branch", c, A];
+      d.sender.send(`scan-log:${n}`, {
+        log: `$ git clone in-progress ...
 
 `,
         progress: 15
       });
-      const i = I("git", g, {
+      const o = ee("git", g, {
         detached: !0,
         stdio: ["ignore", "pipe", "pipe"]
       });
-      i.unref();
-      const p = `${t}-clone`;
-      h.set(p, i);
-      let a = !1, n = 0;
-      (y = i.stdout) == null || y.on("data", (w) => {
-        n++, S.sender.send(`scan-log:${t}`, {
-          log: w.toString(),
-          progress: Math.min(20 + n * 2, 45)
+      o.unref();
+      const i = `${n}-clone`;
+      S.set(i, o);
+      let w = !1, a = 0;
+      o.stdout?.on("data", (y) => {
+        a++, d.sender.send(`scan-log:${n}`, {
+          log: y.toString(),
+          progress: Math.min(20 + a * 2, 45)
         });
-      }), (T = i.stderr) == null || T.on("data", (w) => {
-        n++, S.sender.send(`scan-log:${t}`, {
-          log: w.toString(),
-          progress: Math.min(20 + n * 2, 45)
+      }), o.stderr?.on("data", (y) => {
+        a++, d.sender.send(`scan-log:${n}`, {
+          log: y.toString(),
+          progress: Math.min(20 + a * 2, 45)
         });
-      }), i.on("close", (w) => {
-        if (h.delete(p), a) {
-          $(null);
+      }), o.on("close", (y) => {
+        if (S.delete(i), w) {
+          l(null);
           return;
         }
-        w === 0 ? (ge.set(s, o), S.sender.send(`scan-log:${t}`, {
+        y === 0 ? (fe.set(s, A), d.sender.send(`scan-log:${n}`, {
           log: `
 ✅ Clone successful!
-   Location: ${o}
+   Location: ${A}
 ${"═".repeat(60)}
 
 `,
           progress: 50
-        }), $(o)) : (S.sender.send(`scan-log:${t}`, {
+        }), l(A)) : (d.sender.send(`scan-log:${n}`, {
           log: `
-❌ Clone failed with exit code ${w}
+❌ Clone failed with exit code ${y}
 `,
           progress: 0
-        }), $(null));
-      }), i.on("error", (w) => {
-        h.delete(p), S.sender.send(`scan-log:${t}`, {
+        }), l(null));
+      }), o.on("error", (y) => {
+        S.delete(i), d.sender.send(`scan-log:${n}`, {
           log: `
-❌ Clone error: ${w.message}
+❌ Clone error: ${y.message}
 `,
           progress: 0
-        }), $(null);
+        }), l(null);
       });
-      const c = () => {
-        a = !0, E(`Cancelling clone: ${p}`), B(i, p), h.delete(p), $(null);
+      const G = () => {
+        w = !0, O(`Cancelling clone: ${i}`), Q(o, i), S.delete(i), l(null);
       };
-      O.once(`scan:cancel-${t}`, c), setTimeout(() => {
-        h.has(p) && (B(i, p), S.sender.send(`scan-log:${t}`, {
+      x.once(`scan:cancel-${n}`, G), setTimeout(() => {
+        S.has(i) && (Q(o, i), d.sender.send(`scan-log:${n}`, {
           log: `
 ❌ Clone timeout after 3 minutes
 `,
           progress: 0
-        }), $(null));
+        }), l(null));
       }, 18e4);
     });
-  } catch ($) {
-    return S.sender.send(`scan-log:${t}`, {
+  } catch (l) {
+    return d.sender.send(`scan-log:${n}`, {
       log: `
-❌ Exception: ${$.message}
+❌ Exception: ${l.message}
 `,
       progress: 0
     }), null;
   }
 }
-function be() {
-  O.handle("scan:verify-gpg", async (e, { repoUrl: r, branch: t, scanId: s }) => {
-    E(`[GPG] Starting verification for ${r} on branch ${t}`);
-    const C = await le(e, r, t, s);
-    return C ? new Promise((l) => {
-      var a, n;
+function Ue() {
+  x.handle("scan:verify-gpg", async (e, { repoUrl: t, branch: n, scanId: s }) => {
+    O(`[GPG] Starting verification for ${t} on branch ${n}`);
+    const T = await ae(e, t, n, s);
+    return T ? new Promise((c) => {
       e.sender.send(`scan-log:${s}`, {
         log: `
 ${"═".repeat(60)}
@@ -195,63 +439,63 @@ ${"═".repeat(60)}
 `,
         progress: 52
       }), e.sender.send(`scan-log:${s}`, {
-        log: `🔍 Analyzing ALL commit signatures on branch: ${t}...
+        log: `🔍 Analyzing ALL commit signatures on branch: ${n}...
 
 `,
         progress: 55
       });
-      const o = I(
+      const u = ee(
         "git",
-        ["log", "--show-signature", "--pretty=format:%H|%an|%aI|%s", t],
+        ["log", "--show-signature", "--pretty=format:%H|%an|%aI|%s", n],
         {
-          cwd: C,
+          cwd: T,
           detached: !0,
           stdio: ["ignore", "pipe", "pipe"]
         }
       );
-      o.unref(), h.set(s, o);
-      let R = "", $ = "", g = 0, i = 0, p = !1;
-      (a = o.stdout) == null || a.on("data", (c) => {
-        p || (R += c.toString());
-      }), (n = o.stderr) == null || n.on("data", (c) => {
-        p || ($ += c.toString());
-      }), o.on("close", (c) => {
-        if (h.delete(s), p) {
-          l({ success: !1, cancelled: !0 });
+      u.unref(), S.set(s, u);
+      let m = "", A = "", l = 0, g = 0, o = !1;
+      u.stdout?.on("data", (i) => {
+        o || (m += i.toString());
+      }), u.stderr?.on("data", (i) => {
+        o || (A += i.toString());
+      }), u.on("close", (i) => {
+        if (S.delete(s), o) {
+          c({ success: !1, cancelled: !0 });
           return;
         }
-        const T = (R + `
-` + $).split(`
+        const a = (m + `
+` + A).split(`
 `);
-        for (let N = 0; N < T.length; N++) {
-          const x = T[N].trim();
-          if (x.includes("|")) {
-            g++;
-            const [_, W, H, Q] = x.split("|");
-            let V = !1, G = "";
-            for (let q = Math.max(0, N - 20); q < N; q++)
-              G += T[q] + `
+        for (let M = 0; M < a.length; M++) {
+          const W = a[M].trim();
+          if (W.includes("|")) {
+            l++;
+            const [Z, X, z, se] = W.split("|");
+            let Y = !1, v = "";
+            for (let r = Math.max(0, M - 20); r < M; r++)
+              v += a[r] + `
 `;
-            (G.includes("Good signature from") || G.includes("gpg: Good signature") || G.includes("Signature made") || G.includes("using RSA key") && G.includes("Good") || G.includes("using ECDSA key") && G.includes("Good")) && (V = !0, i++), G.includes("Verified") && !V && (V = !0, i++);
-            const v = `
+            (v.includes("Good signature from") || v.includes("gpg: Good signature") || v.includes("Signature made") || v.includes("using RSA key") && v.includes("Good") || v.includes("using ECDSA key") && v.includes("Good")) && (Y = !0, g++), v.includes("Verified") && !Y && (Y = !0, g++);
+            const D = `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📝 Commit ${g}
+📝 Commit ${l}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-SHA     : ${_.substring(0, 8)}
-Author  : ${W}
-Date    : ${H}
-Message : ${Q}
+SHA     : ${Z.substring(0, 8)}
+Author  : ${X}
+Date    : ${z}
+Message : ${se}
 
-GPG     : ${V ? "✅ GOOD SIGNATURE" : "❌ MISSING/INVALID"}
+GPG     : ${Y ? "✅ GOOD SIGNATURE" : "❌ MISSING/INVALID"}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 `;
             e.sender.send(`scan-log:${s}`, {
-              log: v,
-              progress: 55 + Math.min(g / Math.max(g, 1) * 35, 35)
-            }), G = "";
+              log: D,
+              progress: 55 + Math.min(l / Math.max(l, 1) * 35, 35)
+            }), v = "";
           }
         }
-        const w = g > 0 ? Math.round(i / g * 100) : 0, L = `
+        const G = l > 0 ? Math.round(g / l * 100) : 0, y = `
 
 
 ╔═══════════════════════════════════════════════════════════════════════════════╗
@@ -260,43 +504,43 @@ GPG     : ${V ? "✅ GOOD SIGNATURE" : "❌ MISSING/INVALID"}
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 
-Branch           : ${t}
-Total Commits    : ${g}
-Good Signatures  : ${i}
-Missing/Invalid  : ${g - i}
-Success Rate     : ${w}%
-Status           : ${c === 0 ? "✅ COMPLETE" : "❌ FAILED"}
+Branch           : ${n}
+Total Commits    : ${l}
+Good Signatures  : ${g}
+Missing/Invalid  : ${l - g}
+Success Rate     : ${G}%
+Status           : ${i === 0 ? "✅ COMPLETE" : "❌ FAILED"}
 
 ${"═".repeat(79)}
 `;
         e.sender.send(`scan-log:${s}`, {
-          log: L,
+          log: y,
           progress: 100
         }), e.sender.send(`scan-complete:${s}`, {
-          success: c === 0,
-          totalCommits: g,
-          goodSignatures: i
-        }), l({ success: c === 0, totalCommits: g, goodSignatures: i });
-      }), o.on("error", (c) => {
-        h.delete(s), e.sender.send(`scan-complete:${s}`, {
+          success: i === 0,
+          totalCommits: l,
+          goodSignatures: g
+        }), c({ success: i === 0, totalCommits: l, goodSignatures: g });
+      }), u.on("error", (i) => {
+        S.delete(s), e.sender.send(`scan-complete:${s}`, {
           success: !1,
-          error: c.message
-        }), l({ success: !1, error: c.message });
-      }), O.once(`scan:cancel-${s}`, () => {
-        p = !0, E(`Cancelling GPG scan: ${s}`), B(o, s), h.delete(s), l({ success: !1, cancelled: !0 });
+          error: i.message
+        }), c({ success: !1, error: i.message });
+      }), x.once(`scan:cancel-${s}`, () => {
+        o = !0, O(`Cancelling GPG scan: ${s}`), Q(u, s), S.delete(s), c({ success: !1, cancelled: !0 });
       });
     }) : (e.sender.send(`scan-complete:${s}`, {
       success: !1,
       error: "Clone failed"
     }), { success: !1, error: "Clone failed" });
-  }), O.handle("scan:gitleaks", async (e, { repoUrl: r, branch: t, scanId: s }) => {
-    E(`[GITLEAKS] Starting scan for ${r}`);
-    const C = ne("gitleaks");
-    if (!C)
+  }), x.handle("scan:gitleaks", async (e, { repoUrl: t, branch: n, scanId: s }) => {
+    O(`[GITLEAKS] Starting scan for ${t}`);
+    const T = ce("gitleaks");
+    if (!T)
       return e.sender.send(`scan-log:${s}`, {
         log: `
 ❌ Gitleaks tool not found
-   Expected: ${X("gitleaks")}
+   Expected: ${oe("gitleaks")}
 
 `,
         progress: 0
@@ -304,15 +548,14 @@ ${"═".repeat(79)}
         success: !1,
         error: "Tool not found"
       }), { success: !1, error: "Tool not found" };
-    const l = await le(e, r, t, s);
-    if (!l)
+    const c = await ae(e, t, n, s);
+    if (!c)
       return e.sender.send(`scan-complete:${s}`, {
         success: !1,
         error: "Clone failed"
       }), { success: !1, error: "Clone failed" };
-    const o = D.join(l, "gitleaks-report.json");
-    return new Promise((R) => {
-      var p, a;
+    const u = V.join(c, "gitleaks-report.json");
+    return new Promise((m) => {
       e.sender.send(`scan-log:${s}`, {
         log: `
 ${"═".repeat(60)}
@@ -327,8 +570,8 @@ ${"═".repeat(60)}
 `,
         progress: 55
       });
-      const $ = {
-        cwd: l,
+      const A = {
+        cwd: c,
         stdio: ["ignore", "pipe", "pipe"],
         env: {
           ...process.env,
@@ -336,66 +579,65 @@ ${"═".repeat(60)}
           // Removed ANSI colors for cleaner parsing
         }
       };
-      process.platform === "win32" ? ($.windowsHide = !0, $.shell = !1, $.detached = !1) : $.detached = !0;
-      const g = I(
-        C,
-        ["detect", "--source", l, "--report-path", o, "--verbose"],
-        $
+      process.platform === "win32" ? (A.windowsHide = !0, A.shell = !1, A.detached = !1) : A.detached = !0;
+      const l = ee(
+        T,
+        ["detect", "--source", c, "--report-path", u, "--verbose"],
+        A
       );
-      process.platform !== "win32" && g.unref(), h.set(s, g);
-      let i = !1;
-      (p = g.stdout) == null || p.on("data", (n) => {
-        i || e.sender.send(`scan-log:${s}`, {
-          log: n.toString(),
+      process.platform !== "win32" && l.unref(), S.set(s, l);
+      let g = !1;
+      l.stdout?.on("data", (o) => {
+        g || e.sender.send(`scan-log:${s}`, {
+          log: o.toString(),
           progress: 70
         });
-      }), (a = g.stderr) == null || a.on("data", (n) => {
-        i || e.sender.send(`scan-log:${s}`, {
-          log: n.toString(),
+      }), l.stderr?.on("data", (o) => {
+        g || e.sender.send(`scan-log:${s}`, {
+          log: o.toString(),
           progress: 85
         });
-      }), g.on("close", async () => {
-        if (h.delete(s), i) {
-          R({ success: !1, cancelled: !0 });
+      }), l.on("close", async () => {
+        if (S.delete(s), g) {
+          m({ success: !1, cancelled: !0 });
           return;
         }
-        let n = 0;
-        if (Y.existsSync(o))
+        let o = 0;
+        if (H.existsSync(u))
           try {
-            const y = JSON.parse(await ie.readFile(o, "utf-8"));
-            n = y.length || 0, n > 0 && (e.sender.send(`scan-log:${s}`, {
+            const w = JSON.parse(await ue.readFile(u, "utf-8"));
+            o = w.length || 0, o > 0 && (e.sender.send(`scan-log:${s}`, {
               log: `
 🔍 DETAILED FINDINGS:
 ${"═".repeat(79)}
 
 `,
               progress: 90
-            }), y.forEach((T, w) => {
-              var N, x, _;
-              const L = `
+            }), w.forEach((a, G) => {
+              const y = `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🚨 Secret ${w + 1}
+🚨 Secret ${G + 1}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Type        : ${T.RuleID || "Unknown"}
-Description : ${T.Description || T.RuleID || "N/A"}
-File        : ${T.File || "N/A"}
-Line        : ${T.StartLine || "N/A"}
-Commit      : ${((N = T.Commit) == null ? void 0 : N.substring(0, 8)) || "N/A"}
-Author      : ${T.Author || "N/A"}
-Date        : ${T.Date || "N/A"}
+Type        : ${a.RuleID || "Unknown"}
+Description : ${a.Description || a.RuleID || "N/A"}
+File        : ${a.File || "N/A"}
+Line        : ${a.StartLine || "N/A"}
+Commit      : ${a.Commit?.substring(0, 8) || "N/A"}
+Author      : ${a.Author || "N/A"}
+Date        : ${a.Date || "N/A"}
 
-Match       : ${((x = T.Match) == null ? void 0 : x.substring(0, 80)) || "N/A"}${((_ = T.Match) == null ? void 0 : _.length) > 80 ? "..." : ""}
+Match       : ${a.Match?.substring(0, 80) || "N/A"}${a.Match?.length > 80 ? "..." : ""}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 `;
               e.sender.send(`scan-log:${s}`, {
-                log: L,
-                progress: 90 + Math.floor(w / n * 5)
+                log: y,
+                progress: 90 + Math.floor(G / o * 5)
               });
             }));
-          } catch (y) {
-            E(`Error parsing Gitleaks report: ${y}`);
+          } catch (w) {
+            O(`Error parsing Gitleaks report: ${w}`);
           }
-        const c = `
+        const i = `
 
 ╔═══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                               ║
@@ -403,59 +645,59 @@ Match       : ${((x = T.Match) == null ? void 0 : x.substring(0, 80)) || "N/A"}$
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 
-Potential Secrets : ${n}
-Status            : ${n > 0 ? "🚨 SECRETS DETECTED" : "✅ CLEAN"}
-Severity          : ${n > 0 ? "HIGH - Immediate action required" : "NONE"}
+Potential Secrets : ${o}
+Status            : ${o > 0 ? "🚨 SECRETS DETECTED" : "✅ CLEAN"}
+Severity          : ${o > 0 ? "HIGH - Immediate action required" : "NONE"}
 
 ${"═".repeat(79)}
 `;
         e.sender.send(`scan-log:${s}`, {
-          log: c,
+          log: i,
           progress: 100
         }), e.sender.send(`scan-complete:${s}`, {
           success: !0,
-          findings: n
-        }), R({ success: !0, findings: n });
-      }), g.on("error", (n) => {
-        h.delete(s), e.sender.send(`scan-complete:${s}`, {
+          findings: o
+        }), m({ success: !0, findings: o });
+      }), l.on("error", (o) => {
+        S.delete(s), e.sender.send(`scan-complete:${s}`, {
           success: !1,
-          error: n.message
-        }), R({ success: !1, error: n.message });
-      }), O.once(`scan:cancel-${s}`, () => {
-        i = !0, E(`Cancelling Gitleaks scan: ${s}`), B(g, s), h.delete(s), R({ success: !1, cancelled: !0 });
+          error: o.message
+        }), m({ success: !1, error: o.message });
+      }), x.once(`scan:cancel-${s}`, () => {
+        g = !0, O(`Cancelling Gitleaks scan: ${s}`), Q(l, s), S.delete(s), m({ success: !1, cancelled: !0 });
       });
     });
   });
-  function S(e) {
+  function d(e) {
     if (!e.Results || e.Results.length === 0) return "";
-    let r = `
+    let t = `
 🔎 DETAILED VULNERABILITY REPORT
 `;
-    return r += `════════════════════════════════════════════════════════════
-`, e.Results.forEach((t) => {
-      t.Vulnerabilities && t.Vulnerabilities.length > 0 && (r += `
-📂 Target: ${t.Target}
-`, r += `   Type:   ${t.Type}
-`, r += `   ────────────────────────────────────────────────────────
-`, t.Vulnerabilities.forEach((s) => {
-        const C = s.Severity === "CRITICAL" ? "🔴" : s.Severity === "HIGH" ? "🟠" : s.Severity === "MEDIUM" ? "🟡" : "🔵";
-        r += `   ${C} [${s.Severity}] ${s.VulnerabilityID}
-`, r += `      📦 Package: ${s.PkgName} (${s.InstalledVersion})
-`, r += `      ⚠️ Title:   ${s.Title || "N/A"}
-`, s.FixedVersion && (r += `      ✅ Fixed in: ${s.FixedVersion}
-`), r += `
+    return t += `════════════════════════════════════════════════════════════
+`, e.Results.forEach((n) => {
+      n.Vulnerabilities && n.Vulnerabilities.length > 0 && (t += `
+📂 Target: ${n.Target}
+`, t += `   Type:   ${n.Type}
+`, t += `   ────────────────────────────────────────────────────────
+`, n.Vulnerabilities.forEach((s) => {
+        const T = s.Severity === "CRITICAL" ? "🔴" : s.Severity === "HIGH" ? "🟠" : s.Severity === "MEDIUM" ? "🟡" : "🔵";
+        t += `   ${T} [${s.Severity}] ${s.VulnerabilityID}
+`, t += `      📦 Package: ${s.PkgName} (${s.InstalledVersion})
+`, t += `      ⚠️ Title:   ${s.Title || "N/A"}
+`, s.FixedVersion && (t += `      ✅ Fixed in: ${s.FixedVersion}
+`), t += `
 `;
       }));
-    }), r;
+    }), t;
   }
-  O.handle("scan:trivy", async (e, { repoUrl: r, branch: t, scanId: s }) => {
-    E(`[TRIVY] Starting SBOM scan for ${r}`);
-    const C = ne("trivy");
-    if (!C)
+  x.handle("scan:trivy", async (e, { repoUrl: t, branch: n, scanId: s }) => {
+    O(`[TRIVY] Starting SBOM scan for ${t}`);
+    const T = ce("trivy");
+    if (!T)
       return e.sender.send(`scan-log:${s}`, {
         log: `
 ❌ Trivy tool not found
-   Expected: ${X("trivy")}
+   Expected: ${oe("trivy")}
 
 `,
         progress: 0
@@ -463,9 +705,8 @@ ${"═".repeat(79)}
         success: !1,
         error: "Tool not found"
       }), { success: !1, error: "Tool not found" };
-    const l = await le(e, r, t, s);
-    return l ? new Promise((o) => {
-      var i, p;
+    const c = await ae(e, t, n, s);
+    return c ? new Promise((u) => {
       e.sender.send(`scan-log:${s}`, {
         log: `
 ${"═".repeat(60)}
@@ -481,50 +722,46 @@ ${"═".repeat(60)}
 `,
         progress: 55
       });
-      const R = I(
-        C,
-        ["fs", "--scanners", "vuln,misconfig", "--format", "json", l],
+      const m = ee(
+        T,
+        ["fs", "--scanners", "vuln,misconfig", "--format", "json", c],
         {
           detached: !0,
           stdio: ["ignore", "pipe", "pipe"],
           windowsHide: !0
         }
       );
-      R.unref(), h.set(s, R);
-      let $ = "", g = !1;
-      (i = R.stdout) == null || i.on("data", (a) => {
-        g || ($ += a.toString(), e.sender.send(`scan-log:${s}`, {
+      m.unref(), S.set(s, m);
+      let A = "", l = !1;
+      m.stdout?.on("data", (g) => {
+        l || (A += g.toString(), e.sender.send(`scan-log:${s}`, {
           log: `🔍 Analyzing dependencies and vulnerabilities...
 `,
           progress: 70
         }));
-      }), (p = R.stderr) == null || p.on("data", (a) => {
-        if (g) return;
-        const n = a.toString();
-        !n.includes("Update") && !n.includes("deprecated") && e.sender.send(`scan-log:${s}`, {
-          log: n,
+      }), m.stderr?.on("data", (g) => {
+        if (l) return;
+        const o = g.toString();
+        !o.includes("Update") && !o.includes("deprecated") && e.sender.send(`scan-log:${s}`, {
+          log: o,
           progress: 85
         });
-      }), R.on("close", (a) => {
-        var n;
-        if (h.delete(s), g) {
-          o({ success: !1, cancelled: !0 });
+      }), m.on("close", (g) => {
+        if (S.delete(s), l) {
+          u({ success: !1, cancelled: !0 });
           return;
         }
-        if (a === 0)
+        if (g === 0)
           try {
-            const c = JSON.parse($), y = ((n = c.Results) == null ? void 0 : n.reduce(
-              (L, N) => {
-                var x;
-                return L + (((x = N.Vulnerabilities) == null ? void 0 : x.length) || 0);
-              },
+            const o = JSON.parse(A), i = o.Results?.reduce(
+              (G, y) => G + (y.Vulnerabilities?.length || 0),
               0
-            )) || 0, T = S(c);
+            ) || 0, w = d(o);
             e.sender.send(`scan-log:${s}`, {
-              log: T,
+              log: w,
               progress: 95
             });
-            const w = `
+            const a = `
 
 ╔═══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                               ║
@@ -532,57 +769,56 @@ ${"═".repeat(60)}
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 
-Vulnerabilities : ${y}
-Status          : ${y > 0 ? "🚨 VULNERABILITIES DETECTED" : "✅ NO VULNERABILITIES"}
-Risk Level      : ${y > 10 ? "CRITICAL" : y > 5 ? "HIGH" : y > 0 ? "MEDIUM" : "NONE"}
+Vulnerabilities : ${i}
+Status          : ${i > 0 ? "🚨 VULNERABILITIES DETECTED" : "✅ NO VULNERABILITIES"}
+Risk Level      : ${i > 10 ? "CRITICAL" : i > 5 ? "HIGH" : i > 0 ? "MEDIUM" : "NONE"}
 
 ${"═".repeat(79)}
 `;
             e.sender.send(`scan-log:${s}`, {
-              log: w,
+              log: a,
               progress: 100
             }), e.sender.send(`scan-complete:${s}`, {
               success: !0,
-              vulnerabilities: y
-            }), o({ success: !0, vulnerabilities: y });
-          } catch (c) {
-            console.error("Trivy Parse Error:", c), e.sender.send(`scan-complete:${s}`, {
+              vulnerabilities: i
+            }), u({ success: !0, vulnerabilities: i });
+          } catch (o) {
+            console.error("Trivy Parse Error:", o), e.sender.send(`scan-complete:${s}`, {
               success: !1,
               error: "Failed to parse Trivy results"
-            }), o({ success: !1, error: "Failed to parse Trivy results" });
+            }), u({ success: !1, error: "Failed to parse Trivy results" });
           }
         else
           e.sender.send(`scan-complete:${s}`, {
             success: !1,
-            error: `Trivy exited with code ${a}`
-          }), o({ success: !1, error: `Trivy exited with code ${a}` });
-      }), R.on("error", (a) => {
-        h.delete(s), e.sender.send(`scan-complete:${s}`, {
+            error: `Trivy exited with code ${g}`
+          }), u({ success: !1, error: `Trivy exited with code ${g}` });
+      }), m.on("error", (g) => {
+        S.delete(s), e.sender.send(`scan-complete:${s}`, {
           success: !1,
-          error: a.message
-        }), o({ success: !1, error: a.message });
-      }), O.once(`scan:cancel-${s}`, () => {
-        g = !0, E(`Cancelling Trivy scan: ${s}`), B(R, s), h.delete(s), o({ success: !1, cancelled: !0 });
+          error: g.message
+        }), u({ success: !1, error: g.message });
+      }), x.once(`scan:cancel-${s}`, () => {
+        l = !0, O(`Cancelling Trivy scan: ${s}`), Q(m, s), S.delete(s), u({ success: !1, cancelled: !0 });
       });
     }) : (e.sender.send(`scan-complete:${s}`, {
       success: !1,
       error: "Clone failed"
     }), { success: !1, error: "Clone failed" });
-  }), O.handle("scan:opengrep", async (e, { repoUrl: r, branch: t, scanId: s }) => {
-    E(`[OPENGREP] Starting multi-language SAST analysis for ${r}`);
-    const C = ne("opengrep");
-    if (!C)
+  }), x.handle("scan:opengrep", async (e, { repoUrl: t, branch: n, scanId: s }) => {
+    O(`[OPENGREP] Starting multi-language SAST analysis for ${t}`);
+    const T = ce("opengrep");
+    if (!T)
       return e.sender.send(`scan-log:${s}`, {
         log: `
 ❌ OpenGrep tool not found
-   Expected: ${X("opengrep")}
+   Expected: ${oe("opengrep")}
 
 `,
         progress: 0
       }), e.sender.send(`scan-complete:${s}`, { success: !1, error: "Tool not found" }), { success: !1, error: "Tool not found" };
-    const l = await le(e, r, t, s);
-    return l ? new Promise((o) => {
-      var T, w;
+    const c = await ae(e, t, n, s);
+    return c ? new Promise((u) => {
       e.sender.send(`scan-log:${s}`, {
         log: `
 ${"═".repeat(79)}
@@ -592,23 +828,23 @@ ${"═".repeat(79)}
 `,
         progress: 52
       }), e.sender.send(`scan-log:${s}`, {
-        log: `📦 Repository: ${r}
-🌿 Branch: ${t}
+        log: `📦 Repository: ${t}
+🌿 Branch: ${n}
 
 
 `,
         progress: 54
       });
-      const R = D.join(l, "opengrep-report.json"), $ = [
+      const m = V.join(c, "opengrep-report.json"), A = [
         "scan",
         "--config",
         "auto",
         "--json",
         "--output",
-        R,
+        m,
         "--verbose",
         "--no-git-ignore",
-        l
+        c
       ];
       e.sender.send(`scan-log:${s}`, {
         log: `🔍 Scanning entire repository recursively (all folders)...
@@ -620,42 +856,41 @@ ${"═".repeat(79)}
 `,
         progress: 62
       });
-      const g = {
-        cwd: l,
+      const l = {
+        cwd: c,
         stdio: ["ignore", "pipe", "pipe"],
         env: { ...process.env, NO_COLOR: "1" },
         windowsHide: !0,
         shell: !1,
         detached: !1
-      }, i = I(C, $, g), p = `${s}-opengrep`;
-      h.set(p, i);
-      let a = !1, n = 0, c = "", y = "";
-      (T = i.stdout) == null || T.on("data", (L) => {
-        a || (n++, c += L.toString(), e.sender.send(`scan-log:${s}`, {
+      }, g = ee(T, A, l), o = `${s}-opengrep`;
+      S.set(o, g);
+      let i = !1, w = 0, a = "", G = "";
+      g.stdout?.on("data", (y) => {
+        i || (w++, a += y.toString(), e.sender.send(`scan-log:${s}`, {
           log: "",
-          progress: Math.min(65 + Math.floor(n / 5), 85)
+          progress: Math.min(65 + Math.floor(w / 5), 85)
         }));
-      }), (w = i.stderr) == null || w.on("data", (L) => {
-        a || (y += L.toString());
-      }), i.on("close", async (L) => {
-        var q, fe;
-        if (h.delete(p), a) {
-          o({ success: !1, cancelled: !0 });
+      }), g.stderr?.on("data", (y) => {
+        i || (G += y.toString());
+      }), g.on("close", async (y) => {
+        if (S.delete(o), i) {
+          u({ success: !1, cancelled: !0 });
           return;
         }
-        E(`[OPENGREP] Process exited with code: ${L}`);
-        let N = 0, x = 0, _ = 0, W = [], H = 0, Q = 0, V = 0, G = 0;
-        if (Y.existsSync(R))
+        O(`[OPENGREP] Process exited with code: ${y}`);
+        let M = 0, W = 0, Z = 0, X = [], z = 0, se = 0, Y = 0, v = 0;
+        if (H.existsSync(m))
           try {
-            let J = function(f) {
-              const d = f.replace(/\\/g, "/");
-              return d.startsWith(he) ? d.substring(he.length + 1) : d;
+            let r = function(E) {
+              const f = E.replace(/\\/g, "/");
+              return f.startsWith(p) ? f.substring(p.length + 1) : f;
             };
-            const Pe = await ie.readFile(R, "utf-8"), ue = JSON.parse(Pe);
-            W = ue.results || [], N = W.length, _ = N;
-            const $e = ((q = ue.paths) == null ? void 0 : q.scanned) || [], Oe = ((fe = ue.paths) == null ? void 0 : fe.skipped) || [];
-            x = $e.length;
-            const U = $e.length, he = l.replace(/\\/g, "/"), we = /* @__PURE__ */ new Set([
+            const N = await ue.readFile(m, "utf-8"), R = JSON.parse(N);
+            X = R.results || [], M = X.length, Z = M;
+            const C = R.paths?.scanned || [], P = R.paths?.skipped || [];
+            W = C.length;
+            const $ = C.length, p = c.replace(/\\/g, "/"), _ = /* @__PURE__ */ new Set([
               ".git",
               ".idea",
               ".vscode",
@@ -673,38 +908,37 @@ ${"═".repeat(79)}
               ".nuxt",
               ".venv",
               "venv"
-            ]), ee = /* @__PURE__ */ new Set(), se = /* @__PURE__ */ new Map();
+            ]), I = /* @__PURE__ */ new Set(), q = /* @__PURE__ */ new Map();
             try {
-              (await ie.readdir(l, { withFileTypes: !0 })).forEach((d) => {
-                d.isDirectory() && !we.has(d.name) && (ee.add(d.name), se.set(d.name, 0));
-              }), E(`[OPENGREP] Found ${ee.size} project directories`);
-            } catch (f) {
-              E(`Error reading repo directory: ${f.message}`);
+              (await ue.readdir(c, { withFileTypes: !0 })).forEach((f) => {
+                f.isDirectory() && !_.has(f.name) && (I.add(f.name), q.set(f.name, 0));
+              }), O(`[OPENGREP] Found ${I.size} project directories`);
+            } catch (E) {
+              O(`Error reading repo directory: ${E.message}`);
             }
-            $e.forEach((f) => {
-              const A = J(f).replace(/\\/g, "/").split("/").filter((u) => u && u !== ".");
-              if (A.length !== 0 && A.length > 1) {
-                const u = A[0];
-                ee.has(u) && se.set(u, (se.get(u) || 0) + 1);
+            C.forEach((E) => {
+              const L = r(E).replace(/\\/g, "/").split("/").filter((h) => h && h !== ".");
+              if (L.length !== 0 && L.length > 1) {
+                const h = L[0];
+                I.has(h) && q.set(h, (q.get(h) || 0) + 1);
               }
             });
-            const re = /* @__PURE__ */ new Set();
-            let te = 0;
-            const me = /(?:running|loaded|scanning with)\s+(\d+)\s+rules?/gi.exec(y);
-            me && (te = parseInt(me[1])), y.split(`
-`).forEach((f) => {
-              const d = f.trim(), P = d.match(/^(?:rule|checking|running):\s*([a-zA-Z0-9._\-:\/]+)$/i);
-              P && re.add(P[1]), d.includes(".") && d.length > 10 && d.length < 100 && !d.includes(" ") && /^[a-zA-Z0-9._\-:\/]+$/.test(d) && re.add(d);
+            const k = /* @__PURE__ */ new Set();
+            let B = 0;
+            const re = /(?:running|loaded|scanning with)\s+(\d+)\s+rules?/gi.exec(G);
+            re && (B = parseInt(re[1])), G.split(`
+`).forEach((E) => {
+              const f = E.trim(), b = f.match(/^(?:rule|checking|running):\s*([a-zA-Z0-9._\-:\/]+)$/i);
+              b && k.add(b[1]), f.includes(".") && f.length > 10 && f.length < 100 && !f.includes(" ") && /^[a-zA-Z0-9._\-:\/]+$/.test(f) && k.add(f);
             });
-            const oe = /* @__PURE__ */ new Map();
-            W.forEach((f) => {
-              var F;
-              const d = (((F = f.extra) == null ? void 0 : F.severity) || "WARNING").toUpperCase();
-              d === "ERROR" || d === "CRITICAL" ? H++ : d === "WARNING" || d === "HIGH" ? Q++ : d === "MEDIUM" ? V++ : G++, f.check_id && re.add(f.check_id);
-              const P = f.path || "", b = J(P).replace(/\\/g, "/").split("/").filter((M) => M && M !== ".");
-              if (b.length > 1) {
-                const M = b[0];
-                ee.has(M) && (oe.has(M) || oe.set(M, []), oe.get(M).push(f));
+            const ne = /* @__PURE__ */ new Map();
+            X.forEach((E) => {
+              const f = (E.extra?.severity || "WARNING").toUpperCase();
+              f === "ERROR" || f === "CRITICAL" ? z++ : f === "WARNING" || f === "HIGH" ? se++ : f === "MEDIUM" ? Y++ : v++, E.check_id && k.add(E.check_id);
+              const b = E.path || "", j = r(b).replace(/\\/g, "/").split("/").filter((F) => F && F !== ".");
+              if (j.length > 1) {
+                const F = j[0];
+                I.has(F) && (ne.has(F) || ne.set(F, []), ne.get(F).push(E));
               }
             }), e.sender.send(`scan-log:${s}`, {
               log: `
@@ -713,8 +947,8 @@ ${"═".repeat(79)}
 `,
               progress: 88
             });
-            const Se = Array.from(se.values()).reduce((f, d) => f + d, 0), ce = U - Se, z = Array.from(se.entries()).filter(([f, d]) => d > 0 && ee.has(f)).sort((f, d) => d[1] - f[1]);
-            if (z.length > 0) {
+            const Se = Array.from(q.values()).reduce((E, f) => E + f, 0), de = $ - Se, te = Array.from(q.entries()).filter(([E, f]) => f > 0 && I.has(E)).sort((E, f) => f[1] - E[1]);
+            if (te.length > 0) {
               if (e.sender.send(`scan-log:${s}`, {
                 log: `
 
@@ -723,24 +957,24 @@ ${"─".repeat(79)}
 
 `,
                 progress: 89
-              }), z.forEach(([f, d]) => {
-                const P = oe.get(f) || [], A = P.length === 0 ? "✅" : P.length <= 5 ? "🟡" : "🔴", u = U > 0 ? Math.round(d / U * 100) : 0;
+              }), te.forEach(([E, f]) => {
+                const b = ne.get(E) || [], L = b.length === 0 ? "✅" : b.length <= 5 ? "🟡" : "🔴", h = $ > 0 ? Math.round(f / $ * 100) : 0;
                 e.sender.send(`scan-log:${s}`, {
-                  log: `  ${A} ${f.padEnd(40)} ${d.toString().padStart(4)} files (${u.toString().padStart(2)}%)${P.length > 0 ? ` — ${P.length} issue(s)` : ""}
+                  log: `  ${L} ${E.padEnd(40)} ${f.toString().padStart(4)} files (${h.toString().padStart(2)}%)${b.length > 0 ? ` — ${b.length} issue(s)` : ""}
 `,
                   progress: 89
                 });
-              }), ce > 0) {
-                const f = U > 0 ? Math.round(ce / U * 100) : 0;
+              }), de > 0) {
+                const E = $ > 0 ? Math.round(de / $ * 100) : 0;
                 e.sender.send(`scan-log:${s}`, {
-                  log: `  📄 [root/misc] (config/metadata)           ${ce.toString().padStart(4)} files (${f.toString().padStart(2)}%)
+                  log: `  📄 [root/misc] (config/metadata)           ${de.toString().padStart(4)} files (${E.toString().padStart(2)}%)
 `,
                   progress: 89
                 });
               }
-            } else U > 0 && e.sender.send(`scan-log:${s}`, {
+            } else $ > 0 && e.sender.send(`scan-log:${s}`, {
               log: `
-📂 FILES SCANNED: ${U} (root level or flat structure)
+📂 FILES SCANNED: ${$} (root level or flat structure)
 `,
               progress: 89
             });
@@ -752,35 +986,35 @@ ${"═".repeat(79)}
 
 `,
               progress: 90
-            }), te > 0 && e.sender.send(`scan-log:${s}`, {
-              log: `   OpenGrep scanned ${U} files using ${te} security rules
+            }), B > 0 && e.sender.send(`scan-log:${s}`, {
+              log: `   OpenGrep scanned ${$} files using ${B} security rules
 
 `,
               progress: 90
-            }), re.size > 0) {
-              const f = /* @__PURE__ */ new Map();
-              re.forEach((P) => {
-                const A = P.split(".");
-                let u = "Other";
-                A.includes("security") ? u = "Security" : A.includes("best-practice") ? u = "Best Practice" : A.includes("performance") ? u = "Performance" : A.includes("correctness") ? u = "Correctness" : A.includes("audit") ? u = "Security Audit" : A.length >= 2 && (u = A[1]), f.has(u) || f.set(u, []), f.get(u).push(P);
+            }), k.size > 0) {
+              const E = /* @__PURE__ */ new Map();
+              k.forEach((b) => {
+                const L = b.split(".");
+                let h = "Other";
+                L.includes("security") ? h = "Security" : L.includes("best-practice") ? h = "Best Practice" : L.includes("performance") ? h = "Performance" : L.includes("correctness") ? h = "Correctness" : L.includes("audit") ? h = "Security Audit" : L.length >= 2 && (h = L[1]), E.has(h) || E.set(h, []), E.get(h).push(b);
               });
-              const d = Array.from(f.entries()).sort((P, A) => A[1].length - P[1].length);
-              d.length > 0 && (e.sender.send(`scan-log:${s}`, { log: `   Sample Rules by Category:
+              const f = Array.from(E.entries()).sort((b, L) => L[1].length - b[1].length);
+              f.length > 0 && (e.sender.send(`scan-log:${s}`, { log: `   Sample Rules by Category:
 
-`, progress: 90 }), d.slice(0, 8).forEach(([P, A]) => {
+`, progress: 90 }), f.slice(0, 8).forEach(([b, L]) => {
                 e.sender.send(`scan-log:${s}`, {
-                  log: `   📋 ${P} (${A.length} rule${A.length > 1 ? "s" : ""})
+                  log: `   📋 ${b} (${L.length} rule${L.length > 1 ? "s" : ""})
 `,
                   progress: 90
-                }), A.slice(0, 3).forEach((u) => {
-                  e.sender.send(`scan-log:${s}`, { log: `      • ${u}
+                }), L.slice(0, 3).forEach((h) => {
+                  e.sender.send(`scan-log:${s}`, { log: `      • ${h}
 `, progress: 90 });
-                }), A.length > 3 && e.sender.send(`scan-log:${s}`, { log: `      ... and ${A.length - 3} more
+                }), L.length > 3 && e.sender.send(`scan-log:${s}`, { log: `      ... and ${L.length - 3} more
 `, progress: 90 }), e.sender.send(`scan-log:${s}`, { log: `
 `, progress: 90 });
               }));
             }
-            if (N > 0) {
+            if (M > 0) {
               e.sender.send(`scan-log:${s}`, {
                 log: `
 
@@ -790,45 +1024,43 @@ ${"═".repeat(79)}
 `,
                 progress: 91
               });
-              const f = `
+              const E = `
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ 🔴 Critical/Error       : ${H.toString().padStart(4)}                                             │
-│ 🟠 High/Warning         : ${Q.toString().padStart(4)}                                             │
-│ 🟡 Medium               : ${V.toString().padStart(4)}                                             │
-│ 🔵 Low/Info             : ${G.toString().padStart(4)}                                             │
+│ 🔴 Critical/Error       : ${z.toString().padStart(4)}                                             │
+│ 🟠 High/Warning         : ${se.toString().padStart(4)}                                             │
+│ 🟡 Medium               : ${Y.toString().padStart(4)}                                             │
+│ 🔵 Low/Info             : ${v.toString().padStart(4)}                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 `;
-              e.sender.send(`scan-log:${s}`, { log: f, progress: 91 });
-              const d = Array.from(oe.entries()).filter(([u]) => u.length > 0).sort((u, b) => b[1].length - u[1].length);
-              d.length > 0 && (e.sender.send(`scan-log:${s}`, { log: `
+              e.sender.send(`scan-log:${s}`, { log: E, progress: 91 });
+              const f = Array.from(ne.entries()).filter(([h]) => h.length > 0).sort((h, j) => j[1].length - h[1].length);
+              f.length > 0 && (e.sender.send(`scan-log:${s}`, { log: `
 📂 ISSUES BY PROJECT:
 ${"─".repeat(79)}
 
-`, progress: 91 }), d.forEach(([u, b]) => {
-                const F = b.filter((j) => {
-                  var K;
-                  const k = (((K = j.extra) == null ? void 0 : K.severity) || "WARNING").toUpperCase();
-                  return k === "ERROR" || k === "CRITICAL";
-                }).length, M = b.filter((j) => {
-                  var K;
-                  const k = (((K = j.extra) == null ? void 0 : K.severity) || "WARNING").toUpperCase();
-                  return k === "WARNING" || k === "HIGH";
+`, progress: 91 }), f.forEach(([h, j]) => {
+                const F = j.filter((ie) => {
+                  const J = (ie.extra?.severity || "WARNING").toUpperCase();
+                  return J === "ERROR" || J === "CRITICAL";
+                }).length, le = j.filter((ie) => {
+                  const J = (ie.extra?.severity || "WARNING").toUpperCase();
+                  return J === "WARNING" || J === "HIGH";
                 }).length;
                 e.sender.send(`scan-log:${s}`, {
-                  log: `  📂 ${u}/ — ${b.length} total | 🔴 ${F} critical | 🟠 ${M} high
+                  log: `  📂 ${h}/ — ${j.length} total | 🔴 ${F} critical | 🟠 ${le} high
 `,
                   progress: 91
                 });
               })), e.sender.send(`scan-log:${s}`, {
                 log: `
 
-🔍 TOP ${Math.min(10, N)} CRITICAL FINDINGS:
+🔍 TOP ${Math.min(10, M)} CRITICAL FINDINGS:
 ${"═".repeat(79)}
 
 `,
                 progress: 92
               });
-              const P = {
+              const b = {
                 ERROR: 4,
                 CRITICAL: 4,
                 WARNING: 3,
@@ -837,20 +1069,18 @@ ${"═".repeat(79)}
                 INFO: 1,
                 LOW: 1
               };
-              W.sort((u, b) => {
-                var j, k;
-                const F = (((j = u.extra) == null ? void 0 : j.severity) || "WARNING").toUpperCase(), M = (((k = b.extra) == null ? void 0 : k.severity) || "WARNING").toUpperCase();
-                return (P[M] || 0) - (P[F] || 0);
-              }).slice(0, 10).forEach((u, b) => {
-                var Ee, Re, Ce;
-                const F = (((Ee = u.extra) == null ? void 0 : Ee.severity) || "WARNING").toUpperCase(), M = F === "ERROR" || F === "CRITICAL" ? "🔴 CRITICAL" : F === "WARNING" || F === "HIGH" ? "🟠 HIGH    " : "🔵 LOW     ", j = u.path || "N/A", k = J(j), K = k.length > 60 ? "..." + k.slice(-57) : k, Ge = `
-${b + 1}. ${M} │ ${u.check_id || "Unknown Rule"}
-   File: ${K}
-   Line: ${((Re = u.start) == null ? void 0 : Re.line) || "?"}
-   ${((Ce = u.extra) == null ? void 0 : Ce.message) || u.message || "No description"}
+              X.sort((h, j) => {
+                const F = (h.extra?.severity || "WARNING").toUpperCase(), le = (j.extra?.severity || "WARNING").toUpperCase();
+                return (b[le] || 0) - (b[F] || 0);
+              }).slice(0, 10).forEach((h, j) => {
+                const F = (h.extra?.severity || "WARNING").toUpperCase(), le = F === "ERROR" || F === "CRITICAL" ? "🔴 CRITICAL" : F === "WARNING" || F === "HIGH" ? "🟠 HIGH    " : "🔵 LOW     ", ie = h.path || "N/A", J = r(ie), Oe = J.length > 60 ? "..." + J.slice(-57) : J, Ae = `
+${j + 1}. ${le} │ ${h.check_id || "Unknown Rule"}
+   File: ${Oe}
+   Line: ${h.start?.line || "?"}
+   ${h.extra?.message || h.message || "No description"}
 ${"─".repeat(79)}
 `;
-                e.sender.send(`scan-log:${s}`, { log: Ge, progress: 93 });
+                e.sender.send(`scan-log:${s}`, { log: Ae, progress: 93 });
               });
             } else
               e.sender.send(`scan-log:${s}`, {
@@ -862,59 +1092,59 @@ ${"═".repeat(79)}
 `,
                 progress: 95
               }), e.sender.send(`scan-log:${s}`, {
-                log: `🎉 All ${U} files passed security analysis.
+                log: `🎉 All ${$} files passed security analysis.
 🛡️  No vulnerabilities found. Repository is secure!
 `,
                 progress: 95
               });
-            const Le = z.length > 0 ? z.map(([f]) => f).slice(0, 3).join(", ") + (z.length > 3 ? `, +${z.length - 3} more` : "") : "No sub-projects detected", De = `
+            const Ce = te.length > 0 ? te.map(([E]) => E).slice(0, 3).join(", ") + (te.length > 3 ? `, +${te.length - 3} more` : "") : "No sub-projects detected", we = `
 ╔═══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                               ║
 ║                        📊  SAST ANALYSIS SUMMARY  📊                         ║
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 
-Repository        : ${r}
-Branch            : ${t}
+Repository        : ${t}
+Branch            : ${n}
 Scan Engine       : OpenGrep (Open Source SAST)
 
 📁 SCAN COVERAGE
 ───────────────────────────────────────────────────────────────────────────────
-  Total Files Scanned     : ${U}
-  Projects Scanned        : ${z.length} (${Le})
-  Files Skipped           : ${Oe.length}
-  Rules Applied           : ${te > 0 ? te : "Auto (Community Rules)"}
+  Total Files Scanned     : ${$}
+  Projects Scanned        : ${te.length} (${Ce})
+  Files Skipped           : ${P.length}
+  Rules Applied           : ${B > 0 ? B : "Auto (Community Rules)"}
 
   Breakdown:
    - Project Code         : ${Se}
-   - Config/Root/Misc     : ${ce}
+   - Config/Root/Misc     : ${de}
 
 🔍 FINDINGS SUMMARY
 ───────────────────────────────────────────────────────────────────────────────
-  Total Issues            : ${N}
-  🔴 Critical/Error       : ${H}
-  🟠 High/Warning         : ${Q}
-  🟡 Medium               : ${V}
-  🔵 Low/Info             : ${G}
+  Total Issues            : ${M}
+  🔴 Critical/Error       : ${z}
+  🟠 High/Warning         : ${se}
+  🟡 Medium               : ${Y}
+  🔵 Low/Info             : ${v}
 
 🎯 SECURITY VERDICT
 ───────────────────────────────────────────────────────────────────────────────
-${N === 0 ? `  ✅ SECURE — All code passed security checks
+${M === 0 ? `  ✅ SECURE — All code passed security checks
   ✅ No vulnerabilities detected
-  ✅ Safe to deploy to production` : H > 0 ? `  🚨 CRITICAL RISK — ${H} critical vulnerabilities detected
+  ✅ Safe to deploy to production` : z > 0 ? `  🚨 CRITICAL RISK — ${z} critical vulnerabilities detected
   ⛔ DO NOT DEPLOY until all critical issues are fixed
-  🔧 Immediate remediation required` : `  ⚠️  RISKS DETECTED — ${N} issues found
+  🔧 Immediate remediation required` : `  ⚠️  RISKS DETECTED — ${M} issues found
   🔧 Review required`}
 ═══════════════════════════════════════════════════════════════════════════════
 `;
             e.sender.send(`scan-log:${s}`, {
-              log: De,
+              log: we,
               progress: 100
             });
-          } catch (J) {
-            E(`Error parsing OpenGrep report: ${J.message}`), e.sender.send(`scan-log:${s}`, {
+          } catch (r) {
+            O(`Error parsing OpenGrep report: ${r.message}`), e.sender.send(`scan-log:${s}`, {
               log: `
-❌ Error parsing report: ${J.message}
+❌ Error parsing report: ${r.message}
 `,
               progress: 100
             });
@@ -925,111 +1155,111 @@ ${N === 0 ? `  ✅ SECURE — All code passed security checks
 ⚠️ No report file generated
 `,
             progress: 100
-          }), y.trim() && e.sender.send(`scan-log:${s}`, { log: `
+          }), G.trim() && e.sender.send(`scan-log:${s}`, { log: `
 ❌ Error details:
-${y}
+${G}
 `, progress: 100 });
-        const v = L === 0 || L === 1;
+        const D = y === 0 || y === 1;
         e.sender.send(`scan-complete:${s}`, {
-          success: v,
-          totalIssues: N,
-          passedChecks: x,
-          failedChecks: _,
-          error: v ? void 0 : `Scan exited with code ${L}`
-        }), o({ success: v, totalIssues: N, passedChecks: x, failedChecks: _ });
-      }), i.on("error", (L) => {
-        h.delete(p), e.sender.send(`scan-log:${s}`, { log: `
-❌ OpenGrep process error: ${L.message}
-`, progress: 0 }), e.sender.send(`scan-complete:${s}`, { success: !1, error: L.message }), o({ success: !1, error: L.message });
-      }), O.once(`scan:cancel-${s}`, () => {
-        a = !0, E(`Cancelling OpenGrep scan: ${s}`), e.sender.send(`scan-log:${s}`, { log: `
+          success: D,
+          totalIssues: M,
+          passedChecks: W,
+          failedChecks: Z,
+          error: D ? void 0 : `Scan exited with code ${y}`
+        }), u({ success: D, totalIssues: M, passedChecks: W, failedChecks: Z });
+      }), g.on("error", (y) => {
+        S.delete(o), e.sender.send(`scan-log:${s}`, { log: `
+❌ OpenGrep process error: ${y.message}
+`, progress: 0 }), e.sender.send(`scan-complete:${s}`, { success: !1, error: y.message }), u({ success: !1, error: y.message });
+      }), x.once(`scan:cancel-${s}`, () => {
+        i = !0, O(`Cancelling OpenGrep scan: ${s}`), e.sender.send(`scan-log:${s}`, { log: `
 ⚠️ Scan cancelled by user
-`, progress: 0 }), B(i, p), h.delete(p), o({ success: !1, cancelled: !0 });
+`, progress: 0 }), Q(g, o), S.delete(o), u({ success: !1, cancelled: !0 });
       });
     }) : (e.sender.send(`scan-complete:${s}`, { success: !1, error: "Clone failed" }), { success: !1, error: "Clone failed" });
-  }), O.handle("crypto:generate-keys", async (e, { type: r, size: t, curve: s, password: C, outputDir: l, scanId: o }) => {
-    const R = ne("KeyGenerator");
-    return R ? new Promise(($) => {
-      e.sender.send(`scan-log:${o}`, {
+  }), x.handle("crypto:generate-keys", async (e, { type: t, size: n, curve: s, password: T, outputDir: c, scanId: u }) => {
+    const m = ce("KeyGenerator");
+    return m ? new Promise((A) => {
+      e.sender.send(`scan-log:${u}`, {
         log: `
 ${"═".repeat(65)}
 🔑 KEY GENERATION STARTED
 ${"═".repeat(65)}
 
-🔹 Algorithm: ${r.toUpperCase()}${r === "rsa" ? ` (${t} bits)` : ` (${s})`}
-🔹 Output: ${l}
-🔹 Security: ${C ? "🔒 Protected" : "⚠️ No Password"}
+🔹 Algorithm: ${t.toUpperCase()}${t === "rsa" ? ` (${n} bits)` : ` (${s})`}
+🔹 Output: ${c}
+🔹 Security: ${T ? "🔒 Protected" : "⚠️ No Password"}
 
 `,
         progress: 5
       });
-      const g = ["generate", r];
-      r === "rsa" && t && g.push("-s", `${t}`), r === "ecdsa" && s && g.push("-c", s), C && g.push("-p", C), g.push("-o", l), e.sender.send(`scan-log:${o}`, {
+      const l = ["generate", t];
+      t === "rsa" && n && l.push("-s", `${n}`), t === "ecdsa" && s && l.push("-c", s), T && l.push("-p", T), l.push("-o", c), e.sender.send(`scan-log:${u}`, {
         log: `⏳ Executing...
 `,
         progress: 10
       });
-      const i = I(R, g, {
+      const g = ee(m, l, {
         stdio: ["ignore", "pipe", "pipe"]
       });
-      h.set(o, i);
-      let p = !1;
-      i.stdout && i.stdout.on("data", (a) => {
-        if (p) return;
-        const n = a.toString();
-        e.sender.send(`scan-log:${o}`, { log: n, progress: 60 });
-      }), i.stderr && i.stderr.on("data", (a) => {
-        if (p) return;
-        const n = a.toString();
-        e.sender.send(`scan-log:${o}`, { log: `
-🔴 [ERROR] ${n.trim()}
+      S.set(u, g);
+      let o = !1;
+      g.stdout && g.stdout.on("data", (i) => {
+        if (o) return;
+        const w = i.toString();
+        e.sender.send(`scan-log:${u}`, { log: w, progress: 60 });
+      }), g.stderr && g.stderr.on("data", (i) => {
+        if (o) return;
+        const w = i.toString();
+        e.sender.send(`scan-log:${u}`, { log: `
+🔴 [ERROR] ${w.trim()}
 `, progress: 50 });
-      }), i.on("close", (a) => {
-        if (h.delete(o), p) return;
-        const n = a === 0;
-        let c = `╔══════════════════════════════════════════════════════════════════════╗
+      }), g.on("close", (i) => {
+        if (S.delete(u), o) return;
+        const w = i === 0;
+        let a = `╔══════════════════════════════════════════════════════════════════════╗
 `;
-        c += `                    KEY GENERATION REPORT                               
-`, c += `╚══════════════════════════════════════════════════════════════════════╝
+        a += `                    KEY GENERATION REPORT                               
+`, a += `╚══════════════════════════════════════════════════════════════════════╝
 
-`, c += `    RESULT             : ${a === 0 ? "✅ SUCCESS" : "❌ FAILED (" + a + ")"}
-`, c += `    Algorithm         : ${r.toUpperCase()}
-`, c += `    Timestamp      : ${(/* @__PURE__ */ new Date()).toLocaleTimeString()}
-`, n ? c += `    ✅ KEYS READY FOR SIGNING!
-` : c += `    ⚠️  Check error logs above
-`, c += `
-${"═".repeat(70)}`, e.sender.send(`scan-log:${o}`, { log: c, progress: 100 }), e.sender.send(`scan-complete:${o}`, { success: n }), $({ success: n });
-      }), i.on("error", (a) => {
-        h.delete(o), e.sender.send(`scan-log:${o}`, {
+`, a += `    RESULT             : ${i === 0 ? "✅ SUCCESS" : "❌ FAILED (" + i + ")"}
+`, a += `    Algorithm         : ${t.toUpperCase()}
+`, a += `    Timestamp      : ${(/* @__PURE__ */ new Date()).toLocaleTimeString()}
+`, w ? a += `    ✅ KEYS READY FOR SIGNING!
+` : a += `    ⚠️  Check error logs above
+`, a += `
+${"═".repeat(70)}`, e.sender.send(`scan-log:${u}`, { log: a, progress: 100 }), e.sender.send(`scan-complete:${u}`, { success: w }), A({ success: w });
+      }), g.on("error", (i) => {
+        S.delete(u), e.sender.send(`scan-log:${u}`, {
           log: `
-💥 SPAWN ERROR: ${a.message}`,
+💥 SPAWN ERROR: ${i.message}`,
           progress: 0
-        }), $({ success: !1, error: a.message });
-      }), O.once(`scan:cancel-${o}`, () => {
-        p = !0, i.pid && process.kill(i.pid, "SIGTERM"), e.sender.send(`scan-log:${o}`, { log: `
+        }), A({ success: !1, error: i.message });
+      }), x.once(`scan:cancel-${u}`, () => {
+        o = !0, g.pid && process.kill(g.pid, "SIGTERM"), e.sender.send(`scan-log:${u}`, { log: `
 🛑 CANCELLED
-`, progress: 0 }), $({ success: !1, cancelled: !0 });
+`, progress: 0 }), A({ success: !1, cancelled: !0 });
       });
-    }) : (e.sender.send(`scan-log:${o}`, {
+    }) : (e.sender.send(`scan-log:${u}`, {
       log: `
 ❌ TOOL ERROR: KeyGenerator not found!
-Expected: ${X("KeyGenerator")}
+Expected: ${oe("KeyGenerator")}
 `,
       progress: 0
     }), { success: !1, error: "Tool not found" });
-  }), O.handle("crypto:sign-artifact", async (e, { repoUrl: r, branch: t, privateKeyPath: s, password: C, scanId: l }) => {
-    const o = ne("SoftwareSigner");
-    if (!o)
-      return e.sender.send(`scan-log:${l}`, {
+  }), x.handle("crypto:sign-artifact", async (e, { repoUrl: t, branch: n, privateKeyPath: s, password: T, scanId: c }) => {
+    const u = ce("SoftwareSigner");
+    if (!u)
+      return e.sender.send(`scan-log:${c}`, {
         log: `
 ❌ TOOL ERROR: SoftwareSigner not found.
-Expected at: ${X("SoftwareSigner")}
+Expected at: ${oe("SoftwareSigner")}
 `,
         progress: 0
       }), { success: !1, error: "Tool not found" };
-    const R = await le(e, r, t, l);
-    return R ? new Promise(($) => {
-      e.sender.send(`scan-log:${l}`, {
+    const m = await ae(e, t, n, c);
+    return m ? new Promise((A) => {
+      e.sender.send(`scan-log:${c}`, {
         log: `
 ${"═".repeat(60)}
 🔏 INITIATING CRYPTOGRAPHIC SIGNING
@@ -1038,112 +1268,112 @@ ${"═".repeat(60)}
 `,
         progress: 30
       });
-      const g = D.join(R, "signature.sig");
-      e.sender.send(`scan-log:${l}`, {
-        log: `🔹 Target Repo : ${r}
-🔹 Branch      : ${t}
-🔹 Signing Key : ${D.basename(s)}
-🔹 Security    : ${C ? "Password Protected 🔒" : "No Password ⚠️"}
-🔹 Output Path : ${g}
+      const l = V.join(m, "signature.sig");
+      e.sender.send(`scan-log:${c}`, {
+        log: `🔹 Target Repo : ${t}
+🔹 Branch      : ${n}
+🔹 Signing Key : ${V.basename(s)}
+🔹 Security    : ${T ? "Password Protected 🔒" : "No Password ⚠️"}
+🔹 Output Path : ${l}
 
 `,
         progress: 35
       });
-      const i = [
+      const g = [
         "sign",
         "-c",
-        R,
+        m,
         "-k",
         s,
         "-o",
-        g
+        l
       ];
-      C && i.push("-p", C);
-      const p = I(o, i);
-      h.set(l, p);
-      let a = !1;
-      p.stdout.on("data", (n) => {
-        if (a) return;
-        const c = n.toString();
-        e.sender.send(`scan-log:${l}`, { log: c, progress: 60 });
-      }), p.stderr.on("data", (n) => {
-        if (a) return;
-        const c = n.toString();
-        e.sender.send(`scan-log:${l}`, { log: `[STDERR] ${c}`, progress: 60 });
-      }), p.on("close", (n) => {
-        if (h.delete(l), a) return;
-        const c = n === 0;
-        let y = "0 B";
-        c && Y.existsSync(g) && (y = `${Y.statSync(g).size} bytes`);
-        const T = `
+      T && g.push("-p", T);
+      const o = ee(u, g);
+      S.set(c, o);
+      let i = !1;
+      o.stdout.on("data", (w) => {
+        if (i) return;
+        const a = w.toString();
+        e.sender.send(`scan-log:${c}`, { log: a, progress: 60 });
+      }), o.stderr.on("data", (w) => {
+        if (i) return;
+        const a = w.toString();
+        e.sender.send(`scan-log:${c}`, { log: `[STDERR] ${a}`, progress: 60 });
+      }), o.on("close", (w) => {
+        if (S.delete(c), i) return;
+        const a = w === 0;
+        let G = "0 B";
+        a && H.existsSync(l) && (G = `${H.statSync(l).size} bytes`);
+        const y = `
 ╔══════════════════════════════════════════════════════════════════════╗
                     DIGITAL SIGNATURE REPORT                            
 ╚══════════════════════════════════════════════════════════════════════╝
 
- Status             : ${c ? "✅ SIGNED & VERIFIED" : "❌ SIGNING FAILED"}
- Repository    : ${r}
- Branch           : ${t}
+ Status             : ${a ? "✅ SIGNED & VERIFIED" : "❌ SIGNING FAILED"}
+ Repository    : ${t}
+ Branch           : ${n}
  Timestamp   : ${(/* @__PURE__ */ new Date()).toLocaleTimeString()}
 
  🔏 Signature Details:
  ───────────────────────────────────────────────
- 📄 File              : ${g}
- 💾 Size             : ${y}
+ 📄 File              : ${l}
+ 💾 Size             : ${G}
  🔑 Key Used   : ${s}
 
 
  ${"═".repeat(70)}
 `;
-        e.sender.send(`scan-log:${l}`, { log: T, progress: 100 }), e.sender.send(`scan-complete:${l}`, { success: c }), $({ success: c });
-      }), O.once(`scan:cancel-${l}`, () => {
-        if (a = !0, p.pid) try {
-          process.kill(p.pid);
+        e.sender.send(`scan-log:${c}`, { log: y, progress: 100 }), e.sender.send(`scan-complete:${c}`, { success: a }), A({ success: a });
+      }), x.once(`scan:cancel-${c}`, () => {
+        if (i = !0, o.pid) try {
+          process.kill(o.pid);
         } catch {
         }
-        h.delete(l), e.sender.send(`scan-log:${l}`, { log: `
+        S.delete(c), e.sender.send(`scan-log:${c}`, { log: `
 ⚠️ PROCESS CANCELLED BY USER
-`, progress: 0 }), $({ success: !1, cancelled: !0 });
+`, progress: 0 }), A({ success: !1, cancelled: !0 });
       });
-    }) : (e.sender.send(`scan-complete:${l}`, { success: !1, error: "Clone Failed" }), { success: !1, error: "Clone Failed" });
-  }), O.handle("dialog:select-folder", async (e) => {
-    const r = pe.fromWebContents(e.sender);
-    if (!r) return null;
-    const { filePaths: t, canceled: s } = await ye.showOpenDialog(r, {
+    }) : (e.sender.send(`scan-complete:${c}`, { success: !1, error: "Clone Failed" }), { success: !1, error: "Clone Failed" });
+  }), x.handle("dialog:select-folder", async (e) => {
+    const t = he.fromWebContents(e.sender);
+    if (!t) return null;
+    const { filePaths: n, canceled: s } = await ye.showOpenDialog(t, {
       properties: ["openDirectory", "createDirectory", "promptToCreate"],
       title: "Select Output Directory",
       buttonLabel: "Select Folder"
     });
-    return s || t.length === 0 ? null : t[0];
-  }), O.handle("dialog:select-file", async (e) => {
-    const r = pe.fromWebContents(e.sender);
-    if (!r) return null;
-    const { filePaths: t, canceled: s } = await ye.showOpenDialog(r, {
+    return s || n.length === 0 ? null : n[0];
+  }), x.handle("dialog:select-file", async (e) => {
+    const t = he.fromWebContents(e.sender);
+    if (!t) return null;
+    const { filePaths: n, canceled: s } = await ye.showOpenDialog(t, {
       properties: ["openFile"],
       filters: [{ name: "Keys", extensions: ["pem", "key", "sig"] }],
       title: "Select Private Key",
       buttonLabel: "Select Key"
     });
-    return s || t.length === 0 ? null : t[0];
-  }), O.handle("scan:cancel", async (e, { scanId: r }) => (E(`Cancel requested: ${r}`), new Promise((t) => {
+    return s || n.length === 0 ? null : n[0];
+  }), x.handle("scan:cancel", async (e, { scanId: t }) => (O(`Cancel requested: ${t}`), new Promise((n) => {
     let s = !1;
-    const C = h.get(r);
-    C && (E(`Killing main process: ${r}`), B(C, r), h.delete(r), s = !0);
-    const l = `${r}-clone`, o = h.get(l);
-    o && (E(`Killing clone process: ${l}`), B(o, l), h.delete(l), s = !0), O.emit(`scan:cancel-${r}`), s ? setTimeout(() => {
-      E(`Cancel complete: ${r}`), t({ cancelled: !0 });
-    }, 500) : (E(`No active process found for: ${r}`), t({ cancelled: !1 }));
-  }))), O.handle("window:minimize", () => m == null ? void 0 : m.minimize()), O.handle(
+    const T = S.get(t);
+    T && (O(`Killing main process: ${t}`), Q(T, t), S.delete(t), s = !0);
+    const c = `${t}-clone`, u = S.get(c);
+    u && (O(`Killing clone process: ${c}`), Q(u, c), S.delete(c), s = !0), x.emit(`scan:cancel-${t}`), s ? setTimeout(() => {
+      O(`Cancel complete: ${t}`), n({ cancelled: !0 });
+    }, 500) : (O(`No active process found for: ${t}`), n({ cancelled: !1 }));
+  }))), x.handle("window:minimize", () => U?.minimize()), x.handle(
     "window:maximize",
-    () => m != null && m.isMaximized() ? m.unmaximize() : m == null ? void 0 : m.maximize()
-  ), O.handle("window:close", () => m == null ? void 0 : m.close());
+    () => U?.isMaximized() ? U.unmaximize() : U?.maximize()
+  ), x.handle("window:close", () => U?.close());
 }
-function Ne() {
-  E(`Cancelling all scans (${h.size} processes)`), h.forEach((S, e) => {
-    B(S, e);
-  }), h.clear();
+function Re() {
+  O(`Cancelling all scans (${S.size} processes)`), S.forEach((d, e) => {
+    Q(d, e);
+  }), S.clear();
 }
-function ke() {
-  Z = new pe({
+function Be() {
+  pe = new he({
     width: 420,
     height: 280,
     frame: !1,
@@ -1152,32 +1382,32 @@ function ke() {
     resizable: !1,
     show: !0,
     backgroundColor: "#00000000"
-  }), Z.loadFile(D.join(process.env.VITE_PUBLIC, "splash.html")), m = new pe({
+  }), pe.loadFile(V.join(process.env.VITE_PUBLIC, "splash.html")), U = new he({
     width: 1280,
     height: 840,
     show: !1,
     frame: !1,
     titleBarStyle: "hidden",
     backgroundColor: "#060712",
-    icon: D.join(process.env.VITE_PUBLIC, "icon.png"),
+    icon: V.join(process.env.VITE_PUBLIC, "icon.png"),
     webPreferences: {
-      preload: D.join(Te, "preload.mjs")
+      preload: V.join(me, "preload.mjs")
     }
-  }), be(), de ? m.loadURL(de) : m.loadFile(D.join(Ae, "index.html")), m.once("ready-to-show", () => {
-    Z == null || Z.close(), Z = null, m == null || m.show(), de && (m == null || m.webContents.openDevTools({ mode: "detach" }));
-  }), m.webContents.on("before-input-event", (S, e) => {
-    e.type === "keyDown" && (e.key === "F12" || e.control && e.shift && e.key === "I") && (m != null && m.webContents.isDevToolsOpened() ? m == null || m.webContents.closeDevTools() : m == null || m.webContents.openDevTools({ mode: "detach" }));
+  }), Ue(), $e ? U.loadURL($e) : U.loadFile(V.join(Ne, "index.html")), U.once("ready-to-show", () => {
+    pe?.close(), pe = null, U?.show(), $e && U?.webContents.openDevTools({ mode: "detach" });
+  }), U.webContents.on("before-input-event", (d, e) => {
+    e.type === "keyDown" && (e.key === "F12" || e.control && e.shift && e.key === "I") && (U?.webContents.isDevToolsOpened() ? U?.webContents.closeDevTools() : U?.webContents.openDevTools({ mode: "detach" }));
   });
 }
-ae.whenReady().then(ke);
-ae.on("window-all-closed", () => {
-  Ne(), ae.quit(), m = null;
+ge.whenReady().then(Be);
+ge.on("window-all-closed", () => {
+  Re(), ge.quit(), U = null;
 });
-ae.on("before-quit", () => {
-  E("App shutting down"), Ne();
+ge.on("before-quit", () => {
+  O("App shutting down"), Re();
 });
 export {
-  He as MAIN_DIST,
-  Ae as RENDERER_DIST,
-  de as VITE_DEV_SERVER_URL
+  Xe as MAIN_DIST,
+  Ne as RENDERER_DIST,
+  $e as VITE_DEV_SERVER_URL
 };

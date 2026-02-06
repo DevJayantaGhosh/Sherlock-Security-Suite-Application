@@ -5,6 +5,7 @@ import path from "node:path";
 import { spawn, ChildProcess } from "child_process";
 import fs from "fs/promises";
 import fsSync from "fs";
+import dotenv from "dotenv";
 
 /* ============================================================
    PATHS
@@ -19,6 +20,15 @@ export const RENDERER_DIST = path.join(process.env.APP_ROOT, "dist");
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
   ? path.join(process.env.APP_ROOT, "public")
   : RENDERER_DIST;
+
+const envPaths = [
+  path.join(process.env.APP_ROOT, '.env'),           // ROOT .env (dev + prod)
+  path.join(__dirname, '.env'),                     // src/.env fallback
+  path.join(process.resourcesPath || __dirname, '.env') // Packaged app
+];
+
+dotenv.config({ path: envPaths.find(p => fsSync.existsSync(p)) });
+console.log('✅ .env loaded:', process.env.GITHUB_PAT ? 'GITHUB_PAT found' : 'No token');
 
 let win: BrowserWindow | null = null;
 let splash: BrowserWindow | null = null;
@@ -118,6 +128,10 @@ function killProcess(child: ChildProcess, processId: string) {
 /* ============================================================
    CLONE REPOSITORY
 ============================================================ */
+function getGitHubToken(): string | null {
+  return process.env.GITHUB_PAT || null;
+}
+
 async function cloneRepository(
   event: Electron.IpcMainInvokeEvent,
   repoUrl: string,
@@ -145,7 +159,6 @@ async function cloneRepository(
   }
 
   // Clone
-  debugLog(`Cloning ${repoUrl} (branch: ${branch})`);
   
   event.sender.send(`scan-log:${scanId}`, {
     log: `\n${"═".repeat(60)}\n📦 CLONING REPOSITORY\n${"═".repeat(60)}\n`,
@@ -157,11 +170,17 @@ async function cloneRepository(
     progress: 10,
   });
 
+  const token = getGitHubToken();
+  let cloneUrl = repoUrl;
+  if (token && !repoUrl.includes('x-access-token')) {
+    cloneUrl = repoUrl.replace('https://', `https://x-access-token:${token}@`);
+  }
+
   const repoName = repoUrl.split("/").pop()?.replace(".git", "") || "repo";
   const timestamp = Date.now();
   const tempDir = path.join(
     app.getPath("temp"),
-    "cipher-scans",
+    "software-security-scans",
     `${repoName}-${branch.replace(/\//g, "-")}-${timestamp}`
   );
 
@@ -169,10 +188,10 @@ async function cloneRepository(
     await fs.mkdir(tempDir, { recursive: true });
 
     return await new Promise<string | null>((resolve) => {
-      const args = ["clone", "-b", branch, "--single-branch", repoUrl, tempDir];
+      const args = ["clone", "-b", branch, "--single-branch", cloneUrl, tempDir];
       
       event.sender.send(`scan-log:${scanId}`, {
-        log: `$ git clone -b ${branch} --single-branch ${repoUrl}\n\n`,
+        log: `$ git clone in-progress ...\n\n`,
         progress: 15,
       });
 

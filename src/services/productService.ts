@@ -17,8 +17,8 @@ let productDB: Product[] = [
     releaseEngineers: ["u3"],
     repos: [
       {
-        repoUrl: "https://github.com/example/threat-scanner",
-        branch: "main",
+        repoUrl: "https://github.com/projectcs23m513/bad-project",
+        branch: "test",
         componentConfigs: [
           {
             language: "java",
