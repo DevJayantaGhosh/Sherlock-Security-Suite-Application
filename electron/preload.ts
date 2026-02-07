@@ -26,11 +26,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     repoUrl: string; 
     branch: string; 
     scanId: string;
-    componentConfigs?: Array<{
-      language: string;
-      buildCommand?: string;
-      workingDirectory?: string;
-    }>;
   }) =>
     ipcRenderer.invoke("scan:opengrep", payload),
   

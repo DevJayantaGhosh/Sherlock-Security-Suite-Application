@@ -59,7 +59,6 @@ interface Window {
       repoUrl: string; 
       branch: string; 
       scanId: string;
-      componentConfigs?: ComponentConfig[];
     }): Promise<{
       success: boolean;
       cancelled?: boolean;

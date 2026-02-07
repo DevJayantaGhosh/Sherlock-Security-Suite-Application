@@ -1753,7 +1753,6 @@ function OpenGrepPanel({
         repoUrl: repoDetails.repoUrl,
         branch: repoDetails.branch,
         scanId,
-        componentConfigs: repoDetails.componentConfigs,
       });
 
       if (result?.cancelled) {
