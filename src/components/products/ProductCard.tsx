@@ -11,9 +11,10 @@ import {
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
-import RocketLaunchIcon from "@mui/icons-material/RocketLaunch";
 import SecurityIcon from "@mui/icons-material/Security";
 import FingerprintIcon from "@mui/icons-material/Fingerprint";
+import RocketLaunchIcon from "@mui/icons-material/RocketLaunch";
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 
 import { Product } from "../../models/Product";
 import { authorizeEdit } from "../../services/productService";
@@ -34,6 +35,7 @@ interface Props {
   onSecurityScan: () => void;
   onCryptographicSign: () => void;
   onRelease: () => void;
+  onSignatureVerify: () => void;
 }
 
 export default function ProductCard({
@@ -44,6 +46,7 @@ export default function ProductCard({
   onSecurityScan,
   onCryptographicSign,
   onRelease,
+  onSignatureVerify,
 }: Props) {
   const user = useUserStore((s) => s.user);
 
@@ -166,6 +169,13 @@ export default function ProductCard({
               <RocketLaunchIcon />
             </IconButton>
           </Tooltip>
+
+          <Tooltip title="Verify Digital Signature">
+            <IconButton color="success" onClick={onSignatureVerify} size="small">
+              <ReceiptLongIcon />
+            </IconButton>
+          </Tooltip>
+
         </Stack>
       </Box>
     </motion.div>

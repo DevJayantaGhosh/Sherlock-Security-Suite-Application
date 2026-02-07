@@ -110,6 +110,10 @@ export default function ProductPage() {
     navigate(`/product/${productId}/releases`);
   }
 
+  function navigateToSignatureVerify(productId: string) {
+  navigate(`/product/${productId}/signature-verify`);
+  }
+
   /* --------------------------------------------------- */
 
   function openSecurityScanClick(p: Product) {
@@ -154,6 +158,7 @@ export default function ProductPage() {
   }
 
 
+    // --- Release Workflow Handler ---
   function openReleaseWorkflowClick(p: Product) {
     const canRelease = authorizeRelease(user, p);
     if (p.status !== "Approved") {
@@ -161,7 +166,7 @@ export default function ProductPage() {
         "Release Restricted",
         "Product is not yet Approved!",
         () => {
-          return;
+          navigateToRelease(p.id); // Remove
         }
       );
       return;
@@ -179,6 +184,23 @@ export default function ProductPage() {
       navigateToRelease(p.id);
     }
   }
+
+    // --- Signature Verification Handler ---
+  function openSignatureVerifyClick(p: Product) {
+    if (p.status !== "Released") {
+      confirmAndExec(
+        "Signature Verification Restricted",
+        "Product must be 'Released' before signatures can be verified. Complete the full workflow: Scan → Approve → Sign → Release.",
+        () => {
+          navigateToSignatureVerify(p.id); // Remove
+        }
+      );
+      return;
+    }
+    // Open to ALL users (no permission check)
+    navigateToSignatureVerify(p.id);
+  }
+
 
   /* --------------------------------------------------- */
 
@@ -260,6 +282,7 @@ export default function ProductPage() {
               onSecurityScan={() => openSecurityScanClick(p)}
               onCryptographicSign={() => openCryptoSignClick(p)}
               onRelease={() => openReleaseWorkflowClick(p)}
+              onSignatureVerify={() => openSignatureVerifyClick(p)} 
             />
           ))}
         </Box>
