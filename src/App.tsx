@@ -15,6 +15,7 @@ import ProductPage from "./pages/ProductPage";
 import ProductReleasePage from "./pages/ProductReleasePage";
 import ProductSecurityScanPage from "./pages/ProductSecurityScanPage";
 import ProductCryptoSigningPage from "./pages/ProductCryptoSigningPage";
+import ProductSignatureVerificationPage from "./pages/ProductSignatureVerificationPage";
 
 export default function App() {
   return (
@@ -69,6 +70,15 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <ProductReleasePage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/product/:id/signature-verify"
+            element={
+              <ProtectedRoute>
+                <ProductSignatureVerificationPage/>
               </ProtectedRoute>
             }
           />

@@ -3,12 +3,16 @@ import {
   Box, Button, Container, Paper, Stack,
   Typography, Chip, Dialog, DialogTitle,
   DialogContent, DialogActions,
-  Tooltip
+  Tooltip,
+  Divider,
 } from "@mui/material";
 
 import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
+import SecurityIcon from "@mui/icons-material/Security";
+import ProductHeader from '../components/ProductHeader';
+
 
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 // ✅ IMPORT updateProduct to handle the MongoDB call
@@ -221,26 +225,7 @@ export default function ProductSecurityScanPage() {
         >
           {/* Product Header */}
           <motion.div variants={headerVariants}>
-            <Paper sx={{ p: 3, mb: 3, background: "linear-gradient(140deg,#0c1023,#090c1c,#060712)", border: "1px solid rgba(255,255,255,0.08)" }}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Box>
-                  <Typography variant="h4" fontWeight={800}>
-                    Security Scan — {product.name}
-                  </Typography>
-                  <Typography color="text.secondary" sx={{ mt: 1 }}>{product.description}</Typography>
-                  <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
-                    <Chip label={`v${product.version}`} size="small" />
-                    <Chip label={product.status} size="small" color={product.status === "Approved" ? "success" : "warning"} />
-                  </Stack>
-                </Box>
-
-                <Chip
-                  label={`Repositories: ${product.repos.length}`}
-                  color="primary"
-                  sx={{ fontWeight: 700 }}
-                />
-              </Stack>
-            </Paper>
+          <ProductHeader product={product} pageType="security" /> 
           </motion.div>
 
           {/* Authorization Warning */}
@@ -284,6 +269,23 @@ export default function ProductSecurityScanPage() {
                   // Pass the update handler to bubble up changes
                   onRepoUpdate={(updatedRepo) => handleRepoUpdate(idx, updatedRepo)}
                 />
+
+   {idx < product.repos.length - 1 && (
+      <Divider 
+        sx={{ 
+          my: 3, 
+          mx: -2, 
+          py: 1,
+          borderStyle: 'dashed',
+          borderColor: 'grey.300',
+          borderWidth: '2px'
+        }} 
+      >
+        <Typography variant="caption" color="text.secondary">
+          NEXT REPO
+        </Typography>
+      </Divider>
+    )}
               </motion.div>
             ))}
           </Stack>
