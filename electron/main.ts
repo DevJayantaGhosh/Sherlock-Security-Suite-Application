@@ -6,6 +6,7 @@ import { spawn, ChildProcess } from "child_process";
 import fs from "fs/promises";
 import fsSync from "fs";
 import dotenv from "dotenv";
+import { Octokit } from "@octokit/rest";
 
 /* ============================================================
    PATHS
@@ -52,7 +53,7 @@ function getOsFolder() {
   return "linux";
 }
 
-function toolPath(tool: "gitleaks" | "trivy" | "opengrep" | "KeyGenerator" | "SoftwareSigner"): string {
+function toolPath(tool: "gitleaks" | "trivy" | "opengrep" | "KeyGenerator" | "SoftwareSigner" | "SoftwareVerifier"): string {
   const ext = process.platform === "win32" ? ".exe" : "";
   const toolFile = tool + ext;
   return path.join(
@@ -64,7 +65,7 @@ function toolPath(tool: "gitleaks" | "trivy" | "opengrep" | "KeyGenerator" | "So
   );
 }
 
-function validateTool(tool: "gitleaks" | "trivy" | "opengrep" | "KeyGenerator" | "SoftwareSigner"): string | null {
+function validateTool(tool: "gitleaks" | "trivy" | "opengrep" | "KeyGenerator" | "SoftwareSigner" | "SoftwareVerifier"): string | null {
   const fullPath = toolPath(tool);
   
   if (!fsSync.existsSync(fullPath)) {
@@ -289,6 +290,256 @@ async function cloneRepository(
     return null;
   }
 }
+
+/* ============================================================
+   CLONE REPOSITORY BY TAG
+============================================================ */
+async function cloneRepositoryByTag(
+  event: Electron.IpcMainInvokeEvent,
+  repoUrl: string,
+  tag: string,
+  scanId: string
+): Promise<string | null> {
+  const cacheKey = `${repoUrl}:tag-${tag}`;
+  
+  // Check cache first
+  if (repoCache.has(cacheKey)) {
+    const cachedPath = repoCache.get(cacheKey)!;
+    try {
+      await fs.access(path.join(cachedPath, ".git"));
+      debugLog(`Using cached repo (tag): ${cachedPath}`);
+      
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `✅ Using cached repository (tag)\n  Path: ${cachedPath}\n  Tag: ${tag}\n\n`,
+        progress: 50,
+      });
+      return cachedPath;
+    } catch {
+      repoCache.delete(cacheKey);
+    }
+  }
+
+  // Clone logging
+  event.sender.send(`scan-log:${scanId}`, {
+    log: `\n${"═".repeat(60)}\n📦 CLONING REPOSITORY (TAG)\n${"═".repeat(60)}\n`,
+    progress: 5,
+  });
+  
+  event.sender.send(`scan-log:${scanId}`, {
+    log: `Repository: ${repoUrl}\nTag: ${tag}\n\n`,
+    progress: 10,
+  });
+
+  const token = getGitHubToken();
+  let cloneUrl = repoUrl;
+  if (token && !repoUrl.includes('x-access-token')) {
+    cloneUrl = repoUrl.replace('https://', `https://x-access-token:${token}@`);
+  }
+
+  const repoName = repoUrl.split("/").pop()?.replace(".git", "") || "repo";
+  const timestamp = Date.now();
+  const tempDir = path.join(
+    app.getPath("temp"),
+    "software-security-scans",
+    `${repoName}-tag-${tag.replace(/[^a-zA-Z0-9]/g, "-")}-${timestamp}`
+  );
+
+  try {
+    await fs.mkdir(tempDir, { recursive: true });
+
+    return await new Promise<string | null>((resolve) => {
+      // Step 1: Clone WITHOUT single-branch to get ALL tags
+      const cloneArgs = ["clone", "--no-checkout", cloneUrl, tempDir];
+      
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `$ git clone (tag mode) in-progress ...\n\n`,
+        progress: 15,
+      });
+
+      const cloneProcess = spawn("git", cloneArgs, {
+        detached: true,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+
+      cloneProcess.unref();
+      const cloneId = `${scanId}-clone-tag`;
+      activeProcesses.set(cloneId, cloneProcess);
+
+      let cancelled = false;
+      let progressCount = 0;
+
+      const handleData = (data: Buffer) => {
+        if (cancelled) return;
+        progressCount++;
+        event.sender.send(`scan-log:${scanId}`, {
+          log: data.toString(),
+          progress: Math.min(20 + progressCount * 2, 30),
+        });
+      };
+
+      cloneProcess.stdout?.on("data", handleData);
+      cloneProcess.stderr?.on("data", handleData);
+
+      cloneProcess.on("close", async (code) => {
+        activeProcesses.delete(cloneId);
+        
+        if (cancelled || code !== 0) {
+          if (!cancelled) {
+            event.sender.send(`scan-log:${scanId}`, {
+              log: `\n❌ Clone failed with exit code ${code}\n`,
+              progress: 0,
+            });
+          }
+          resolve(null);
+          return;
+        }
+
+        // 1. Fetch ALL tags before checkout
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `\n🔄 Fetching tags...\n\n`,
+          progress: 35,
+        });
+
+        const fetchProcess = spawn("git", ["fetch", "origin", "--tags"], {
+          cwd: tempDir,
+          detached: true,
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+
+        fetchProcess.unref();
+        const fetchId = `${scanId}-fetch-tags`;
+        activeProcesses.set(fetchId, fetchProcess);
+
+        fetchProcess.on("close", async (fetchCode) => {
+          activeProcesses.delete(fetchId);
+          
+          if (fetchCode !== 0) {
+            event.sender.send(`scan-log:${scanId}`, {
+              log: `\n⚠️ Tag fetch warning (code: ${fetchCode}), proceeding...\n`,
+              progress: 38,
+            });
+          }
+
+          // Step 2: List available tags for debugging
+          event.sender.send(`scan-log:${scanId}`, {
+            log: `\n🔍 Checking out tag: ${tag}\n\n`,
+            progress: 40,
+          });
+
+          // List tags first to debug
+          const listTagsProcess = spawn("git", ["tag", "-l"], {
+            cwd: tempDir,
+            detached: true,
+            stdio: ["ignore", "pipe", "pipe"],
+          });
+
+          listTagsProcess.stdout?.on("data", (data) => {
+            const tags = data.toString().trim();
+            if (tags) {
+              event.sender.send(`scan-log:${scanId}`, {
+                log: `Available tags:\n${tags}\n\n`,
+                progress: 42,
+              });
+            }
+          });
+
+          listTagsProcess.on("close", async () => {
+            // Step 3: Checkout the tag
+            const checkoutProcess = spawn("git", ["checkout", tag], {
+              cwd: tempDir,
+              detached: true,
+              stdio: ["ignore", "pipe", "pipe"],
+            });
+
+            const checkoutId = `${scanId}-checkout-tag`;
+            activeProcesses.set(checkoutId, checkoutProcess);
+
+            checkoutProcess.stdout?.on("data", (data) => {
+              event.sender.send(`scan-log:${scanId}`, {
+                log: data.toString(),
+                progress: 45,
+              });
+            });
+
+            checkoutProcess.stderr?.on("data", (data) => {
+              event.sender.send(`scan-log:${scanId}`, {
+                log: `[CHECKOUT] ${data.toString()}`,
+                progress: 45,
+              });
+            });
+
+            checkoutProcess.on("close", (checkoutCode) => {
+              activeProcesses.delete(checkoutId);
+              
+              if (checkoutCode !== 0) {
+                event.sender.send(`scan-log:${scanId}`, {
+                  log: `\n❌ Failed to checkout tag ${tag} (code: ${checkoutCode})\n  Tag might not exist. Check "Available tags" above.\n`,
+                  progress: 0,
+                });
+                resolve(null);
+                return;
+              }
+
+              // Success!
+              repoCache.set(cacheKey, tempDir);
+              event.sender.send(`scan-log:${scanId}`, {
+                log: `\n✅ Clone & tag checkout successful!\n  Location: ${tempDir}\n  Tag: ${tag}\n${"═".repeat(60)}\n\n`,
+                progress: 50,
+              });
+              resolve(tempDir);
+            });
+
+            checkoutProcess.on("error", (err: Error) => {
+              activeProcesses.delete(checkoutId);
+              event.sender.send(`scan-log:${scanId}`, {
+                log: `\n❌ Checkout error: ${err.message}\n`,
+                progress: 0,
+              });
+              resolve(null);
+            });
+          });
+        });
+      });
+
+      cloneProcess.on("error", (err: Error) => {
+        activeProcesses.delete(cloneId);
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `\n❌ Clone error: ${err.message}\n`,
+          progress: 0,
+        });
+        resolve(null);
+      });
+
+      const cancelHandler = () => {
+        cancelled = true;
+        debugLog(`Cancelling clone-tag: ${cloneId}`);
+        killProcess(cloneProcess, cloneId);
+        activeProcesses.delete(cloneId);
+        resolve(null);
+      };
+      
+      ipcMain.once(`scan:cancel-${scanId}`, cancelHandler);
+
+      setTimeout(() => {
+        if (activeProcesses.has(cloneId)) {
+          killProcess(cloneProcess, cloneId);
+          event.sender.send(`scan-log:${scanId}`, {
+            log: `\n❌ Clone timeout after 3 minutes\n`,
+            progress: 0,
+          });
+          resolve(null);
+        }
+      }, 180000);
+    });
+  } catch (err: any) {
+    event.sender.send(`scan-log:${scanId}`, {
+      log: `\n❌ Exception: ${err.message}\n`,
+      progress: 0,
+    });
+    return null;
+  }
+}
+
 
 /* ============================================================
    IPC HANDLERS
@@ -1614,6 +1865,276 @@ ipcMain.handle("crypto:sign-artifact", async (event, { repoUrl, branch, privateK
         activeProcesses.delete(scanId);
         event.sender.send(`scan-log:${scanId}`, { log: "\n⚠️ PROCESS CANCELLED BY USER\n", progress: 0 });
         resolve({ success: false, cancelled: true });
+    });
+  });
+});
+
+
+/* ============================================================
+   GITHUB RELEASE CREATION (Octokit)
+============================================================ */
+ipcMain.handle("release:github-create", async (event, { repoUrl, branch, version, scanId }) => {
+  const token = getGitHubToken();
+  if (!token) {
+    event.sender.send(`scan-log:${scanId}`, { 
+      log: `\n❌ GITHUB TOKEN MISSING\nRequired: GITHUB_PAT environment variable\n`, 
+      progress: 0 
+    });
+    event.sender.send(`scan-complete:${scanId}`, { success: false, error: "GitHub token missing" });
+    return { success: false, error: "GitHub token missing" };
+  }
+
+  // Parse repo info from URL
+  const repoMatch = repoUrl.match(/github\.com[\/:]([^\/]+)\/([^\/\.]+)/);
+  if (!repoMatch) {
+    event.sender.send(`scan-log:${scanId}`, { 
+      log: `\n❌ Invalid GitHub URL: ${repoUrl}\n`, 
+      progress: 0 
+    });
+    return { success: false, error: "Invalid GitHub repository URL" };
+  }
+
+  const [, owner, repo] = repoMatch;
+  const releaseTag = `r${version}`; // r1.0.0 format
+
+  event.sender.send(`scan-log:${scanId}`, {
+    log: `\n${"═".repeat(70)}\n🚀 GITHUB RELEASE CREATION\n${"═".repeat(70)}\n\n`,
+    progress: 10,
+  });
+
+  event.sender.send(`scan-log:${scanId}`, {
+    log: `🔹 Repository  : ${repoUrl}\n🔹 Owner/Repo   : ${owner}/${repo}\n🔹 Branch       : ${branch}\n🔹 Version      : ${version}\n🔹 Release Tag  : ${releaseTag}\n🔹 Release URL  : https://github.com/${owner}/${repo}/releases/tag/${releaseTag}\n\n`,
+    progress: 20,
+  });
+
+  const octokit = new Octokit({ auth: token });
+
+  try {
+    // 1. Check if tag already exists
+    event.sender.send(`scan-log:${scanId}`, { log: `🔍 Checking if tag ${releaseTag} exists...\n`, progress: 30 });
+    
+    try {
+      await octokit.rest.git.getRef({
+        owner,
+        repo,
+        ref: `tags/${releaseTag}`
+      });
+      event.sender.send(`scan-log:${scanId}`, { 
+        log: `⚠️  Tag ${releaseTag} already exists, will update...\n`, 
+        progress: 40 
+      });
+    } catch (e: any) {
+      if (e.status !== 404) throw e;
+      event.sender.send(`scan-log:${scanId}`, { 
+        log: `✅ Tag ${releaseTag} does not exist, creating new...\n`, 
+        progress: 40 
+      });
+    }
+
+    // 2. Get branch SHA
+    event.sender.send(`scan-log:${scanId}`, { log: `🔍 Fetching ${branch} branch SHA...\n`, progress: 50 });
+    const { data: branchRef } = await octokit.rest.git.getRef({
+      owner,
+      repo,
+      ref: `heads/${branch}`
+    });
+    const branchSha = branchRef.object.sha;
+
+    // 3. Create/Update tag ref
+    event.sender.send(`scan-log:${scanId}`, { log: `🏷️  Creating tag ${releaseTag} on ${branchSha.slice(0,7)}...\n`, progress: 60 });
+    
+    await octokit.rest.git.createRef({
+      owner,
+      repo,
+      ref: `refs/tags/${releaseTag}`,
+      sha: branchSha
+    });
+
+    // 4. Create the release
+    event.sender.send(`scan-log:${scanId}`, { log: `📦 Creating release ${releaseTag}...\n`, progress: 80 });
+    
+    const { data: release } = await octokit.rest.repos.createRelease({
+      owner,
+      repo,
+      tag_name: releaseTag,
+      target_commitish: branch,
+      name: `Release r${version}`,
+      body: `# Release r${version}\n\n**Created from ${branch} branch**\n\n- Tag: \`${releaseTag}\`\n- Commit: \`${branchSha.slice(0,7)}\``,
+      prerelease: version.includes('-') || version.includes('rc') || version.includes('beta'),
+      draft: false
+    });
+
+    // 5. Success summary
+    const summary = `
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                                                                               ║
+║                          🚀 GITHUB RELEASE CREATED                           ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+Repository     : ${owner}/${repo}
+Branch         : ${branch}
+Tag            : ${releaseTag}
+Status         : ✅ SUCCESS
+Release ID     : ${release.id}
+Release URL    : ${release.html_url}
+
+📎 Direct Link : ${release.html_url}
+
+${"═".repeat(80)}
+`;
+
+    event.sender.send(`scan-log:${scanId}`, { log: summary, progress: 100 });
+    event.sender.send(`scan-complete:${scanId}`, { success: true, release: { id: release.id, url: release.html_url, tag: releaseTag } });
+    
+    return { success: true, release };
+
+  } catch (error: any) {
+    const errorMsg = error.status === 422 
+      ? "Release/tag already exists with different content"
+      : error.message || "Unknown error";
+      
+    event.sender.send(`scan-log:${scanId}`, { 
+      log: `\n❌ Release creation failed:\n${errorMsg}\n\nHTTP ${error.status || 'N/A'}\n`, 
+      progress: 0 
+    });
+    event.sender.send(`scan-complete:${scanId}`, { success: false, error: errorMsg });
+    
+    return { success: false, error: errorMsg };
+  }
+});
+
+
+/* ============================================================
+   SINGLE REPO SIGNATURE VERIFICATION (FINAL)
+============================================================ */
+ipcMain.handle("verify:signature", async (event, { repoUrl, branch, version, publicKeyPath, signaturePath, scanId }) => {
+  const exePath = validateTool("SoftwareVerifier");
+  
+  if (!exePath) {
+    event.sender.send(`scan-log:${scanId}`, { 
+      log: `\n❌ TOOL ERROR: SoftwareVerifier not found.\nExpected at: ${toolPath("SoftwareVerifier")}\n`, 
+      progress: 0 
+    });
+    return { success: false, error: "SoftwareVerifier not found" };
+  }
+
+  if (!fsSync.existsSync(publicKeyPath)) {
+    event.sender.send(`scan-log:${scanId}`, { 
+      log: `\n❌ Public key not found: ${publicKeyPath}\n`, 
+      progress: 0 
+    });
+    return { success: false, error: "Public key file not found" };
+  }
+
+  if (!fsSync.existsSync(signaturePath)) {
+    event.sender.send(`scan-log:${scanId}`, { 
+      log: `\n❌ Signature file not found: ${signaturePath}\n`, 
+      progress: 0 
+    });
+    return { success: false, error: "Signature file not found" };
+  }
+
+  // ✅ FIXED: Clone using TAG (r{version}) instead of branch
+  const tagName = `r${version}`;
+  const repoPath = await cloneRepositoryByTag(event, repoUrl, tagName, scanId);
+  if (!repoPath) {
+    event.sender.send(`scan-complete:${scanId}`, { success: false, error: "Clone failed" });
+    return { success: false, error: `Failed to clone repository at tag r${version}` };
+  }
+
+  return new Promise((resolve) => {
+    event.sender.send(`scan-log:${scanId}`, {
+      log: `\n${"═".repeat(70)}\n🔍 DIGITAL SIGNATURE VERIFICATION\n${"═".repeat(70)}\n\n`,
+      progress: 30,
+    });
+
+    event.sender.send(`scan-log:${scanId}`, {
+      log: `🔹 Repository  : ${repoUrl}\n🔹 Release Tag : r${version}\n🔹 Branch      : ${branch}\n🔹 Public Key  : ${path.basename(publicKeyPath)}\n🔹 Signature   : ${path.basename(signaturePath)}\n🔹 Content Path: ${repoPath}\n\n`,
+      progress: 40,
+    });
+
+    const args = [
+      "verify",
+      "-c", repoPath,
+      "-k", publicKeyPath,
+      "-s", signaturePath,
+    ];
+
+    const child = spawn(exePath, args, { 
+      stdio: ["ignore", "pipe", "pipe"],
+      detached: true,
+      shell: false
+    });
+    
+    activeProcesses.set(scanId, child);
+    let buffer = "";
+    let stderrBuffer = "";
+    let cancelled = false;
+
+    child.stdout?.on("data", (chunk) => {
+      if (cancelled) return;
+      const text = chunk.toString();
+      buffer += text;
+      event.sender.send(`scan-log:${scanId}`, { log: text, progress: 70 });
+    });
+
+    child.stderr?.on("data", (chunk) => {
+      if (cancelled) return;
+      const text = chunk.toString();
+      stderrBuffer += text;
+      event.sender.send(`scan-log:${scanId}`, { log: `[STDERR] ${text}`, progress: 70 });
+    });
+
+    child.on("close", (code) => {
+      activeProcesses.delete(scanId);
+      
+      if (cancelled) {
+        resolve({ success: false, verified: false, cancelled: true });
+        return;
+      }
+
+      const verified = code === 0;
+      const fullOutput = buffer + stderrBuffer;
+
+      const summary = `
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                                                                               ║
+║                       🔍 SIGNATURE VERIFICATION RESULT                       ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+Repository     : ${repoUrl}
+Release Tag    : r${version}
+Status         : ${verified ? "✅ SIGNATURE VALID" : "❌ SIGNATURE INVALID"}
+Exit Code      : ${code}
+Output Size    : ${Buffer.byteLength(fullOutput, 'utf8')} bytes
+
+${verified ? "🔓 Signature matches public key and content!" : "🔒 Signature verification failed!"}
+
+${"═".repeat(80)}
+`;
+
+      event.sender.send(`scan-log:${scanId}`, { log: summary, progress: 100 });
+      event.sender.send(`scan-complete:${scanId}`, { success: true, verified });
+      resolve({ success: true, verified });
+    });
+
+    child.on("error", (err) => {
+      activeProcesses.delete(scanId);
+      event.sender.send(`scan-log:${scanId}`, { log: `\n❌ Verification error: ${err.message}\n`, progress: 0 });
+      event.sender.send(`scan-complete:${scanId}`, { success: false, error: err.message });
+      resolve({ success: false, verified: false, error: err.message });
+    });
+
+    // Cancellation handler
+    ipcMain.once(`scan:cancel-${scanId}`, () => {
+      cancelled = true;
+      debugLog(`Cancelling signature verification: ${scanId}`);
+      killProcess(child, scanId);
+      activeProcesses.delete(scanId);
+      event.sender.send(`scan-log:${scanId}`, { log: "\n⚠️ VERIFICATION CANCELLED\n", progress: 0 });
+      resolve({ success: false, verified: false, cancelled: true });
     });
   });
 });

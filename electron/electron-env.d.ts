@@ -21,10 +21,10 @@ interface Window {
   };
 
   electronAPI: {
-    verifyGPG(payload: { 
-      repoUrl: string; 
-      branch: string; 
-      scanId: string 
+    verifyGPG(payload: {
+      repoUrl: string;
+      branch: string;
+      scanId: string
     }): Promise<{
       success: boolean;
       cancelled?: boolean;
@@ -33,10 +33,10 @@ interface Window {
       goodSignatures?: number;
     }>;
 
-    runGitleaks(payload: { 
-      repoUrl: string; 
-      branch: string; 
-      scanId: string 
+    runGitleaks(payload: {
+      repoUrl: string;
+      branch: string;
+      scanId: string
     }): Promise<{
       success: boolean;
       cancelled?: boolean;
@@ -44,10 +44,10 @@ interface Window {
       findings?: number;
     }>;
 
-    runTrivy(payload: { 
-      repoUrl: string; 
-      branch: string; 
-      scanId: string 
+    runTrivy(payload: {
+      repoUrl: string;
+      branch: string;
+      scanId: string
     }): Promise<{
       success: boolean;
       cancelled?: boolean;
@@ -55,9 +55,9 @@ interface Window {
       vulnerabilities?: number;
     }>;
 
-    runOpenGrep(payload: { 
-      repoUrl: string; 
-      branch: string; 
+    runOpenGrep(payload: {
+      repoUrl: string;
+      branch: string;
       scanId: string;
     }): Promise<{
       success: boolean;
@@ -83,12 +83,36 @@ interface Window {
     // Artifact Signing (UPDATED)
     signArtifact(payload: {
       repoUrl: string;       // Changed from contentPath
-      branch: string;        
+      branch: string;
       privateKeyPath: string;
       password?: string;
       scanId: string;
     }): Promise<{ success: boolean; error?: string }>;
-    
+
+
+    // GitHub Release Creation
+    createGitHubRelease(payload: {
+      repoUrl: string;
+      branch: string;
+      version: string;
+      scanId: string;
+    }): Promise<{ success: boolean; error?: string }>;
+
+    //Repo Signature Verification
+    verifySignature(payload: {
+      repoUrl: string;
+      branch: string;
+      version: string;
+      publicKeyPath: string;
+      signaturePath: string;
+      scanId: string;
+    }): Promise<{ 
+      success: boolean; 
+      verified: boolean;
+      error?: string;
+    }>;
+
+
     cancelScan(payload: { scanId: string }): Promise<{ cancelled: boolean }>;
 
     onScanLog(

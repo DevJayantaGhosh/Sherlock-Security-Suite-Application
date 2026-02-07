@@ -36,6 +36,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
   generateKeys: (payload: any) => ipcRenderer.invoke("crypto:generate-keys", payload),
   signArtifact: (payload: any) => ipcRenderer.invoke("crypto:sign-artifact", payload),
 
+   // GitHub Release Creation
+  createGitHubRelease: (payload: any) => ipcRenderer.invoke("release:github-create", payload),
+
+  // Signature Verification
+  verifySignature: (payload: any) => ipcRenderer.invoke("verify:signature", payload),
+
   // Cancel scan
   cancelScan: (payload: { scanId: string }) =>
     ipcRenderer.invoke("scan:cancel", payload),

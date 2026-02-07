@@ -19,6 +19,10 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
   selectFile: () => electron.ipcRenderer.invoke("dialog:select-file"),
   generateKeys: (payload) => electron.ipcRenderer.invoke("crypto:generate-keys", payload),
   signArtifact: (payload) => electron.ipcRenderer.invoke("crypto:sign-artifact", payload),
+  // GitHub Release Creation
+  createGitHubRelease: (payload) => electron.ipcRenderer.invoke("release:github-create", payload),
+  // Signature Verification
+  verifySignature: (payload) => electron.ipcRenderer.invoke("verify:signature", payload),
   // Cancel scan
   cancelScan: (payload) => electron.ipcRenderer.invoke("scan:cancel", payload),
   // Listen to logs
