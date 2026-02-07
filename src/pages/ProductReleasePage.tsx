@@ -1,10 +1,10 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import {
   Box, Button, Container, Paper, Stack,
-  Typography, Chip, TextField, MenuItem,
+  Typography, Chip,
   IconButton, Collapse,
   CircularProgress, Tooltip,
-  InputAdornment, LinearProgress, Dialog, DialogTitle, DialogContent
+  LinearProgress
 } from "@mui/material";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, Variants } from "framer-motion";
@@ -13,7 +13,6 @@ import { getProducts } from "../services/productService";
 import { Product } from "../models/Product";
 import { useUserStore } from "../store/userStore";
 
-import GitHubIcon from "@mui/icons-material/GitHub";
 import RocketLaunchIcon from "@mui/icons-material/RocketLaunch";
 import TerminalIcon from "@mui/icons-material/Terminal";
 import CancelIcon from "@mui/icons-material/Cancel";
@@ -147,12 +146,14 @@ export default function ProductReleasePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [product, setProduct] = useState<Product | null>(null);
+  
+  // ✅ PERFECT STATE MANAGEMENT
   const [isReleaseRunning, setIsReleaseRunning] = useState(false);
+  const [releaseMode, setReleaseMode] = useState<'none' | 'single' | 'batch'>('none');
   const [releaseLogs, setReleaseLogs] = useState<string[]>([]);
   const [currentRepoIndex, setCurrentRepoIndex] = useState(0);
-  const [selectedRepoForSingle, setSelectedRepoForSingle] = useState(0);
-  const [completedReposCount, setCompletedReposCount] = useState(0);
-  const [releaseModalOpen, setReleaseModalOpen] = useState(false);
+  const [singleCompletedCount, setSingleCompletedCount] = useState(0);
+  const [batchCompletedCount, setBatchCompletedCount] = useState(0);
 
   const currentScanId = useRef<string | null>(null);
   const isReleaseCancelled = useRef(false);
@@ -167,6 +168,16 @@ export default function ProductReleasePage() {
     setProduct(p);
   }, [id, navigate]);
 
+  // ✅ RESET COUNTERS ON NEW PRODUCT
+  useEffect(() => {
+    if (product) {
+      setSingleCompletedCount(0);
+      setBatchCompletedCount(0);
+      setReleaseMode('none');
+      setIsReleaseRunning(false);
+    }
+  }, [product?.id]);
+
   const handleCancel = async () => {
     isReleaseCancelled.current = true;
     if (currentScanId.current && window.electronAPI?.cancelScan) {
@@ -178,31 +189,29 @@ export default function ProductReleasePage() {
       }
     }
     setIsReleaseRunning(false);
+    setReleaseMode('none');
+    setCurrentRepoIndex(0);
   };
 
-  const handleRepoClick = (index: number) => {
-    setSelectedRepoForSingle(index);
-    setCurrentRepoIndex(index);
-  };
+  // ✅ SINGLE REPO - 1/1 PROGRESS
+  const releaseSingleRepo = useCallback(async (repoIndex: number) => {
+    if (!product || !window.electronAPI || isReleaseRunning || releaseMode !== 'none') return;
 
-  const releaseSingleRepo = useCallback(async (repoIndex: number = selectedRepoForSingle) => {
-    if (!product || !window.electronAPI) return false;
-
+    setReleaseMode('single');
     const repo = product.repos[repoIndex];
     const scanId = crypto.randomUUID();
     currentScanId.current = scanId;
 
     setReleaseLogs(prev => [...prev,
       `\n${"═".repeat(80)}`,
-      `🔹 SINGLE REPO ${repoIndex + 1}/${product.repos.length}: ${repo.repoUrl}`,
-      `   Version: v${product.version}`,
+      `🔹 SINGLE REPO 1/1: ${repo.repoUrl}`,
+      `   Version: r${product.version}`,
       `   Branch: ${repo.branch}`,
       `${"═".repeat(80)}\n`
     ]);
 
     setIsReleaseRunning(true);
     setCurrentRepoIndex(repoIndex);
-    setSelectedRepoForSingle(repoIndex);
 
     const cleanup = window.electronAPI.onScanLog(scanId, (data) => {
       setReleaseLogs((prev) => [...prev, data.log]);
@@ -215,49 +224,98 @@ export default function ProductReleasePage() {
         version: product.version,
         scanId
       });
-      setCompletedReposCount(prev => prev + 1);
+      setSingleCompletedCount(1); // ✅ Always 1/1
       return true;
     } catch (e: any) {
-      setReleaseLogs(prev => [...prev, `\n❌ Frontend Error: ${e.message}`]);
+      setReleaseLogs(prev => [...prev, `\n❌ SINGLE Error: ${e.message}`]);
       return false;
     } finally {
       currentScanId.current = null;
       if (cleanup) cleanup();
       setIsReleaseRunning(false);
+      setReleaseMode('none');
     }
-  }, [product, selectedRepoForSingle]);
+  }, [product, isReleaseRunning, releaseMode]);
 
+  // ✅ BATCH RELEASE - 1/N → 2/N → N/N
   const runSequentialRelease = useCallback(async () => {
-    if (!product || !window.electronAPI) return;
+    if (!product || !window.electronAPI || isReleaseRunning || releaseMode !== 'none') return;
 
-    // ✅ ONLY BATCH BUTTON OPENS MODAL
-    setReleaseModalOpen(true);
+    setReleaseMode('batch');
     isReleaseCancelled.current = false;
     setCurrentRepoIndex(0);
-    setCompletedReposCount(0);
-    setReleaseLogs([]);
-    setSelectedRepoForSingle(0);
-
-    setReleaseLogs([`🚀 Sequential GitHub Release STARTED: ${product.name}`,
-      `v${product.version} - ${product.repos.length} repositories`,
+    setBatchCompletedCount(0);
+    setReleaseLogs([`🚀 BATCH GitHub Release STARTED: ${product.name}`,
+      `r${product.version} - ${product.repos.length} ${product.repos.length === 1 ? 'Repository' : 'Repositories'}`,
       `${"═".repeat(80)}\n`]);
+
+    setIsReleaseRunning(true);
 
     for (let i = 0; i < product.repos.length; i++) {
       if (isReleaseCancelled.current) {
-        setReleaseLogs(prev => [...prev, "\n⚠️ Release process cancelled by user"]);
+        setReleaseLogs(prev => [...prev, "\n⚠️ BATCH cancelled by user"]);
         break;
       }
 
       setCurrentRepoIndex(i);
-      await releaseSingleRepo(i);
+      const repo = product.repos[i];
+      const scanId = crypto.randomUUID();
+      currentScanId.current = scanId;
 
-      if (i < product.repos.length - 1) {
+      setReleaseLogs(prev => [...prev,
+        `\n${"═".repeat(80)}`,
+        `🔹 BATCH REPO ${i + 1}/${product.repos.length}: ${repo.repoUrl}`,
+        `   Version: r${product.version}`,
+        `   Branch: ${repo.branch}`,
+        `${"═".repeat(80)}\n`
+      ]);
+
+      const cleanup = window.electronAPI.onScanLog(scanId, (data) => {
+        setReleaseLogs((prev) => [...prev, data.log]);
+      });
+
+      try {
+        await window.electronAPI.createGitHubRelease({
+          repoUrl: repo.repoUrl,
+          branch: repo.branch,
+          version: product.version,
+          scanId
+        });
+        setBatchCompletedCount(prev => prev + 1);
+      } catch (e: any) {
+        setReleaseLogs(prev => [...prev, `\n❌ BATCH Error [${i + 1}]: ${e.message}`]);
+      } finally {
+        currentScanId.current = null;
+        if (cleanup) cleanup();
+      }
+
+      if (i < product.repos.length - 1 && !isReleaseCancelled.current) {
         await new Promise(resolve => setTimeout(resolve, 1500));
       }
     }
 
     setIsReleaseRunning(false);
-  }, [product, releaseSingleRepo]);
+    setReleaseMode('none');
+  }, [product, isReleaseRunning, releaseMode]);
+
+  const getProgressInfo = () => {
+    if (releaseMode === 'single') {
+      return {
+        current: 1,
+        total: 1,
+        completed: singleCompletedCount,
+        text: `Processing Repo ${currentRepoIndex + 1} • 1/1`
+      };
+    }
+    return {
+      current: currentRepoIndex + 1,
+      total: product?.repos.length || 0,
+      completed: batchCompletedCount,
+      text: `Processing: ${currentRepoIndex + 1}/${product?.repos.length || 0} (${batchCompletedCount} completed)`
+    };
+  };
+
+  const progressInfo = getProgressInfo();
 
   if (!product) {
     return (
@@ -282,89 +340,93 @@ export default function ProductReleasePage() {
                   <RocketLaunchIcon sx={{ color: "#7b5cff", fontSize: 24 }} /> GitHub Releases
                 </Typography>
                 <Typography variant="body2" color="text.secondary" mb={3}>
-                  Create release tags v{product.version} across all repositories
+                  Create release tag r{product.version} to publish
                 </Typography>
 
                 <Paper sx={{
-                  p: 3,
-                  mb: 3,
-                  borderRadius: 2,
+                  p: 3, mb: 3, borderRadius: 2,
                   bgcolor: 'rgba(255,255,255, 0.02)',
                   border: '1px solid rgba(255,255,255, 0.08)',
                   boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
                 }}>
                   <Typography variant="h6" fontWeight={500} mb={2.5} color="#7b5cff" sx={{ fontFamily: 'monospace' }}>
-                    📂 Repositories ({product.repos.length})
+                       📂 {product.repos.length === 1 ? 'Repository' : 'Repositories'} ({product.repos.length})
                   </Typography>
 
-                  <Stack spacing={1.5}>
+                  <Stack spacing={2}>
                     {product.repos.map((repo, index) => (
                       <Paper
                         key={index}
                         elevation={index === currentRepoIndex ? 4 : 1}
-                        onClick={() => handleRepoClick(index)}
                         sx={{
-                          p: 1.5,
-                          borderRadius: 1,
-                          bgcolor: index === currentRepoIndex ? 'rgba(123, 92, 255, 0.12)' : 'transparent',
-                          border: index === currentRepoIndex ? '2px solid #7b5cff' : '1px solid rgba(255,255,255, 0.05)',
-                          cursor: 'pointer',
+                          p: 2.5, borderRadius: 2,
+                          bgcolor: index === currentRepoIndex ? 'rgba(123, 92, 255, 0.08)' : 'rgba(255,255,255, 0.02)',
+                          border: `1px solid ${index === currentRepoIndex ? 'rgba(123, 92, 255, 0.3)' : 'rgba(255,255,255, 0.05)'}`,
                           transition: 'all 0.3s ease',
-                          '&:hover': {
-                            bgcolor: 'rgba(123, 92, 255, 0.08)',
-                            boxShadow: index === currentRepoIndex ? '0 8px 25px rgba(123, 92, 255, 0.3)' : '0 4px 12px rgba(0,0,0,0.15)'
-                          }
+                          opacity: isReleaseRunning ? 0.6 : 1,
                         }}
                       >
-                        <Stack direction="row" spacing={1.5} alignItems="center">
+                        <Stack direction="row" spacing={2} alignItems="center">
                           <Box sx={{
-                            width: 36, height: 36,
-                            borderRadius: 1,
+                            width: 40, height: 40, borderRadius: 2,
                             bgcolor: index === currentRepoIndex ? 'rgba(123, 92, 255, 0.2)' : 'rgba(255,255,255, 0.08)',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             border: index === currentRepoIndex ? '2px solid #7b5cff' : '1px solid transparent'
                           }}>
-                            <Typography variant="subtitle2" fontWeight={700} color={index === currentRepoIndex ? '#7b5cff' : 'text.secondary'} sx={{ fontSize: '0.875rem' }}>
+                            <Typography variant="subtitle2" fontWeight={700} 
+                              color={index === currentRepoIndex ? '#7b5cff' : 'text.secondary'} 
+                              sx={{ fontSize: '0.9rem' }}>
                               {index + 1}
                             </Typography>
                           </Box>
+
                           <Box sx={{ flex: 1 }}>
-                            <Typography variant="caption" color="text.secondary" fontSize={11} mb={0.25} sx={{ fontFamily: 'monospace' }}>
+                            <Typography variant="caption" color="text.secondary" fontSize={11} mb={0.5} sx={{ fontFamily: 'monospace' }}>
                               Repository
                             </Typography>
                             <Typography variant="body2" sx={{
-                              fontFamily: 'monospace',
-                              fontSize: '0.8rem',
+                              fontFamily: 'monospace', fontSize: '0.85rem',
                               color: index === currentRepoIndex ? '#7b5cff' : 'white',
                               fontWeight: index === currentRepoIndex ? 600 : 400,
-                              wordBreak: 'break-all',
-                              lineHeight: 1.2
+                              wordBreak: 'break-all', lineHeight: 1.3
                             }}>
                               {repo.repoUrl}
                             </Typography>
                           </Box>
-                          <Chip
-                            label={repo.branch}
-                            size="small"
-                            sx={{
-                              height: 28,
-                              fontFamily: 'monospace',
-                              fontSize: '0.7rem',
-                              bgcolor: index === currentRepoIndex ? 'rgba(123, 92, 255, 0.2)' : 'rgba(255,255,255, 0.08)',
-                              color: index === currentRepoIndex ? '#7b5cff' : 'text.primary',
-                              border: index === currentRepoIndex ? '1px solid rgba(123, 92, 255, 0.3)' : 'none',
-                              '& .MuiChip-label': { py: 0.25 }
+
+                          <Chip label={repo.branch} size="small" sx={{
+                            height: 32, fontFamily: 'monospace', fontSize: '0.75rem',
+                            bgcolor: index === currentRepoIndex ? 'rgba(123, 92, 255, 0.2)' : 'rgba(255,255,255, 0.08)',
+                            color: index === currentRepoIndex ? '#7b5cff' : 'text.primary',
+                            border: index === currentRepoIndex ? '1px solid rgba(123, 92, 255, 0.3)' : 'none',
+                          }} />
+
+                          <Chip label={`r${product.version}`} size="small" color="success" 
+                            sx={{ height: 32, fontSize: '0.75rem', fontFamily: 'monospace' }} />
+
+                          <Button
+                            variant="contained" size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              releaseSingleRepo(index);
                             }}
-                          />
-                          <Chip
-                            label={`v${product.version}`}
-                            size="small"
-                            color="success"
-                            sx={{ height: 28, fontSize: '0.7rem', fontFamily: 'monospace' }}
-                          />
-                          {index === currentRepoIndex && isReleaseRunning && (
-                            <CircularProgress size={20} sx={{ color: "#7b5cff" }} />
-                          )}
+                            disabled={isReleaseRunning}
+                            sx={{
+                              minWidth: 44, height: 36,
+                              bgcolor: "#7b5cff", color: "white",
+                              fontSize: '0.75rem', fontWeight: 600,
+                              boxShadow: "0 2px 8px rgba(123, 92, 255, 0.3)",
+                              "&:hover": { bgcolor: "#7b5cff", boxShadow: "0 4px 12px rgba(123, 92, 255, 0.4)" },
+                              "&:disabled": { bgcolor: "rgba(123, 92, 255, 0.3)" }
+                            }}
+                            startIcon={
+                              index === currentRepoIndex && isReleaseRunning && releaseMode === 'single' ? 
+                                <CircularProgress size={16} sx={{ color: "white" }} /> : 
+                                <RocketLaunchIcon sx={{ fontSize: 16 }} />
+                            }
+                          >
+                            Release
+                          </Button>
                         </Stack>
                       </Paper>
                     ))}
@@ -372,68 +434,51 @@ export default function ProductReleasePage() {
                 </Paper>
 
                 {isReleaseRunning && (
-                  <Paper sx={{ p: 2, bgcolor: "rgba(123, 92, 255, 0.1)", border: "1px solid rgba(123, 92, 255, 0.3)" }}>
-                    <Typography variant="body2" fontWeight={600} color="#7b5cff">
-                      Processing: {currentRepoIndex + 1} / {product.repos.length}
-                      ({completedReposCount} completed)
+                  <Paper sx={{ m: 2, p: 2.5, bgcolor: "rgba(123, 92, 255, 0.1)", border: "1px solid rgba(123, 92, 255, 0.3)", borderRadius: 2 }}>
+                    <Typography variant="body2" fontWeight={600} color="#7b5cff" mb={1.5}>
+                      {progressInfo.text}
                     </Typography>
-                    <LinearProgress
-                      variant="determinate"
-                      value={(completedReposCount / product.repos.length) * 100}
-                      sx={{ 
-                        mt: 1, 
-                        height: 6,
-                        '& .MuiLinearProgress-bar': {
-                          backgroundColor: '#7b5cff'
-                        }
-                      }}
-                    />
+                    <Box sx={{ mb: 1 }}>
+                      <LinearProgress
+                        variant="determinate"
+                        value={releaseMode === 'single' ? 100 : (batchCompletedCount / product.repos.length) * 100}
+                        sx={{ 
+                          height: 8, borderRadius: 4,
+                          bgcolor: 'rgba(255,255,255,0.1)', mx: 1, my: 0.5,
+                          '& .MuiLinearProgress-bar': { backgroundColor: '#7b5cff', borderRadius: 4 }
+                        }}
+                      />
+                    </Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
+                      r{product.version} • {progressInfo.current}/{progressInfo.total}
+                    </Typography>
                   </Paper>
                 )}
 
-                <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems="center">
+                <Stack sx={{ mt: 3 }} spacing={2}>
                   <Button
-                    variant="outlined"
-                    size="large"
-                    onClick={() => releaseSingleRepo()}
-                    disabled={isReleaseRunning}
-                    sx={{
-                      borderColor: "#7b5cff",
-                      color: "#7b5cff",
-                      fontWeight: "bold",
-                      "&:hover": { 
-                        borderColor: "#7b5cff", 
-                        bgcolor: "rgba(123, 92, 255, 0.1)",
-                        boxShadow: "0 4px 14px rgba(123, 92, 255, 0.3)"
-                      },
-                      minWidth: 220
-                    }}
-                    startIcon={<PlayArrowIcon />}
-                  >
-                    Release Repo #{selectedRepoForSingle + 1}
-                  </Button>
-
-                  <Button
-                    variant="contained"
-                    size="large"
+                    variant="contained" size="large"
                     onClick={runSequentialRelease}
                     disabled={isReleaseRunning}
                     sx={{
-                      bgcolor: "#7b5cff",
-                      color: "white",
-                      fontWeight: "bold",
-                      boxShadow: "0 4px 14px 0 rgba(123, 92, 255, 0.4)",
+                      bgcolor: "#7b5cff", color: "white",
+                      fontWeight: "bold", fontSize: '1.1rem', height: 56,
+                      boxShadow: "0 8px 24px rgba(123, 92, 255, 0.4)", borderRadius: 2,
                       "&:hover": { 
                         bgcolor: "#7b5cff",
-                        boxShadow: "0 6px 20px 0 rgba(123, 92, 255, 0.5)"
+                        boxShadow: "0 12px 32px rgba(123, 92, 255, 0.5)",
+                        transform: 'translateY(-2px)'
                       },
-                      minWidth: 300
+                      "&:disabled": { bgcolor: "rgba(123, 92, 255, 0.3)", boxShadow: "none" }
                     }}
-                    startIcon={isReleaseRunning ? <CircularProgress size={20} sx={{ color: "white" }} /> : <RocketLaunchIcon />}
+                    startIcon={isReleaseRunning && releaseMode === 'batch' ? 
+                      <CircularProgress size={24} sx={{ color: "white" }} /> : 
+                      <RocketLaunchIcon />
+                    }
                   >
-                    {isReleaseRunning
-                      ? `Batch Release... (${completedReposCount}/${product.repos.length})`
-                      : `Release All ${product.repos.length} Repos v${product.version}`
+                    {isReleaseRunning && releaseMode === 'batch'
+                      ? `Batch Release... (${batchCompletedCount}/${product.repos.length})`
+                      : `Release All - r${product.version}`
                     }
                   </Button>
                 </Stack>
@@ -451,44 +496,6 @@ export default function ProductReleasePage() {
           </Stack>
         </motion.div>
       </Container>
-
-      <Dialog
-        open={releaseModalOpen}
-        onClose={() => {
-          if (!isReleaseRunning) setReleaseModalOpen(false);
-        }}
-        maxWidth={false}
-        fullWidth
-        PaperProps={{
-          sx: {
-            height: '90vh',
-            borderRadius: 0,
-            maxHeight: '90vh',
-            bgcolor: '#0a0a0a'
-          }
-        }}
-      >
-        <DialogTitle sx={{ pb: 1 }}>
-          <Stack direction="row" justifyContent="space-between" alignItems="center">
-            <Typography variant="h6" fontWeight={700} color="#7b5cff">
-              🚀 GitHub Release Terminal - {product?.name}
-            </Typography>
-            <IconButton onClick={() => setReleaseModalOpen(false)} disabled={isReleaseRunning}>
-              <CancelIcon />
-            </IconButton>
-          </Stack>
-        </DialogTitle>
-        <DialogContent sx={{ p: 0, height: '100%' }}>
-          <LogTerminal
-            logs={releaseLogs}
-            isVisible={true}
-            isRunning={isReleaseRunning}
-            onCancel={handleCancel}
-            title="BATCH RELEASE PROCESS"
-            color="#7b5cff"
-          />
-        </DialogContent>
-      </Dialog>
     </Box>
   );
 }
