@@ -17,7 +17,7 @@ import RocketLaunchIcon from "@mui/icons-material/RocketLaunch";
 import TerminalIcon from "@mui/icons-material/Terminal";
 import CancelIcon from "@mui/icons-material/Cancel";
 import DownloadIcon from "@mui/icons-material/Download";
-import PlayArrowIcon from "@mui/icons-material/PlayArrow";
+
 
 const containerVariants: Variants = {
   hidden: { opacity: 0 },
@@ -37,13 +37,13 @@ const itemVariants: Variants = {
 };
 
 const getLogStyle = (text: string) => {
-  if (text.includes("❌") || text.includes("Error") || text.includes("FAILED")) 
+  if (text.includes("❌") || text.includes("Error") || text.includes("FAILED"))
     return { color: "#ff5252", fontWeight: "bold" };
-  if (text.includes("✅") || text.includes("SUCCESS") || text.includes("CREATED")) 
+  if (text.includes("✅") || text.includes("SUCCESS") || text.includes("CREATED"))
     return { color: "#69f0ae", fontWeight: "bold" };
-  if (text.includes("🔴") || text.includes("⚠️")) 
+  if (text.includes("🔴") || text.includes("⚠️"))
     return { color: "#ffd740" };
-  if (text.includes("🔹") || text.includes("RELEASE")) 
+  if (text.includes("🔹") || text.includes("RELEASE"))
     return { color: "#7b5cff", fontWeight: "bold" };
   if (text.includes("═")) return { color: "rgb(38, 194, 191)" };
   return { color: "#e0e0e0" };
@@ -146,7 +146,7 @@ export default function ProductReleasePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [product, setProduct] = useState<Product | null>(null);
-  
+
   // ✅ PERFECT STATE MANAGEMENT
   const [isReleaseRunning, setIsReleaseRunning] = useState(false);
   const [releaseMode, setReleaseMode] = useState<'none' | 'single' | 'batch'>('none');
@@ -203,11 +203,11 @@ export default function ProductReleasePage() {
     currentScanId.current = scanId;
 
     setReleaseLogs(prev => [...prev,
-      `\n${"═".repeat(80)}`,
-      `🔹 SINGLE REPO 1/1: ${repo.repoUrl}`,
-      `   Version: r${product.version}`,
-      `   Branch: ${repo.branch}`,
-      `${"═".repeat(80)}\n`
+    `\n${"═".repeat(80)}`,
+    `🔹 SINGLE REPO 1/1: ${repo.repoUrl}`,
+    `   Version: r${product.version}`,
+    `   Branch: ${repo.branch}`,
+    `${"═".repeat(80)}\n`
     ]);
 
     setIsReleaseRunning(true);
@@ -246,8 +246,8 @@ export default function ProductReleasePage() {
     setCurrentRepoIndex(0);
     setBatchCompletedCount(0);
     setReleaseLogs([`🚀 BATCH GitHub Release STARTED: ${product.name}`,
-      `r${product.version} - ${product.repos.length} ${product.repos.length === 1 ? 'Repository' : 'Repositories'}`,
-      `${"═".repeat(80)}\n`]);
+    `r${product.version} - ${product.repos.length} ${product.repos.length === 1 ? 'Repository' : 'Repositories'}`,
+    `${"═".repeat(80)}\n`]);
 
     setIsReleaseRunning(true);
 
@@ -263,11 +263,11 @@ export default function ProductReleasePage() {
       currentScanId.current = scanId;
 
       setReleaseLogs(prev => [...prev,
-        `\n${"═".repeat(80)}`,
-        `🔹 BATCH REPO ${i + 1}/${product.repos.length}: ${repo.repoUrl}`,
-        `   Version: r${product.version}`,
-        `   Branch: ${repo.branch}`,
-        `${"═".repeat(80)}\n`
+      `\n${"═".repeat(80)}`,
+      `🔹 BATCH REPO ${i + 1}/${product.repos.length}: ${repo.repoUrl}`,
+      `   Version: r${product.version}`,
+      `   Branch: ${repo.branch}`,
+      `${"═".repeat(80)}\n`
       ]);
 
       const cleanup = window.electronAPI.onScanLog(scanId, (data) => {
@@ -350,7 +350,7 @@ export default function ProductReleasePage() {
                   boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
                 }}>
                   <Typography variant="h6" fontWeight={500} mb={2.5} color="#7b5cff" sx={{ fontFamily: 'monospace' }}>
-                       📂 {product.repos.length === 1 ? 'Repository' : 'Repositories'} ({product.repos.length})
+                    📂 {product.repos.length === 1 ? 'Repository' : 'Repositories'} ({product.repos.length})
                   </Typography>
 
                   <Stack spacing={2}>
@@ -373,8 +373,8 @@ export default function ProductReleasePage() {
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             border: index === currentRepoIndex ? '2px solid #7b5cff' : '1px solid transparent'
                           }}>
-                            <Typography variant="subtitle2" fontWeight={700} 
-                              color={index === currentRepoIndex ? '#7b5cff' : 'text.secondary'} 
+                            <Typography variant="subtitle2" fontWeight={700}
+                              color={index === currentRepoIndex ? '#7b5cff' : 'text.secondary'}
                               sx={{ fontSize: '0.9rem' }}>
                               {index + 1}
                             </Typography>
@@ -401,7 +401,7 @@ export default function ProductReleasePage() {
                             border: index === currentRepoIndex ? '1px solid rgba(123, 92, 255, 0.3)' : 'none',
                           }} />
 
-                          <Chip label={`r${product.version}`} size="small" color="success" 
+                          <Chip label={`r${product.version}`} size="small" color="success"
                             sx={{ height: 32, fontSize: '0.75rem', fontFamily: 'monospace' }} />
 
                           <Button
@@ -420,8 +420,8 @@ export default function ProductReleasePage() {
                               "&:disabled": { bgcolor: "rgba(123, 92, 255, 0.3)" }
                             }}
                             startIcon={
-                              index === currentRepoIndex && isReleaseRunning && releaseMode === 'single' ? 
-                                <CircularProgress size={16} sx={{ color: "white" }} /> : 
+                              index === currentRepoIndex && isReleaseRunning && releaseMode === 'single' ?
+                                <CircularProgress size={16} sx={{ color: "white" }} /> :
                                 <RocketLaunchIcon sx={{ fontSize: 16 }} />
                             }
                           >
@@ -442,7 +442,7 @@ export default function ProductReleasePage() {
                       <LinearProgress
                         variant="determinate"
                         value={releaseMode === 'single' ? 100 : (batchCompletedCount / product.repos.length) * 100}
-                        sx={{ 
+                        sx={{
                           height: 8, borderRadius: 4,
                           bgcolor: 'rgba(255,255,255,0.1)', mx: 1, my: 0.5,
                           '& .MuiLinearProgress-bar': { backgroundColor: '#7b5cff', borderRadius: 4 }
@@ -454,34 +454,35 @@ export default function ProductReleasePage() {
                     </Typography>
                   </Paper>
                 )}
-
-                <Stack sx={{ mt: 3 }} spacing={2}>
-                  <Button
-                    variant="contained" size="large"
-                    onClick={runSequentialRelease}
-                    disabled={isReleaseRunning}
-                    sx={{
-                      bgcolor: "#7b5cff", color: "white",
-                      fontWeight: "bold", fontSize: '1.1rem', height: 56,
-                      boxShadow: "0 8px 24px rgba(123, 92, 255, 0.4)", borderRadius: 2,
-                      "&:hover": { 
-                        bgcolor: "#7b5cff",
-                        boxShadow: "0 12px 32px rgba(123, 92, 255, 0.5)",
-                        transform: 'translateY(-2px)'
-                      },
-                      "&:disabled": { bgcolor: "rgba(123, 92, 255, 0.3)", boxShadow: "none" }
-                    }}
-                    startIcon={isReleaseRunning && releaseMode === 'batch' ? 
-                      <CircularProgress size={24} sx={{ color: "white" }} /> : 
-                      <RocketLaunchIcon />
-                    }
-                  >
-                    {isReleaseRunning && releaseMode === 'batch'
-                      ? `Batch Release... (${batchCompletedCount}/${product.repos.length})`
-                      : `Release All - r${product.version}`
-                    }
-                  </Button>
-                </Stack>
+                {product.repos.length > 1 && (
+                  <Stack sx={{ mt: 3 }} spacing={2}>
+                    <Button
+                      variant="contained" size="large"
+                      onClick={runSequentialRelease}
+                      disabled={isReleaseRunning}
+                      sx={{
+                        bgcolor: "#7b5cff", color: "white",
+                        fontWeight: "bold", fontSize: '1.1rem', height: 56,
+                        boxShadow: "0 8px 24px rgba(123, 92, 255, 0.4)", borderRadius: 2,
+                        "&:hover": {
+                          bgcolor: "#7b5cff",
+                          boxShadow: "0 12px 32px rgba(123, 92, 255, 0.5)",
+                          transform: 'translateY(-2px)'
+                        },
+                        "&:disabled": { bgcolor: "rgba(123, 92, 255, 0.3)", boxShadow: "none" }
+                      }}
+                      startIcon={isReleaseRunning && releaseMode === 'batch' ?
+                        <CircularProgress size={24} sx={{ color: "white" }} /> :
+                        <RocketLaunchIcon />
+                      }
+                    >
+                      {isReleaseRunning && releaseMode === 'batch'
+                        ? `Batch Release... (${batchCompletedCount}/${product.repos.length})`
+                        : `Release All - r${product.version}`
+                      }
+                    </Button>
+                  </Stack>
+                )}
 
                 <LogTerminal
                   logs={releaseLogs}

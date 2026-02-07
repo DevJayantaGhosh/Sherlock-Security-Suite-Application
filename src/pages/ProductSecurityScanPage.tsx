@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   Box, Button, Container, Paper, Stack,
-  Typography, Chip, Dialog, DialogTitle,
+  Typography,  Dialog, DialogTitle,
   DialogContent, DialogActions,
   Tooltip,
   Divider,
@@ -10,7 +10,6 @@ import {
 import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
-import SecurityIcon from "@mui/icons-material/Security";
 import ProductHeader from '../components/ProductHeader';
 
 

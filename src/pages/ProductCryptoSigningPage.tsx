@@ -621,7 +621,7 @@ export default function ProductCryptoSigningPage() {
                   >
                     {isSigningRunning
                       ? `Signing... (${completedReposCount}/${product.repos.length})`
-                      : `Sign All Repos Sequentially (${product.repos.length})`
+                      : `Sign Artifacts`
                     }
                   </Button>
                 </Stack>
