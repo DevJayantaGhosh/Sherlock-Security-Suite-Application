@@ -92,6 +92,7 @@ export interface Product {
   // Basic Info
   name: string;
   version: string;
+  isOpenSource:boolean;
   description?: string;
 
   // Stakeholders
@@ -112,4 +113,6 @@ export interface Product {
   // Approval Workflow
   status: ProductStatus;
   remark?: string;
+  signatureFilePath?:string;
+  publicKeyFilePath?:string;
 }

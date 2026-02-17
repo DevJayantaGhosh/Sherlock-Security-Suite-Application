@@ -12,6 +12,8 @@ import {
   Typography,
   Divider,
   Paper,
+  FormControlLabel,
+  Switch,
 } from "@mui/material";
 
 import AddIcon from "@mui/icons-material/Add";
@@ -26,10 +28,6 @@ import {
 import { createProduct, updateProduct } from "../../services/productService";
 import { useUserStore } from "../../store/userStore";
 import { getUsers } from "../../services/userService";
-
-/* -----------------------------------------------------
-   DEMO DATA
------------------------------------------------------ */
 
 const REPOSITORIES = [
   "https://github.com/org/web-ui",
@@ -51,13 +49,7 @@ const DEPENDENCIES = [
   "PostgreSQL",
 ];
 
-
-// SEMVER regex (no leading v)
 const SEMVER_REGEX = /^(\d+)\.(\d+)\.(\d+)(-(alpha|beta|rc))?$/;
-
-/* -----------------------------------------------------
-   COMPONENT
------------------------------------------------------ */
 
 type ProductForm = Omit<Product, "id" | "createdAt" | "updatedAt" | "updatedBy">;
 
@@ -78,13 +70,10 @@ export default function ProductDialog({
   const isView = mode === "view";
   const users = getUsers();
 
-  /* -----------------------------------------------------
-     FORM STATE
-  ----------------------------------------------------- */
-
   const emptyForm: ProductForm = {
     name: "",
     version: "",
+    isOpenSource: false,
     description: "",
     productDirector: null,
     securityHead: null,
@@ -102,10 +91,6 @@ export default function ProductDialog({
 
   const [form, setForm] = useState<ProductForm>(emptyForm);
   const [errors, setErrors] = useState<Record<string, string>>({});
-
-  /* -----------------------------------------------------
-     LOAD DATA
-  ----------------------------------------------------- */
 
   useEffect(() => {
     if (product) {
@@ -131,10 +116,6 @@ export default function ProductDialog({
 
     setErrors({});
   }, [product, open]);
-
-  /* -----------------------------------------------------
-     VALIDATION
-  ----------------------------------------------------- */
 
   function validate(): boolean {
     const e: Record<string, string> = {};
@@ -166,10 +147,6 @@ export default function ProductDialog({
     return Object.keys(e).length === 0;
   }
 
-  /* -----------------------------------------------------
-     REPO OPERATIONS
-  ----------------------------------------------------- */
-
   function setRepoField<K extends keyof RepoDetails>(
     repoIdx: number,
     key: K,
@@ -200,11 +177,6 @@ export default function ProductDialog({
     });
   }
 
-
-  /* -----------------------------------------------------
-     SUBMIT
-  ----------------------------------------------------- */
-
   function submit() {
     if (!validate()) return;
     if (!user?.id) return;
@@ -228,10 +200,6 @@ export default function ProductDialog({
     onClose();
   }
 
-  /* -----------------------------------------------------
-     RENDER
-  ----------------------------------------------------- */
-
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
       <DialogTitle>
@@ -243,21 +211,21 @@ export default function ProductDialog({
       </DialogTitle>
 
       <DialogContent dividers sx={{ maxHeight: "60vh" }}>
-        {/* ===================================================
-             BASIC INFO
-        =================================================== */}
+        {/* BASIC INFO */}
         <Typography variant="subtitle2" fontWeight={700} mb={2}>
           Basic Information
         </Typography>
 
+        {/* FIRST ROW: Name, Version, OpenSource Toggle */}
         <Box
           sx={{
             display: "grid",
-            gridTemplateColumns: "1fr 1fr 2fr",
+            gridTemplateColumns: { xs: "1fr", md: "1fr 1fr 1fr" },
             gap: 2,
             mb: 3,
           }}
         >
+          {/* Name */}
           <TextField
             label="Name"
             value={form.name}
@@ -267,6 +235,7 @@ export default function ProductDialog({
             onChange={(e) => setForm({ ...form, name: e.target.value })}
           />
 
+          {/* Version */}
           <TextField
             label="Version"
             value={form.version}
@@ -276,19 +245,50 @@ export default function ProductDialog({
             onChange={(e) => setForm({ ...form, version: e.target.value })}
           />
 
-          <TextField
-            label="Description"
-            value={form.description}
-            error={!!errors.description}
-            helperText={errors.description}
-            disabled={isView}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
-          />
+          {/* OpenSource Toggle */}
+          <Box sx={{ display: "flex", alignItems: "center" }}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={form.isOpenSource}
+                  onChange={(e) =>
+                    setForm({ ...form, isOpenSource: e.target.checked })
+                  }
+                  disabled={isView}
+                  color="secondary"
+                />
+              }
+              label={
+                <Box>
+                  <Typography variant="body2" fontWeight={600}>
+                    Open Source Project
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Public repository access
+                  </Typography>
+                </Box>
+              }
+              labelPlacement="start"
+              sx={{ m: 0, width: "100%" }}
+            />
+          </Box>
         </Box>
 
-        {/* ===================================================
-             STAKEHOLDERS
-        =================================================== */}
+        {/* Description */}
+        <TextField
+          label="Description"
+          value={form.description}
+          error={!!errors.description}
+          helperText={errors.description}
+          disabled={isView}
+          fullWidth
+          multiline
+          rows={2}
+          sx={{ mb: 3 }}
+          onChange={(e) => setForm({ ...form, description: e.target.value })}
+        />
+
+        {/* STAKEHOLDERS */}
         <Typography variant="subtitle2" fontWeight={700} mb={2}>
           Stakeholders
         </Typography>
@@ -296,7 +296,7 @@ export default function ProductDialog({
         <Box
           sx={{
             display: "grid",
-            gridTemplateColumns: "1fr 1fr 1fr",
+            gridTemplateColumns: { xs: "1fr", md: "1fr 1fr 1fr" },
             gap: 2,
             mb: 3,
           }}
@@ -311,7 +311,7 @@ export default function ProductDialog({
             onChange={(e) =>
               setForm({
                 ...form,
-                productDirector: e.target.value,
+                productDirector: e.target.value || null,
               })
             }
           >
@@ -332,7 +332,7 @@ export default function ProductDialog({
             onChange={(e) =>
               setForm({
                 ...form,
-                securityHead: e.target.value,
+                securityHead: e.target.value || null,
               })
             }
           >
@@ -366,9 +366,7 @@ export default function ProductDialog({
           </TextField>
         </Box>
 
-        {/* ===================================================
-             REPOSITORIES (MULTI-REPO + MULTI-COMPONENT)
-        =================================================== */}
+        {/* REPOSITORIES */}
         <Divider sx={{ my: 3 }} />
 
         <Box
@@ -406,7 +404,6 @@ export default function ProductDialog({
               background: "rgba(123,92,255,0.05)",
             }}
           >
-            {/* REPO HEADER */}
             <Box
               sx={{
                 display: "flex",
@@ -430,13 +427,11 @@ export default function ProductDialog({
               )}
             </Box>
 
-            {/* REPO URL + BRANCH */}
             <Box
               sx={{
                 display: "grid",
-                gridTemplateColumns: "2fr 1fr",
+                gridTemplateColumns: { xs: "1fr", md: "2fr 1fr" },
                 gap: 2,
-                mb: 2,
               }}
             >
               <TextField
@@ -447,7 +442,7 @@ export default function ProductDialog({
                 helperText={errors[`repo-${repoIdx}-url`]}
                 disabled={isView}
                 onChange={(e) =>
-                  setRepoField(repoIdx, "repoUrl", e.target.value)
+                  setRepoField(repoIdx, "repoUrl" as keyof RepoDetails, e.target.value)
                 }
               >
                 {REPOSITORIES.map((url) => (
@@ -463,16 +458,15 @@ export default function ProductDialog({
                 error={!!errors[`repo-${repoIdx}-branch`]}
                 helperText={errors[`repo-${repoIdx}-branch`]}
                 disabled={isView}
-                onChange={(e) => setRepoField(repoIdx, "branch", e.target.value)}
+                onChange={(e) =>
+                  setRepoField(repoIdx, "branch" as keyof RepoDetails, e.target.value)
+                }
               />
             </Box>
-           
           </Paper>
         ))}
 
-        {/* ===================================================
-             DEPENDENCIES
-        =================================================== */}
+        {/* DEPENDENCIES */}
         <Divider sx={{ my: 3 }} />
 
         <Typography variant="subtitle2" fontWeight={700} mb={2}>
