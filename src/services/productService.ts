@@ -11,6 +11,7 @@ let productDB: Product[] = [
     id: "1",
     name: "Threat Scanner",
     version: "1.2.0",
+    isOpenSource: false,
     description: "Automated threat detection and sandboxing engine.",
     productDirector: "u1",
     securityHead: "u2",
@@ -27,144 +28,165 @@ let productDB: Product[] = [
     status: "Pending",
   },
   {
-  id: "sherlock-001",
-  name: "Sherlock Security Suite Service With Build",
-  version: "1.0.0",
-  description: "Comprehensive security suite with multiple Spring Boot microservices.",
-  productDirector: "u1",
-  securityHead: "u2",
-  releaseEngineers: ["u3"],
-  repos: [
-    {
-      repoUrl: "https://github.com/DevJayantaGhosh/Sherlock-Security-Suite-Services.git",
-      branch: "main",
-    },
-  ],
-  dependencies: ["Spring Boot", "MySQL", "Spring Security"],
-  createdBy: "u1",
-  createdAt: new Date("2024-12-15").toISOString(),
-  status: "Pending",
-},
-{
-  id: "sherlock-001",
-  name: "Sherlock Security Suite",
-  version: "1.0.0",
-  description: "Comprehensive security suite with multiple Spring Boot microservices.",
-  productDirector: "u1",
-  securityHead: "u2",
-  releaseEngineers: ["u3"],
-  repos: [
-    {
-      repoUrl: "https://github.com/DevJayantaGhosh/Sherlock-Security-Suite-Services.git",
-      branch: "main",
-    },
-  ],
-  dependencies: ["Spring Boot", "MySQL", "Spring Security"],
-  createdBy: "u1",
-  createdAt: new Date("2024-12-15").toISOString(),
-  status: "Pending",
-}
-,
-{
-  "id": "prod_example_01",
-  "name": "E-Commerce Payment Gateway",
-  "version": "2.4.1",
-  "description": "Core payment processing service handling transactions and secure checkout.",
-  "productDirector": "u1",
-  "securityHead": "u2",
-  "releaseEngineers": ["u3", "u4"],
-  
-  "repos": [
-    {
-      "repoUrl": "https://github.com/example/payment-gateway-service.git",
-      "branch": "release/v2.4",
-      "scans": {
-        "signatureVerification": {
-          "status": "success",
-          "timestamp": "2026-01-26T10:00:00.000Z",
-          "logs": [
-            "Fetching GPG keys from key server...",
-            "Verifying 45 commits...",
-            "All commits signed by authorized developers."
-          ],
-          "summary": {
-            "totalCommits": 45,
-            "goodSignatures": 45
-          }
-        },
-        "secretLeakDetection": {
-          "status": "failed",
-          "timestamp": "2026-01-26T10:05:00.000Z",
-          "logs": [
-            "Starting Gitleaks scan...",
-            "Scanning history...",
-            "CRITICAL: Found AWS Access Key in src/config/aws.js"
-          ],
-          "summary": {
-            "findings": 1
-          }
-        },
-        "vulnerabilityScan": {
-          "status": "success",
-          "timestamp": "2026-01-26T10:10:00.000Z",
-          "logs": [
-            "Updating Trivy DB...",
-            "Scanning package-lock.json...",
-            "Scanning pom.xml...",
-            "Found 12 vulnerabilities."
-          ],
-          "summary": {
-            "vulnerabilities": 12,
-            "critical": 0,
-            "high": 2,
-            "medium": 5,
-            "low": 5
-          }
-        },
-        "staticAnalysis": {
-          "status": "success",
-          "timestamp": "2026-01-26T10:15:00.000Z",
-          "logs": [
-            "[OPENGREP] Starting scan...",
-            "Running with configs: auto, p/owasp-top-ten, p/secrets",
-            "Scanned 150 files.",
-            "Found 8 issues."
-          ],
-          "summary": {
-            "totalIssues": 8,
-            "passedChecks": 150,
-            "failedChecks": 8
-          },
-          "componentResults": [
-            {
-              "componentName": "Backend Service",
-              "language": "java",
-              "issuesCount": 3,
-              "isPassing": true
-            },
-            {
-              "componentName": "Admin Dashboard",
-              "language": "javascript-typescript",
-              "issuesCount": 5,
-              "isPassing": false
+    id: "sherlock-001",
+    name: "Sherlock Security Suite Service With Build",
+    version: "1.0.0",
+    isOpenSource: true,
+    description: "Comprehensive security suite with multiple Spring Boot microservices.",
+    productDirector: "u1",
+    securityHead: "u2",
+    releaseEngineers: ["u3"],
+    repos: [
+      {
+        repoUrl: "https://github.com/DevJayantaGhosh/Sherlock-Security-Suite-Services.git",
+        branch: "main",
+      },
+    ],
+    dependencies: ["Spring Boot", "MySQL", "Spring Security"],
+    createdBy: "u1",
+    createdAt: new Date("2024-12-15").toISOString(),
+    status: "Pending",
+  },
+  {
+    id: "sherlock-002",
+    name: "Sherlock Security Suite",
+    version: "1.0.0",
+    isOpenSource: true,
+    description: "Comprehensive security suite with multiple Spring Boot microservices.",
+    productDirector: "u1",
+    securityHead: "u2",
+    releaseEngineers: ["u3"],
+    repos: [
+      {
+        repoUrl: "https://github.com/DevJayantaGhosh/Sherlock-Security-Suite-Services.git",
+        branch: "main",
+      },
+    ],
+    dependencies: ["Spring Boot", "MySQL", "Spring Security"],
+    createdBy: "u1",
+    createdAt: new Date("2024-12-15").toISOString(),
+    status: "Approved",
+  },
+  {
+    id: "prod_example_01",
+    name: "E-Commerce Payment Gateway",
+    version: "2.4.1",
+    isOpenSource: false,
+    description: "Core payment processing service handling transactions and secure checkout.",
+    productDirector: "u1",
+    securityHead: "u2",
+    releaseEngineers: ["u3", "u4"],
+    repos: [
+      {
+        repoUrl: "https://github.com/example/payment-gateway-service.git",
+        branch: "release/v2.4",
+        scans: {
+          signatureVerification: {
+            status: "success",
+            timestamp: "2026-01-26T10:00:00.000Z",
+            logs: [
+              "Fetching GPG keys from key server...",
+              "Verifying 45 commits...",
+              "All commits signed by authorized developers."
+            ],
+            summary: {
+              totalCommits: 45,
+              goodSignatures: 45
             }
-          ]
+          },
+          secretLeakDetection: {
+            status: "failed",
+            timestamp: "2026-01-26T10:05:00.000Z",
+            logs: [
+              "Starting Gitleaks scan...",
+              "Scanning history...",
+              "CRITICAL: Found AWS Access Key in src/config/aws.js"
+            ],
+            summary: {
+              findings: 1
+            }
+          },
+          vulnerabilityScan: {
+            status: "success",
+            timestamp: "2026-01-26T10:10:00.000Z",
+            logs: [
+              "Updating Trivy DB...",
+              "Scanning package-lock.json...",
+              "Scanning pom.xml...",
+              "Found 12 vulnerabilities."
+            ],
+            summary: {
+              vulnerabilities: 12,
+              critical: 0,
+              high: 2,
+              medium: 5,
+              low: 5
+            }
+          },
+          staticAnalysis: {
+            status: "success",
+            timestamp: "2026-01-26T10:15:00.000Z",
+            logs: [
+              "[OPENGREP] Starting scan...",
+              "Running with configs: auto, p/owasp-top-ten, p/secrets",
+              "Scanned 150 files.",
+              "Found 8 issues."
+            ],
+            summary: {
+              totalIssues: 8,
+              passedChecks: 150,
+              failedChecks: 8
+            },
+            componentResults: [
+              {
+                componentName: "Backend Service",
+                language: "java",
+                issuesCount: 3,
+                isPassing: true
+              },
+              {
+                componentName: "Admin Dashboard",
+                language: "javascript-typescript",
+                issuesCount: 5,
+                isPassing: false
+              }
+            ]
+          }
         }
       }
-    }
-  ],
-  
-  "dependencies": ["Spring Boot 3.2", "React 18", "PostgreSQL", "Redis"],
-  
-  "createdBy": "u1",
-  "createdAt": "2026-01-20T08:30:00.000Z",
-  "updatedBy": "u3",
-  "updatedAt": "2026-01-26T10:20:00.000Z",
-  
-  "status": "Pending",
-  "remark": "Waiting for Secret Leak remediation before final approval."
-},
-
+    ],
+    dependencies: ["Spring Boot 3.2", "React 18", "PostgreSQL", "Redis"],
+    createdBy: "u1",
+    createdAt: "2026-01-20T08:30:00.000Z",
+    updatedBy: "u3",
+    updatedAt: "2026-01-26T10:20:00.000Z",
+    status: "Pending",
+    remark: "Waiting for Secret Leak remediation before final approval.",
+    signatureFilePath: "/signatures/payment-gateway-v2.4.1.sig",
+    publicKeyFilePath: "/keys/payment-gateway-public.asc"
+  },
+  {
+    id: "prod_example_02",
+    name: "User Authentication Service",
+    version: "3.1.2-beta",
+    isOpenSource: true,
+    description: "Enterprise-grade authentication service with OAuth2 and JWT support.",
+    productDirector: "u1",
+    securityHead: "u5",
+    releaseEngineers: ["u3", "u6"],
+    repos: [
+      {
+        repoUrl: "https://github.com/example/auth-service.git",
+        branch: "develop",
+      }
+    ],
+    dependencies: ["Node.js", "TypeScript", "Redis", "PostgreSQL"],
+    createdBy: "u2",
+    createdAt: new Date("2026-02-01").toISOString(),
+    status: "Approved",
+    signatureFilePath: "/signatures/auth-service-v3.1.2-beta.sig",
+    publicKeyFilePath: "/keys/auth-service-public.asc"
+  }
 ];
 
 /* ======================================================

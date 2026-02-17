@@ -7,14 +7,13 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import SecurityIcon from "@mui/icons-material/Security";
 import FingerprintIcon from "@mui/icons-material/Fingerprint";
 import RocketLaunchIcon from "@mui/icons-material/RocketLaunch";
-import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 
 import { Product } from "../../models/Product";
 import { authorizeEdit } from "../../services/productService";
@@ -61,7 +60,7 @@ export default function ProductCard({
     >
       <Box
         sx={{
-          flex: 1, // Ensures all cards in a row stretch to same height
+          flex: 1,
           p: 3,
           borderRadius: 3,
           background: "linear-gradient(140deg,#0c1023,#090c1c,#060712)",
@@ -70,10 +69,10 @@ export default function ProductCard({
           display: "flex",
           flexDirection: "column",
           justifyContent: "space-between",
-          overflow: "hidden", // Prevents content from spilling out
+          overflow: "hidden",
         }}
       >
-        {/* --- HEADER SECTION --- */}
+        {/* HEADER SECTION */}
         <Box sx={{ mb: 2 }}>
           <Stack
             direction="row"
@@ -82,30 +81,46 @@ export default function ProductCard({
             spacing={1}
             mb={1}
           >
-            {/* Title: minWidth: 0 is crucial for text truncation/wrapping in flex */}
             <Typography
               variant="h6"
               fontWeight={800}
               sx={{
                 lineHeight: 1.3,
                 wordBreak: "break-word",
-                minWidth: 0, 
+                minWidth: 0,
               }}
             >
               {product.name}
             </Typography>
 
-            <Chip
-              label={product.status}
-              size="small"
-              sx={{
-                bgcolor: STATUS[product.status],
-                fontWeight: 800,
-                color: "#000",
-                flexShrink: 0, // Prevents chip from being squashed
-                height: 24,
-              }}
-            />
+            {/* Status + OpenSource Chips */}
+            <Stack direction="row" spacing={0.5} alignItems="flex-start">
+              <Chip
+                label={product.status}
+                size="small"
+                sx={{
+                  bgcolor: STATUS[product.status],
+                  fontWeight: 800,
+                  color: "#000",
+                  flexShrink: 0,
+                  height: 24,
+                }}
+              />
+              {product?.isOpenSource && (
+                <Chip
+                  label="OpenSource"
+                  size="small"
+                  color="success"
+                  variant="outlined"
+                  sx={{
+                    fontWeight: 700,
+                    fontSize: "0.65rem",
+                    height: 24,
+                  }}
+                />
+                )}
+
+            </Stack>
           </Stack>
 
           <Typography color="text.secondary" noWrap>
@@ -113,16 +128,15 @@ export default function ProductCard({
           </Typography>
         </Box>
 
-        {/* --- ACTION BUTTONS --- */}
-        {/* flexWrap="wrap" ensures buttons don't overflow on tiny screens */}
-        <Stack 
-          direction="row" 
-          spacing={0.5} 
-          mt="auto" 
-          flexWrap="wrap" 
+        {/* ACTION BUTTONS */}
+        <Stack
+          direction="row"
+          spacing={0.5}
+          mt="auto"
+          flexWrap="wrap"
           sx={{ rowGap: 1 }}
         >
-          <Tooltip title="View">
+          <Tooltip title="View" arrow>
             <IconButton onClick={onView} size="small">
               <VisibilityIcon />
             </IconButton>
@@ -130,12 +144,12 @@ export default function ProductCard({
 
           {authorizeEdit(user, product) && (
             <>
-              <Tooltip title="Edit">
+              <Tooltip title="Edit" arrow>
                 <IconButton onClick={onEdit} size="small">
                   <EditIcon />
                 </IconButton>
               </Tooltip>
-              <Tooltip title="Delete">
+              <Tooltip title="Delete" arrow>
                 <IconButton onClick={onDelete} size="small">
                   <DeleteIcon />
                 </IconButton>
@@ -143,7 +157,7 @@ export default function ProductCard({
             </>
           )}
 
-          <Tooltip title="Run Security Scan">
+          <Tooltip title="Run Security Scan" arrow>
             <IconButton color="warning" onClick={onSecurityScan} size="small">
               <SecurityIcon />
             </IconButton>
@@ -164,13 +178,13 @@ export default function ProductCard({
             </IconButton>
           </Tooltip>
 
-          <Tooltip title="Release workflow">
+          <Tooltip title="Release workflow" arrow>
             <IconButton sx={{ color: "#7b5cff" }} onClick={onRelease} size="small">
               <RocketLaunchIcon />
             </IconButton>
           </Tooltip>
 
-          <Tooltip title="Verify Digital Signature">
+          <Tooltip title="Verify Digital Signature" arrow>
             <IconButton color="success" onClick={onSignatureVerify} size="small">
               <ReceiptLongIcon />
             </IconButton>
