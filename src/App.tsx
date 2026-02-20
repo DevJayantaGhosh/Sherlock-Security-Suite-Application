@@ -16,6 +16,8 @@ import ProductReleasePage from "./pages/ProductReleasePage";
 import ProductSecurityScanPage from "./pages/ProductSecurityScanPage";
 import ProductCryptoSigningPage from "./pages/ProductCryptoSigningPage";
 import ProductSignatureVerificationPage from "./pages/ProductSignatureVerificationPage";
+import ForgotPassword from "./pages/ForgotPassword";
+import LicenseActivationPage from "./pages/LicenseActivationPage";
 
 export default function App() {
   return (
@@ -34,10 +36,16 @@ export default function App() {
           {/* Public pages without layout interference */}
            <Route path="/register" element={<RegisterPage />} />
           <Route path="/login" element={<Login />} />
+           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/" element={<Home />} />
           <Route path="/about" element={<About />} />
 
           {/* Protected and layouted pages */}
+          <Route path="/license-activation" element={
+              <ProtectedRoute>
+                <LicenseActivationPage />
+              </ProtectedRoute>
+            } />
           <Route
             path="/products"
             element={

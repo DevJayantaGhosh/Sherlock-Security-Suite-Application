@@ -13,7 +13,7 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
       <CssBaseline />
 
       <Toaster
-        position="top-right"
+        position="bottom-right"
         toastOptions={{
           style: {
             background: "#0b0f20",

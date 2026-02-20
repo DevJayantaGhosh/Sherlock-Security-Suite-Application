@@ -25,7 +25,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useTheme } from "@mui/material/styles";
 
-import { logoutLocal } from "../services/userService";
+import { logout } from "../services/userService";
 import { useUserStore } from "../store/userStore";
 
 export default function NavBar() {
@@ -49,7 +49,7 @@ export default function NavBar() {
   const links = [...commonLinks, ...(user?.role === "Admin" ? adminLinks : [])];
 
   const handleLogout = () => {
-    logoutLocal();
+    logout();
     setAnchorEl(null);
     navigate("/login");
   };
