@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import { Container, Card, CardContent, Typography, Box } from '@mui/material';
 import { motion } from 'framer-motion';
-import useOnScreen from '../hooks/useOnScreen';
+
 
 import SecurityIcon from '@mui/icons-material/Security';
 import LanIcon from '@mui/icons-material/Lan';
@@ -27,7 +27,6 @@ const features = [
 
 export default function FeatureCards() {
   const ref = useRef<HTMLDivElement | null>(null);
-  const visible = useOnScreen(ref, '-120px');
 
   return (
     <Box
@@ -48,7 +47,7 @@ export default function FeatureCards() {
       >
         <motion.div
           initial={{ opacity: 0, y: 30 }}
-          animate={visible ? { opacity: 1, y: 0 } : {}}
+          animate={ { opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
         >
           {/* ⭐ FLEXBOX ROW INSTEAD OF GRID */}
