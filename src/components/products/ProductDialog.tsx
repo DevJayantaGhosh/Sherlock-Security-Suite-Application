@@ -27,7 +27,9 @@ import {
 } from "../../models/Product";
 import { createProduct, updateProduct } from "../../services/productService";
 import { useUserStore } from "../../store/userStore";
-import { getUsers } from "../../services/userService";
+import { getInternalUsers } from "../../services/userService"; 
+import { AppUser } from "../../models/User";
+import toast from "react-hot-toast";
 
 const REPOSITORIES = [
   "https://github.com/org/web-ui",
@@ -68,7 +70,9 @@ export default function ProductDialog({
 }) {
   const user = useUserStore((s) => s.user);
   const isView = mode === "view";
-  const users = getUsers();
+
+  const [users, setUsers] = useState<AppUser[]>([]);
+  const [usersLoading, setUsersLoading] = useState(true);
 
   const emptyForm: ProductForm = {
     name: "",
@@ -92,10 +96,45 @@ export default function ProductDialog({
   const [form, setForm] = useState<ProductForm>(emptyForm);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+
+useEffect(() => {
+  let mounted = true;
+  
+  const loadInternalUsers = async () => {
+    try {
+      setUsersLoading(true);
+      const internalUsersResult = await getInternalUsers(); 
+      
+      if (mounted) {
+        if (internalUsersResult.error) {
+          console.error("Failed to load internal users:", internalUsersResult.error.message);
+          toast.error(internalUsersResult.error.message);
+          setUsers([]); 
+        } else {
+          setUsers(internalUsersResult.data); 
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load internal users:", error);
+    } finally {
+      if (mounted) {
+        setUsersLoading(false);
+      }
+    }
+  };
+
+  loadInternalUsers(); //  Only internal users (Admin, Director, SecHead, Eng)
+
+  return () => {
+    mounted = false;
+  };
+}, []);
+
+
+ 
   useEffect(() => {
     if (product) {
       const { id, createdAt, updatedAt, updatedBy, ...rest } = product;
-
       setForm({
         ...rest,
         repos:
@@ -113,7 +152,6 @@ export default function ProductDialog({
     } else {
       setForm(emptyForm);
     }
-
     setErrors({});
   }, [product, open]);
 
@@ -177,27 +215,38 @@ export default function ProductDialog({
     });
   }
 
-  function submit() {
+  async function submit() {
     if (!validate()) return;
     if (!user?.id) return;
 
-    if (product) {
-      updateProduct({
-        ...product,
-        ...form,
-        updatedBy: user.id,
-      });
-    } else {
-      const payload: ProductForm = {
-        ...form,
-        createdBy: user.id,
-      };
-
-      createProduct(payload);
+    try {
+      if (product) {
+        await updateProduct({
+          ...product,
+          ...form,
+          updatedBy: user.id,
+        });
+      } else {
+        const payload: ProductForm = {
+          ...form,
+          createdBy: user.id,
+        };
+        await createProduct(payload);
+      }
+      refresh();
+      onClose();
+    } catch (error) {
+      console.error("Submit error:", error);
     }
+  }
 
-    refresh();
-    onClose();
+  if (usersLoading) {
+    return (
+      <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
+        <DialogTitle>Loading users...</DialogTitle>
+        <DialogContent>Loading team members...</DialogContent>
+      </Dialog>
+    );
   }
 
   return (
@@ -317,7 +366,7 @@ export default function ProductDialog({
           >
             {users.map((u) => (
               <MenuItem key={u.id} value={u.id}>
-                {u.name}
+                {u.name} ({u.role})
               </MenuItem>
             ))}
           </TextField>
@@ -338,7 +387,7 @@ export default function ProductDialog({
           >
             {users.map((u) => (
               <MenuItem key={u.id} value={u.id}>
-                {u.name}
+                {u.name} ({u.role})
               </MenuItem>
             ))}
           </TextField>

@@ -1,43 +1,116 @@
-// src/pages/Login.tsx
 import { useState } from "react";
-import { Box, Container, Paper, Typography, TextField, Button } from "@mui/material";
+import {
+  Box, Container, Paper, Typography, TextField, Button
+} from "@mui/material";
 import { motion } from "framer-motion";
-import { loginLocal } from "../services/userService";
+import { login } from "../services/userService";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-hot-toast";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [emailError, setEmailError] = useState(""); 
   const navigate = useNavigate();
 
-  function handleSignIn() {
+  // EMAIL VALIDATION FUNCTION
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setEmail(value);
+
+    if (value && !validateEmail(value)) {
+      setEmailError("Please enter a valid email address");
+    } else {
+      setEmailError("");
+    }
+  };
+
+  async function handleSignIn() {
     try {
-      loginLocal(email);
+      setLoading(true);
+      
+      const result = await login(email, password);
+      
+      if (result.error) {
+        toast.error(result.error.message);
+        return;
+      }
+      
+      const { licenseValid } = result.data; 
+      
+      if (!licenseValid) {
+        navigate("/license-activation"); // ✅ GO TO SEPARATE PAGE
+        return;
+      }
+      
       navigate("/products");
-    } catch (err) {
-      alert((err as Error).message);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setLoading(false);
     }
   }
 
+  // LOGIN FORM 
   return (
     <Box sx={{
-      pt: 14,
-      pb: 12,
-      minHeight: "80vh",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      textAlign: "center",
+        pt: 10,
+        pb: 8,
+        minHeight: "70vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        textAlign: "center",
     }}>
       <Container maxWidth="sm">
         <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9 }}>
           <Paper sx={{ p: 4 }}>
             <Typography variant="h5" fontWeight={800} mb={2}>Login</Typography>
-            <TextField fullWidth label="Email" sx={{ mb: 2 }} value={email} onChange={(e) => setEmail(e.target.value)} />
-            <TextField fullWidth label="Password" type="password" sx={{ mb: 3 }} value={password} onChange={(e) => setPassword(e.target.value)} />
-            <Button variant="contained" color="primary" fullWidth onClick={handleSignIn}>Sign in</Button>
+            <TextField
+              fullWidth
+              label="Email"
+              type="email"
+              sx={{ mb: 2 }}
+              value={email}
+              onChange={handleEmailChange}
+              disabled={loading}
+              error={!!emailError}          
+              helperText={emailError}        
+            />
+            <TextField
+              fullWidth
+              label="Password"
+              type="password"
+              sx={{ mb: 3 }}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={loading}
+            />
+
+            <Button
+              variant="contained"
+              color="primary"
+              fullWidth
+              onClick={handleSignIn}
+              disabled={loading || !email || !!emailError || !password}  
+            >
+              {loading ? "Signing in..." : "Sign in"}
+            </Button>
+
+            <Box sx={{ mt: 2 }}>
+              <Button onClick={() => navigate("/forgot-password")} variant="text" size="small">
+                Forgot Password?
+              </Button>
+            </Box>
+
             <Typography variant="caption" sx={{ display: "block", mt: 2, color: "text.secondary" }}>
-              Use one of the demo emails: admin@gmail.com, director@gmail.com, security@gmail.com, engineer@gmail.com, user@gmail.com
+              Demo accounts (any password): [admin@gmail.com](mailto:admin@gmail.com), [paiduser@gmail.com](mailto:paiduser@gmail.com), [user@gmail.com](mailto:user@gmail.com)
             </Typography>
           </Paper>
         </motion.div>
