@@ -34,14 +34,16 @@ export default function App() {
       >
         <Routes>
           {/* Public pages without layout interference */}
-           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/register" element={<RegisterPage />} />
           <Route path="/login" element={<Login />} />
-           <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/" element={<Home />} />
           <Route path="/about" element={<About />} />
 
           {/* Protected and layouted pages */}
-          <Route path="/license-activation" element={
+          <Route
+            path="/license-activation"
+            element={
               <ProtectedRoute>
                 <LicenseActivationPage />
               </ProtectedRoute>
@@ -86,7 +88,7 @@ export default function App() {
             path="/product/:id/signature-verify"
             element={
               <ProtectedRoute>
-                <ProductSignatureVerificationPage/>
+                <ProductSignatureVerificationPage />
               </ProtectedRoute>
             }
           />
