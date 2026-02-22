@@ -5,6 +5,26 @@ import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { useUserStore } from "../store/userStore";
 
+const ScanLine = ({ color }: { color: string }) => (
+  <motion.div
+    initial={{ top: "0%", opacity: 0 }}
+    animate={{ top: ["0%", "100%", "0%"], opacity: [0, 1, 0] }}
+    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+    style={{
+      position: "absolute",
+      left: 0,
+      right: 0,          
+      width: "100%",     
+      height: "2px",
+      background: `linear-gradient(90deg, transparent, ${color}, white, ${color}, transparent)`,
+      boxShadow: `0 0 12px ${color}`,
+      pointerEvents: "none",
+      mixBlendMode: "screen",
+    }}
+  />
+);
+
+
 export default function Hero() {
   const ref = useRef<HTMLDivElement | null>(null);
   const user = useUserStore((s) => s.user);
@@ -13,9 +33,9 @@ export default function Hero() {
     <Box ref={ref} sx={{ minHeight: "80vh", pt: 4, display: "flex", alignItems: "center" }}>
       <Container maxWidth="lg" sx={{ display: "flex", gap: 4, alignItems: "center", flexDirection: { xs: "column", md: "row" } }}>
         <motion.div initial={{ opacity: 0, x: -40 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6 }} style={{ flex: 1 }}>
-          <Typography variant="h4" sx={{fontWeight: 800,lineHeight: 1.1,mb:1,textAlign: "left"}}> Next-Gen </Typography>
-          <Typography variant="h4" sx={{fontWeight: 800,lineHeight: 1.1,mb:1,textAlign: "left" ,color: "primary.main"}}> Cryptographic-Framework </Typography>
-          <Typography variant="h4" sx={{fontWeight: 800,lineHeight: 1.1,mb: 1,textAlign: "left"}}> for Software Distribution </Typography>
+          <Typography variant="h4" sx={{ fontWeight: 800, lineHeight: 1.1, mb: 1, textAlign: "left" }}> Next-Gen </Typography>
+          <Typography variant="h4" sx={{ fontWeight: 800, lineHeight: 1.1, mb: 1, textAlign: "left", color: "primary.main" }}> Cryptographic-Framework </Typography>
+          <Typography variant="h4" sx={{ fontWeight: 800, lineHeight: 1.1, mb: 1, textAlign: "left" }}> for Software Distribution </Typography>
           <Typography color="text.secondary" sx={{ maxWidth: 600, mb: 4 }}>A one‑stop solution combining blockchain trust, cryptographic verification, and enterprise‑grade security for modern software distribution.</Typography>
 
           <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
@@ -37,12 +57,21 @@ export default function Hero() {
         </motion.div>
 
         <motion.div initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8 }} style={{ flex: 1, display: "flex", justifyContent: "center" }}>
-          <Box component="img" src="./cyber-shield-glow.png" alt="shield" sx={{
-            width: { xs: 220, md: 460 },
-            WebkitMaskImage: "radial-gradient(circle, white 10%, transparent 100%)",
-            maskImage: "radial-gradient(circle, white 10%, transparent 100%)",
-            filter: "drop-shadow(0 20px 60px rgba(123,92,255,0.22))",
-          }} />
+          <Box sx={{ position: "relative", width: { xs: 220, md: 460 }}}>
+            <Box
+              component="img"
+              src="./cyber-shield-glow.png"
+              alt="shield"
+              sx={{
+                width: "100%",
+                height: "100%",
+                WebkitMaskImage: "radial-gradient(circle, white 10%, transparent 100%)",
+                maskImage: "radial-gradient(circle, white 10%, transparent 100%)",
+                filter: "drop-shadow(0 20px 60px rgba(123,92,255,0.22))",
+              }}
+            />
+            <ScanLine color="#7b5cff" />
+          </Box>
         </motion.div>
       </Container>
     </Box>

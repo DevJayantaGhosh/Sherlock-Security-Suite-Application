@@ -73,7 +73,7 @@ export default function FeatureCards() {
                     minHeight: 200,
                     border: '1px solid rgba(255,255,255,0.08)',
                     background: 'rgba(255,255,255,0.02)',
-                    boxShadow: '0 0 20px rgba(123,92,255,0.15)',
+                      boxShadow: '0 0 35px rgba(123,92,255,0.35)',
                     backdropFilter: 'blur(6px)',
                     transition: '0.3s',
                     '&:hover': {
