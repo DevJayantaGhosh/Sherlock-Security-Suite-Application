@@ -38,9 +38,7 @@ export default function About() {
               mx: "auto",
             }}
           >
-            Sherlock helps organizations find, contain, and remediate threats
-            with modern tooling and people. We combine managed detection,
-            blockchain-backed auditing, and AI-driven analytics.
+            Sherlock ensures secure software distribution and resilient protection against evolving cyber risks by combining cryptographic trust, blockchain‑backed auditing, and AI‑driven analytics
           </Typography>
 
 

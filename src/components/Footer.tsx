@@ -33,7 +33,7 @@ export default function Footer() {
         </Typography>
 
         <Typography variant="body2" sx={{ opacity: 0.85 }}>
-          Design & Developed By – Jayanta Ghosh (CS23M513@smail.iitm.ac.in)
+          Jayanta Ghosh (CS23M513@smail.iitm.ac.in)
         </Typography>
       </Container>
     </Box>
