@@ -5,23 +5,24 @@ import { motion } from 'framer-motion';
 
 import SecurityIcon from '@mui/icons-material/Security';
 import LanIcon from '@mui/icons-material/Lan';
-import TerminalIcon from '@mui/icons-material/Terminal';
+import FingerprintIcon from '@mui/icons-material/Fingerprint';
 
 const features = [
   {
     title: 'Threat Detection',
-    body: 'AI-powered monitoring for next-gen cyber attacks.',
+    body: 'Real-time scanning and proactive defense against next-gen cyber attacks.',
     icon: <SecurityIcon fontSize="large" />,
   },
   {
-    title: 'Network Intelligence',
-    body: 'Real-time network scanning & anomaly detection.',
-    icon: <LanIcon fontSize="large" />,
+    title: 'Cryptographic Trust',
+    body: 'Software integrity guaranteed by cryptographic signing and verification.',
+    icon: <FingerprintIcon fontSize="large" />,
   },
   {
-    title: 'Secure DevOps',
-    body: 'Automated CI/CD security checks & code integrity.',
-    icon: <TerminalIcon fontSize="large" />,
+    title: 'Secure Distribution',
+    body: 'Blockchain-backed auditing that guarantee trusted software distribution.',
+    icon: <LanIcon fontSize="large" />,
+
   },
 ];
 
@@ -47,14 +48,14 @@ export default function FeatureCards() {
       >
         <motion.div
           initial={{ opacity: 0, y: 30 }}
-          animate={ { opacity: 1, y: 0 }}
+          animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
         >
-          {/* ⭐ FLEXBOX ROW INSTEAD OF GRID */}
+
           <Box
             sx={{
               display: 'flex',
-               justifyContent: 'space-between', 
+              justifyContent: 'space-between',
               gap: 2,
               flexWrap: 'nowrap', // prevents wrapping
             }}
@@ -72,10 +73,11 @@ export default function FeatureCards() {
                     minHeight: 200,
                     border: '1px solid rgba(255,255,255,0.08)',
                     background: 'rgba(255,255,255,0.02)',
+                    boxShadow: '0 0 20px rgba(123,92,255,0.15)',
                     backdropFilter: 'blur(6px)',
                     transition: '0.3s',
                     '&:hover': {
-                      boxShadow: '0 0 25px rgba(123,92,255,0.25)',
+                      boxShadow: '0 0 35px rgba(123,92,255,0.35)',
                       borderColor: 'rgba(123,92,255,0.4)',
                     },
                   }}
