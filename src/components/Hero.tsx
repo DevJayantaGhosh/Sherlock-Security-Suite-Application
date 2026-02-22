@@ -35,7 +35,7 @@ export default function Hero() {
         <motion.div initial={{ opacity: 0, x: -40 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6 }} style={{ flex: 1 }}>
           <Typography variant="h4" sx={{ fontWeight: 800, lineHeight: 1.1, mb: 1, textAlign: "left" }}> Next-Gen </Typography>
           <Typography variant="h4" sx={{ fontWeight: 800, lineHeight: 1.1, mb: 1, textAlign: "left", color: "primary.main" }}> Cryptographic-Framework </Typography>
-          <Typography variant="h4" sx={{ fontWeight: 800, lineHeight: 1.1, mb: 1, textAlign: "left" }}> for Software Distribution </Typography>
+          <Typography variant="h4" sx={{ fontWeight: 800, lineHeight: 1.1, mb: 1, textAlign: "left" }}> For Software Distribution </Typography>
           <Typography color="text.secondary" sx={{ maxWidth: 600, mb: 4 }}>A one‑stop solution combining blockchain trust, cryptographic verification, and enterprise‑grade security for modern software distribution.</Typography>
 
           <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
