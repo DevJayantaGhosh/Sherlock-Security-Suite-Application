@@ -5,7 +5,7 @@ import {
   ResetPasswordRequest, LoginResponse, UpdateUserRequest,
 } from "../models/User";
 import { useUserStore } from "../store/userStore";
-import { API_URLS } from "../config/apiUrls";
+import { API_URLS } from "../config/userManagementApiUrls";
 
 export interface ApiError {
   message: string;
