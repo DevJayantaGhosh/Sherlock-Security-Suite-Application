@@ -6,13 +6,7 @@ import {
 } from "../models/User";
 import { useUserStore } from "../store/userStore";
 import { API_URLS } from "../config/userManagementApiUrls";
-
-export interface ApiError {
-  message: string;
-  code?: string;
-  field?: string;
-  status?: number;
-}
+import { ApiError } from "../config/ApiError";
 
 const USE_BACKEND = false;
 const api = axios.create({
@@ -164,13 +158,6 @@ export async function register(name: string, email: string, password: string): P
 }
 
 export async function logout(): Promise<{ error: ApiError | null }> {
-  if (USE_BACKEND) {
-    try {
-      await api.post(API_URLS.AUTH.LOGOUT);
-    } catch (error) {
-      console.warn("Logout API failed:", error);
-    }
-  }
   useUserStore.getState().clearUser();
   return { error: null };
 }
