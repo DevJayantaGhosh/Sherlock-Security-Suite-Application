@@ -8,7 +8,7 @@ import { useUserStore } from "../store/userStore";
 import { API_URLS } from "../config/userManagementApiUrls";
 import { ApiError } from "../config/ApiError";
 
-const USE_BACKEND = false;
+const USE_BACKEND = true;
 const api = axios.create({
   baseURL: API_URLS.BASE,
   timeout: 10000,

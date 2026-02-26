@@ -47,7 +47,10 @@ export default function ProductCard({
   onRelease,
   onSignatureVerify,
 }: Props) {
-  const user = useUserStore((s) => s.user);
+
+    const user = useUserStore((s) => s.user);
+    const isLicensedUser = user?.licenseValid;
+
 
   return (
     <motion.div

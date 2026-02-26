@@ -143,7 +143,7 @@ export default function NavBar() {
             ) : (
               <IconButton onClick={(e) => setAnchorEl(e.currentTarget)}>
                 <Avatar sx={{ bgcolor: "primary.main" }}>
-                  {user.name.charAt(0)}
+                  {user.name.charAt(0).toLocaleUpperCase()}
                 </Avatar>
               </IconButton>
             )}

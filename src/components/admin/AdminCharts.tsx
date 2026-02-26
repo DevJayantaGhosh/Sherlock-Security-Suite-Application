@@ -13,15 +13,16 @@ import {
   CartesianGrid,
 } from "recharts";
 
-import { Product } from "../../models/Product";  // ✅ Changed from Project
+
 import { AppUser } from "../../models/User";
+import { ProductStatsResponse } from "../../models/Product";
 
 /* -------------------------------------------------
    COLORS
 ------------------------------------------------- */
-const PRODUCT_COLORS = {  // ✅ Renamed from PROJECT_COLORS
+const PRODUCT_COLORS = {
   Pending: "#ffce56",
-  Approved: "#5ce1e6",
+  Approved: "#5ce1e6", 
   Rejected: "#ff6b6b",
   Released: "#7b5cff",
 };
@@ -49,17 +50,17 @@ const chartCardStyle = {
    MAIN COMPONENT
 ------------------------------------------------- */
 interface Props {
-  products: Product[];  // ✅ Changed from projects
+  productsStats: ProductStatsResponse;
   users: AppUser[];
 }
 
-export default function AdminCharts({ products, users }: Props) {
+export default function AdminCharts({ productsStats, users }: Props) {
   /* ------------ PRODUCT STATUS COUNTS ----------- */
   const productCounts = {
-    Pending: products.filter((p) => p.status === "Pending").length,
-    Approved: products.filter((p) => p.status === "Approved").length,
-    Rejected: products.filter((p) => p.status === "Rejected").length,
-    Released: products.filter((p) => p.status === "Released").length,
+    Pending: productsStats.pending,
+    Approved: productsStats.approved,
+    Rejected: productsStats.rejected,
+    Released: productsStats.released,
   };
 
   const productPieData = Object.entries(productCounts).map(([name, value]) => ({

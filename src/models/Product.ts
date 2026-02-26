@@ -113,6 +113,22 @@ export interface Product {
   // Approval Workflow
   status: ProductStatus;
   remark?: string;
+  securityScanReportPath?:string;
   signatureFilePath?:string;
   publicKeyFilePath?:string;
+}
+
+
+
+// ------------------------------------------------------------------
+// Product Management Service : ProductStatsResponseDTOs
+// ------------------------------------------------------------------
+
+export interface ProductStatsResponse {
+  total: number;
+  pending: number;
+  approved: number;
+  rejected: number;
+  released: number;
+  openSource: number;
 }
