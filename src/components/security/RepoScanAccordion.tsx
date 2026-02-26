@@ -39,14 +39,18 @@ type ScanStatus = "idle" | "running" | "success" | "failed";
 export default function RepoScanAccordion({
   product,
   repoDetails,
-  onRepoUpdate
+  onRepoUpdate,
+  disabled = false 
 }: {
   product: Product;
   repoDetails: RepoDetails;
   onRepoUpdate?: (updatedRepo: RepoDetails) => void;
+  disabled?:boolean;
 }) {
   const user = useUserStore((s) => s.user);
   const isAuthorized = authorizeApprove(user, product);
+
+  const shouldEnableButtons = isAuthorized && !disabled; 
 
   const handleScanUpdate = (
     activity: keyof RepoScanResults, 
@@ -72,22 +76,22 @@ export default function RepoScanAccordion({
     <Stack spacing={2}>
       <GPGVerificationPanel
         repoDetails={repoDetails}
-        isAuthorized={isAuthorized}
+        isAuthorized={shouldEnableButtons}
         onScanComplete={(res) => handleScanUpdate('signatureVerification', res)}
       />
       <GitleaksPanel
         repoDetails={repoDetails}
-        isAuthorized={isAuthorized}
+        isAuthorized={shouldEnableButtons}
         onScanComplete={(res) => handleScanUpdate('secretLeakDetection', res)}
       />
       <TrivyPanel
         repoDetails={repoDetails}
-        isAuthorized={isAuthorized}
+        isAuthorized={shouldEnableButtons}
         onScanComplete={(res) => handleScanUpdate('vulnerabilityScan', res)}
       />
       <OpenGrepPanel 
         repoDetails={repoDetails}
-        isAuthorized={isAuthorized}
+        isAuthorized={shouldEnableButtons}
         onScanComplete={(res) => handleScanUpdate('staticAnalysis', res)}
       />
     </Stack>
