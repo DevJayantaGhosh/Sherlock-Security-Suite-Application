@@ -1,30 +1,28 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   Box, Button, Container, Paper, Stack,
-  Typography,  Dialog, DialogTitle,
+  Typography, Dialog, DialogTitle,
   DialogContent, DialogActions,
-  Tooltip,
-  Divider,
+  Tooltip, Divider, CircularProgress,
+  Chip, Alert,
 } from "@mui/material";
+import { toast } from "react-hot-toast";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 
 import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
+import RefreshIcon from "@mui/icons-material/Refresh";
+
 import ProductHeader from '../components/ProductHeader';
-
-
-import { useParams, useNavigate, useLocation } from "react-router-dom";
-// ✅ IMPORT updateProduct to handle the MongoDB call
-import { authorizeApprove, getProducts, updateProduct } from "../services/productService";
 import { useUserStore } from "../store/userStore";
-
+import { authorizeApprove, getProductById, updateProduct } from "../services/productService";
 import RepoScanAccordion from "../components/security/RepoScanAccordion";
 import DependencyAudit from "../components/security/DependencyAudit";
-
-import { Product, RepoDetails } from "../models/Product";
+import { Product, RepoDetails, ProductStatus } from "../models/Product";
 import { motion, Variants } from "framer-motion";
 
-// --- ANIMATION VARIANTS ---
+// Animation variants (keeping your exact style)
 const containerVariants: Variants = {
   hidden: { opacity: 0 },
   visible: {
@@ -83,98 +81,107 @@ const buttonGroupVariants: Variants = {
 };
 
 export default function ProductSecurityScanPage() {
-  const { id } = useParams();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
   const user = useUserStore(s => s.user);
 
   const [product, setProduct] = useState<Product | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [wallet, setWallet] = useState<string | null>(null);
   const [decision, setDecision] = useState<"approve" | "reject" | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  // Load product
-  useEffect(() => {
-    console.log("[SECURITY SCAN PAGE] Loading product:", id);
-    const p = getProducts().find(x => x.id === id);
-    if (!p) {
-      console.log("[SECURITY SCAN PAGE] Product not found, navigating away");
+  // Load product using getProductById(id)
+  const loadProduct = useCallback(async () => {
+    if (!id) {
+      toast.error("Invalid product ID", { id: "invalid-product-id" });
       navigate("/products");
-    } else {
-      setProduct(p);
+      return;
+    }
+
+    setLoading(true);
+    console.log("[SECURITY SCAN PAGE] Loading product:", id);
+
+    try {
+      const result = await getProductById(id);
+      if (result.error || !result.data) {
+        toast.error(`Product not found: ${result.error?.message || "Unknown error"}`, { 
+          id: "product-load-error" 
+        });
+        navigate("/products");
+        return;
+      }
+
+      setProduct(result.data);
+    } catch (error) {
+      toast.error("Failed to load product", { id: "product-load-failed" });
+      navigate("/products");
+    } finally {
+      setLoading(false);
     }
   }, [id, navigate]);
 
-  // Scroll to top on mount
+  // Load on mount + scroll to top
   useEffect(() => {
-    console.log("[SECURITY SCAN PAGE] Mounted");
+    loadProduct();
     window.scrollTo({ top: 0, behavior: "instant" });
-    
-    return () => {
-      console.log("[SECURITY SCAN PAGE] Unmounting");
-    };
-  }, []);
-  
-    // Cleanup on route change
+  }, [loadProduct]);
+
+  // Cleanup on route change
   useEffect(() => {
     return () => {
       console.log("[SECURITY SCAN PAGE] Route changing from:", location.pathname);
     };
   }, [location.pathname]);
 
-  // ✅ HANDLER: Updates State & Calls DB Service
+  // Save repo updates using updateProduct(id, partial)
   const handleRepoUpdate = async (repoIndex: number, updatedRepo: RepoDetails) => {
     if (!product) return;
 
-    console.group("🔄 [Repo Update Debug]");
-    console.log("1. Previous Product State:", product);
-    console.log(`2. Updating Repo at Index [${repoIndex}]`);
-    console.log("3. New Repo Details:", updatedRepo);
+    console.group("[Repo Update Debug]");
+    console.log(`Updating Repo at Index [${repoIndex}]`);
+    console.log("New Repo Details:", updatedRepo);
 
-    // 1. Create a safe copy of the repos array
+    setSaving(true);
+    
+    // Optimistic update
     const updatedRepos = [...product.repos];
     updatedRepos[repoIndex] = updatedRepo;
-
-    // 2. Create the new product object
-    const updatedProduct = { 
-      ...product, 
-      repos: updatedRepos 
+    
+    const payload: Partial<Product> = {
+      repos: updatedRepos,
+      updatedAt: new Date().toISOString()
     };
 
-    console.log("4. Final New Product (Sending to DB):", updatedProduct);
-    console.groupEnd();
-
-    // 3. Update Local State (Immediate UI feedback)
-    setProduct(updatedProduct);
-
-    // 4. Save to Backend/DB
     try {
-      // Calls your service which should fire the API request to MongoDB
-      await updateProduct(updatedProduct); 
-      console.log(`✅ [DB SUCCESS] Saved scan results for repo ${repoIndex}`);
+      const result = await updateProduct(product.id, payload);
+      if (result.error) {
+        toast.error("Saved locally but backend sync failed", { 
+          id: "repo-sync-warning", 
+          duration: 4000 
+        });
+      } else {
+        setProduct(result.data);
+        toast.success("Scan results saved to database", { 
+          id: "repo-sync-success", 
+          duration: 2500 
+        });
+      }
     } catch (error) {
-      console.error("❌ [DB FAILURE] Failed to save scan results:", error);
+      toast.error("Failed to sync with backend", { id: "repo-sync-error" });
+    } finally {
+      setSaving(false);
+      console.groupEnd();
     }
   };
 
-  if (!product) {
-    return (
-      <Box sx={{ pt: 10, display: "flex", justifyContent: "center" }}>
-        <Typography>Loading product...</Typography>
-      </Box>
-    );
-  }
-
-  // Auth
-  const isAuthorized = authorizeApprove(user, product);
-  const tooltip = isAuthorized
-    ? ""
-    : "You can view this page, but cannot perform any security review actions. Only the Product Director, Security Head, or Admin can approve/reject.";
-
-  // Connect wallet
+  // Wallet connection (keeping your exact UX)
   async function connectWallet() {
     if (!(window as any).ethereum) {
-      return alert("MetaMask not installed");
+      toast.error("MetaMask not installed");
+      return;
     }
 
     try {
@@ -182,64 +189,121 @@ export default function ProductSecurityScanPage() {
         method: "eth_requestAccounts",
       });
       setWallet(accounts[0]);
+      toast.success(`Connected: ${accounts[0].slice(0, 6)}...${accounts[0].slice(-4)}`, {
+        id: "wallet-connected",
+        duration: 4000
+      });
     } catch (err) {
+      toast.error("Wallet connection rejected");
       console.error("[WALLET] Connection error:", err);
     }
   }
 
-  // Handle decision
+  // Authorization check and View-OnlyMode
+  const isAuthorized = product ? authorizeApprove(user, product) : false;
+  const isViewOnlyMode = product?.status !== "Pending" || !authorizeApprove(user, product);
+
+  const tooltip = isViewOnlyMode 
+  ? (product?.status !== "Pending" 
+      ? `Product status is "${product?.status}". No actions allowed.`
+      : "You can view this page, but cannot perform any actions. Only Security Head/Admin authorized to run security scans or approve/reject")
+  : "";
+
+  // Decision handlers
   function handleDecision(type: "approve" | "reject") {
+    if (!isAuthorized) {
+      toast.error("Only Security Head/Admin can approve/reject");
+      return;
+    }
+    if (!wallet) {
+      toast.error("Please connect wallet first");
+      return;
+    }
     setDecision(type);
     setConfirmOpen(true);
   }
 
   // Confirm decision
-  function confirmDecision() {
-    console.log("✅ FINAL DECISION:", decision);
-    console.log("🔐 WALLET:", wallet);
-    console.log("📦 PRODUCT:", product?.id, product?.name);
-    
+  async function confirmDecision() {
+    if (!product || !decision || !wallet) return;
+
+    setSaving(true);
     // TODO: Implement blockchain transaction
-    // This would call a service to:
-    // 1. Record decision on blockchain
-    // 2. Update product status
-    // 3. Notify stakeholders
     
-    setConfirmOpen(false);
-    
-    // Navigate back after a short delay
-    setTimeout(() => {
-      navigate("/products");
-    }, 1500);
+    try {
+      const status: ProductStatus = decision === "approve" ? "Approved" : "Rejected";
+      
+      const payload: Partial<Product> = {
+        status,
+        remark: `Security decision recorded by wallet ${wallet.slice(0, 10)}... on ${new Date().toISOString()}`,
+        updatedAt: new Date().toISOString()
+      };
+
+      const result = await updateProduct(product.id, payload);
+      
+      if (result.error) {
+        toast.error(`Failed to save ${decision.toUpperCase()} decision`);
+        return;
+      }
+
+      toast.success(`Product ${decision.toUpperCase()}D successfully`, {
+        id: "decision-success",
+        duration: 5000
+      });
+
+      setTimeout(() => {
+        navigate("/products");
+      }, 2000);
+
+    } catch (error) {
+      toast.error("Decision processing failed");
+    } finally {
+      setConfirmOpen(false);
+      setSaving(false);
+    }
+  }
+
+  // Loading state
+  if (loading) {
+    return (
+      <Box sx={{ pt: 12, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
+        <CircularProgress size={40} />
+        <Typography sx={{ mt: 2, color: "text.secondary" }}>Loading security scan...</Typography>
+        <Button onClick={loadProduct} startIcon={<RefreshIcon />} sx={{ mt: 2 }} variant="outlined">
+          Retry
+        </Button>
+      </Box>
+    );
+  }
+
+  if (!product) {
+    return (
+      <Box sx={{ pt: 10, display: "flex", justifyContent: "center" }}>
+        <Typography color="error">Product not found</Typography>
+      </Box>
+    );
   }
 
   return (
     <Box sx={{ pt: 10, pb: 8, minHeight: "100vh" }}>
       <Container maxWidth="lg">
-        {/* Animated Container */}
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-        >
+        <motion.div variants={containerVariants} initial="hidden" animate="visible">
           {/* Product Header */}
           <motion.div variants={headerVariants}>
-          <ProductHeader product={product} pageType="security" /> 
+            <ProductHeader product={product} pageType="security" />
           </motion.div>
 
           {/* Authorization Warning */}
           {!isAuthorized && (
             <motion.div variants={itemVariants}>
-              <Paper
-                sx={{
-                  p: 2,
-                  mb: 3,
-                  bgcolor: "rgba(255,193,7,0.1)",
-                  border: "1px solid rgba(255,193,7,0.3)",
-                }}
-              >
+              <Paper sx={{
+                p: 2,
+                mb: 3,
+                bgcolor: "rgba(255,193,7,0.1)",
+                border: "1px solid rgba(255,193,7,0.3)",
+              }}>
                 <Typography color="warning.main" fontWeight={600}>
-                  ⚠️ View-Only Mode
+                  View-Only Mode
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   You can view security scans but cannot approve/reject. Only the assigned Security Head or Admin can make final decisions.
@@ -253,38 +317,38 @@ export default function ProductSecurityScanPage() {
             <Typography variant="h5" fontWeight={700} sx={{ mb: 2 }}>
               Repository Security Scans
             </Typography>
+            {saving && (
+              <Alert severity="info" sx={{ mb: 3 }}>
+                Saving scan results...
+              </Alert>
+            )}
           </motion.div>
 
           {/* Scans List */}
           <Stack spacing={3}>
             {product.repos.map((repo, idx) => (
-              <motion.div
-                key={`${repo.repoUrl}-${idx}`}
-                variants={itemVariants}
-              >
+              <motion.div key={`${repo.repoUrl}-${idx}`} variants={itemVariants}>
                 <RepoScanAccordion
                   product={product}
                   repoDetails={repo}
                   // Pass the update handler to bubble up changes
                   onRepoUpdate={(updatedRepo) => handleRepoUpdate(idx, updatedRepo)}
+                  disabled={!isAuthorized || saving || product.status!=="Pending"}
                 />
-
-   {idx < product.repos.length - 1 && (
-      <Divider 
-        sx={{ 
-          my: 3, 
-          mx: -2, 
-          py: 1,
-          borderStyle: 'dashed',
-          borderColor: 'grey.300',
-          borderWidth: '2px'
-        }} 
-      >
-        <Typography variant="caption" color="text.secondary">
-          NEXT REPO
-        </Typography>
-      </Divider>
-    )}
+                {idx < product.repos.length - 1 && (
+                  <Divider sx={{ 
+                    my: 3, 
+                    mx: -2, 
+                    py: 1,
+                    borderStyle: 'dashed',
+                    borderColor: 'grey.300',
+                    borderWidth: '2px'
+                  }}>
+                    <Typography variant="caption" color="text.secondary">
+                      NEXT REPO
+                    </Typography>
+                  </Divider>
+                )}
               </motion.div>
             ))}
           </Stack>
@@ -305,40 +369,31 @@ export default function ProductSecurityScanPage() {
               </Typography>
 
               <Stack spacing={3} alignItems="center">
-                <motion.div
-                  variants={buttonGroupVariants}
-                  initial="hidden"
-                  animate="visible"
-                >
+                <motion.div variants={buttonGroupVariants} initial="hidden" animate="visible">
                   <Tooltip title={tooltip} arrow>
                     <span>
                       <Button
                         startIcon={<AccountBalanceWalletIcon />}
                         onClick={connectWallet}
-                        disabled={!isAuthorized}
+                        disabled={!isAuthorized || saving}
                         variant="outlined"
                         size="large"
                         sx={{
                           minWidth: 250,
                           borderWidth: 2,
-                          "&:hover": {
-                            borderWidth: 2,
-                          },
+                          "&:hover": { borderWidth: 2 },
                         }}
                       >
                         {wallet
                           ? `Wallet: ${wallet.slice(0, 6)}...${wallet.slice(-4)}`
-                          : "Connect MetaMask"}
+                          : "Connect MetaMask"
+                        }
                       </Button>
                     </span>
                   </Tooltip>
                 </motion.div>
 
-                <motion.div
-                  variants={buttonGroupVariants}
-                  initial="hidden"
-                  animate="visible"
-                >
+                <motion.div variants={buttonGroupVariants} initial="hidden" animate="visible">
                   <Stack direction="row" spacing={3}>
                     <Tooltip title={tooltip} arrow>
                       <span>
@@ -346,7 +401,7 @@ export default function ProductSecurityScanPage() {
                           color="success"
                           startIcon={<CheckCircleIcon />}
                           variant="contained"
-                          disabled={!wallet || !isAuthorized}
+                          disabled={!wallet || !isAuthorized || saving}
                           onClick={() => handleDecision("approve")}
                           size="large"
                           sx={{
@@ -367,7 +422,7 @@ export default function ProductSecurityScanPage() {
                           color="error"
                           startIcon={<CancelIcon />}
                           variant="contained"
-                          disabled={!wallet || !isAuthorized}
+                          disabled={!wallet || !isAuthorized || saving}
                           onClick={() => handleDecision("reject")}
                           size="large"
                           sx={{
@@ -403,7 +458,7 @@ export default function ProductSecurityScanPage() {
         {/* Confirmation Dialog */}
         <Dialog 
           open={confirmOpen} 
-          onClose={() => setConfirmOpen(false)}
+          onClose={() => !saving && setConfirmOpen(false)}
           PaperProps={{
             sx: {
               bgcolor: "#1e1e1e",
@@ -444,20 +499,27 @@ export default function ProductSecurityScanPage() {
             </Paper>
 
             <Typography variant="caption" color="warning.main" sx={{ mt: 2, display: "block" }}>
-              ⚠️ This decision is permanent and will be visible to all stakeholders.
+              This decision is permanent and will be visible to all stakeholders.
             </Typography>
           </DialogContent>
 
           <DialogActions sx={{ p: 2, bgcolor: "#2d2d2d", borderTop: "1px solid #404040" }}>
-            <Button onClick={() => setConfirmOpen(false)}>Cancel</Button>
+            <Button onClick={() => setConfirmOpen(false)} disabled={saving}>Cancel</Button>
             <Button
-              disabled={!wallet}
+              disabled={!wallet || saving}
               variant="contained"
               onClick={confirmDecision}
               color={decision === "approve" ? "success" : "error"}
               sx={{ fontWeight: 700 }}
             >
-              Confirm {decision === "approve" ? "Approval" : "Rejection"}
+              {saving ? (
+                <>
+                  <CircularProgress size={20} sx={{ mr: 1, color: "white" }} />
+                  Processing...
+                </>
+              ) : (
+                `Confirm ${decision === "approve" ? "Approval" : "Rejection"}`
+              )}
             </Button>
           </DialogActions>
         </Dialog>
