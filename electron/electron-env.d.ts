@@ -7,11 +7,6 @@ declare namespace NodeJS {
   }
 }
 
-interface ComponentConfig {
-  language: string;
-  buildCommand?: string;
-  workingDirectory?: string;
-}
 
 interface Window {
   electronWindow: {
@@ -24,6 +19,8 @@ interface Window {
     verifyGPG(payload: {
       repoUrl: string;
       branch: string;
+      isQuickScan: boolean;
+      githubToken : string;
       scanId: string
     }): Promise<{
       success: boolean;
@@ -36,6 +33,8 @@ interface Window {
     runGitleaks(payload: {
       repoUrl: string;
       branch: string;
+      isQuickScan: boolean;
+      githubToken : string;
       scanId: string
     }): Promise<{
       success: boolean;
@@ -47,6 +46,8 @@ interface Window {
     runTrivy(payload: {
       repoUrl: string;
       branch: string;
+      isQuickScan: boolean;
+      githubToken : string;
       scanId: string
     }): Promise<{
       success: boolean;
@@ -58,6 +59,8 @@ interface Window {
     runOpenGrep(payload: {
       repoUrl: string;
       branch: string;
+      isQuickScan: boolean;
+      githubToken : string;
       scanId: string;
     }): Promise<{
       success: boolean;

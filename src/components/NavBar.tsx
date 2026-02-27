@@ -43,6 +43,7 @@ export default function NavBar() {
     { label: "Home", path: "/" },
     { label: "About", path: "/about" },
     { label: "Products", path: "/products" },
+    { label: "Quick-Scan", path: "/quick-security-scan" },
   ];
 
   const adminLinks = [{ label: "Admin", path: "/admin" }];

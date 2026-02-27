@@ -10,21 +10,23 @@ contextBridge.exposeInMainWorld("electronWindow", {
 // --------- SECURITY SCAN API ----------
 contextBridge.exposeInMainWorld("electronAPI", {
   // GPG Verification
-  verifyGPG: (payload: { repoUrl: string; branch: string; scanId: string }) =>
+  verifyGPG: (payload: { repoUrl: string; branch: string; isQuickScan: boolean; githubToken : string; scanId: string  }) =>
     ipcRenderer.invoke("scan:verify-gpg", payload),
   
   // Gitleaks Scan
-  runGitleaks: (payload: { repoUrl: string; branch: string; scanId: string }) =>
+  runGitleaks: (payload: { repoUrl: string; branch: string; isQuickScan: boolean; githubToken : string; scanId: string }) =>
     ipcRenderer.invoke("scan:gitleaks", payload),
   
   // Trivy Scan
-  runTrivy: (payload: { repoUrl: string; branch: string; scanId: string }) =>
+  runTrivy: (payload: { repoUrl: string; branch: string; isQuickScan: boolean; githubToken : string; scanId: string }) =>
     ipcRenderer.invoke("scan:trivy", payload),
   
   // OpenGrep SAST Scan
   runOpenGrep: (payload: { 
     repoUrl: string; 
     branch: string; 
+    isQuickScan: boolean;
+    githubToken : string;
     scanId: string;
   }) =>
     ipcRenderer.invoke("scan:opengrep", payload),

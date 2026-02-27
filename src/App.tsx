@@ -18,6 +18,7 @@ import ProductCryptoSigningPage from "./pages/ProductCryptoSigningPage";
 import ProductSignatureVerificationPage from "./pages/ProductSignatureVerificationPage";
 import ForgotPassword from "./pages/ForgotPassword";
 import LicenseActivationPage from "./pages/LicenseActivationPage";
+import QuickSecurityScanPage from "./pages/QuickSecurityScanPage";
 
 export default function App() {
   return (
@@ -56,7 +57,14 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-
+            <Route
+            path="/quick-security-scan"
+            element={
+              <ProtectedRoute>
+                <QuickSecurityScanPage />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/product/:id/security-scan"
             element={
