@@ -1,4 +1,4 @@
-// src/pages/QuickSecurityScanPage.tsx - WITH BEAUTIFUL WARNING COLOR BORDERS
+// src/pages/QuickSecurityScanPage.tsx
 import { useState, useCallback, useEffect, SetStateAction } from "react";
 import isElectron from 'is-electron';
 import {
