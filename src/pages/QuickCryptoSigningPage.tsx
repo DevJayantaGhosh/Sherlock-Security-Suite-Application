@@ -131,13 +131,13 @@ const LogTerminal = ({ logs, isVisible, isRunning, onCancel, title, color }: Log
 
 const getLogStyle = (text: string) => {
   if (text.includes("❌") || text.includes("Error") || text.includes("FAILED") || text.includes("MISSING") || text.includes("💥"))
-    return { color: "#ff5252", fontWeight: "bold" };
+    return { color: "#ff5252", fontWeight: "50" };
   if (text.includes("✅") || text.includes("EXISTS") || text.includes("SUCCESS") || text.includes("OK"))
-    return { color: "#69f0ae", fontWeight: "bold" };
+    return { color: "#69f0ae", fontWeight: "50" };
   if (text.includes("🔴") || text.includes("⚠️") || text.includes("ERROR") || text.includes("ISSUE"))
     return { color: "#ffd740" };
   if (text.includes("🔑") || text.includes("🔍") || text.includes("INITIATED") || text.includes("STARTED"))
-    return { color: "#00e5ff", fontWeight: "bold" };
+    return { color: "#00e5ff", fontWeight: "50" };
   if (text.includes("🔹")) return { color: "#b39ddb" };
   if (text.includes("═")) return { color: "rgb(38, 194, 191)" };
   return { color: "#e0e0e0" };

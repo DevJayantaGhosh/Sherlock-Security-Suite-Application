@@ -7,9 +7,10 @@ import {
   LinearProgress
 } from "@mui/material";
 import { useParams, useNavigate } from "react-router-dom";
+import { toast } from "react-hot-toast";
 import { motion, Variants } from "framer-motion";
 import ProductHeader from '../components/ProductHeader';
-import { getProducts } from "../services/productService";
+import { getProductById, updateProduct } from "../services/productService"; // ✅ FIXED: Use getProductById
 import { Product } from "../models/Product";
 import { useUserStore } from "../store/userStore";
 
@@ -38,13 +39,13 @@ const itemVariants: Variants = {
 
 const getLogStyle = (text: string) => {
   if (text.includes("❌") || text.includes("Error") || text.includes("FAILED"))
-    return { color: "#ff5252", fontWeight: "bold" };
+    return { color: "#ff5252", fontWeight: "50" };
   if (text.includes("✅") || text.includes("SUCCESS") || text.includes("CREATED"))
-    return { color: "#69f0ae", fontWeight: "bold" };
+    return { color: "#69f0ae", fontWeight: "50" };
   if (text.includes("🔴") || text.includes("⚠️"))
     return { color: "#ffd740" };
   if (text.includes("🔹") || text.includes("RELEASE"))
-    return { color: "#7b5cff", fontWeight: "bold" };
+    return { color: "#7b5cff", fontWeight: "50" };
   if (text.includes("═")) return { color: "rgb(38, 194, 191)" };
   return { color: "#e0e0e0" };
 };
@@ -70,9 +71,9 @@ const LogTerminal = ({ logs, isVisible, isRunning, onCancel, title, color }: Log
 
   const handleDownload = () => {
     const element = document.createElement("a");
-    const file = new Blob([logs.join("\n")], { type: "text/plain" });
+    const file = new Blob([logs.join("\\n")], { type: "text/plain" });
     element.href = URL.createObjectURL(file);
-    element.download = `${title.replace(/\s+/g, "_")}_Log.txt`;
+    element.download = `${title.replace(/\\s+/g, "_")}_Log.txt`;
     document.body.appendChild(element);
     element.click();
     setTimeout(() => document.body.removeChild(element), 100);
@@ -146,8 +147,9 @@ export default function ProductReleasePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [product, setProduct] = useState<Product | null>(null);
+  const [loading, setLoading] = useState(true); //  Loading state
 
-  // ✅ PERFECT STATE MANAGEMENT
+  // PERFECT STATE MANAGEMENT
   const [isReleaseRunning, setIsReleaseRunning] = useState(false);
   const [releaseMode, setReleaseMode] = useState<'none' | 'single' | 'batch'>('none');
   const [releaseLogs, setReleaseLogs] = useState<string[]>([]);
@@ -158,17 +160,48 @@ export default function ProductReleasePage() {
   const currentScanId = useRef<string | null>(null);
   const isReleaseCancelled = useRef(false);
 
-  useEffect(() => {
-    if (!id) return;
-    const p = getProducts().find((x) => x.id === id);
-    if (!p) {
+  // Load product using getProductById 
+  const loadProduct = useCallback(async () => {
+    if (!id) {
+      toast.error("Invalid product ID", { id: "invalid-product-id" });
       navigate("/products");
       return;
     }
-    setProduct(p);
+
+    setLoading(true);
+    console.log("[RELEASE PAGE] Loading product:", id);
+
+    try {
+      const result = await getProductById(id);
+      if (result.error || !result.data) {
+        toast.error(`Product not found: ${result.error?.message || "Unknown error"}`, { 
+          id: "product-load-error" 
+        });
+        navigate("/products");
+        return;
+      }
+
+      setProduct(result.data);
+      toast.success("Product loaded successfully", { 
+        id: "product-load-success",
+        duration: 2000 
+      });
+    } catch (error) {
+      console.error("[RELEASE PAGE] Failed to load product:", error);
+      toast.error("Failed to load product", { id: "product-load-failed" });
+      navigate("/products");
+    } finally {
+      setLoading(false);
+    }
   }, [id, navigate]);
 
-  // ✅ RESET COUNTERS ON NEW PRODUCT
+  // Load on mount + scroll to top
+  useEffect(() => {
+    loadProduct();
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }, [loadProduct]);
+
+  // RESET COUNTERS ON NEW PRODUCT
   useEffect(() => {
     if (product) {
       setSingleCompletedCount(0);
@@ -181,7 +214,7 @@ export default function ProductReleasePage() {
   const handleCancel = async () => {
     isReleaseCancelled.current = true;
     if (currentScanId.current && window.electronAPI?.cancelScan) {
-      setReleaseLogs(prev => [...prev, "\n⏳ Requesting cancellation..."]);
+      setReleaseLogs(prev => [...prev, "\\n⏳ Requesting cancellation..."]);
       try {
         await window.electronAPI.cancelScan({ scanId: currentScanId.current });
       } catch (e) {
@@ -193,7 +226,7 @@ export default function ProductReleasePage() {
     setCurrentRepoIndex(0);
   };
 
-  // ✅ SINGLE REPO - 1/1 PROGRESS
+  // SINGLE REPO - 1/1 PROGRESS
   const releaseSingleRepo = useCallback(async (repoIndex: number) => {
     if (!product || !window.electronAPI || isReleaseRunning || releaseMode !== 'none') return;
 
@@ -203,11 +236,11 @@ export default function ProductReleasePage() {
     currentScanId.current = scanId;
 
     setReleaseLogs(prev => [...prev,
-    `\n${"═".repeat(80)}`,
-    `🔹 SINGLE REPO 1/1: ${repo.repoUrl}`,
-    `   Version: r${product.version}`,
-    `   Branch: ${repo.branch}`,
-    `${"═".repeat(80)}\n`
+      `${"═".repeat(80)}`,
+      `🔹 SINGLE REPO 1/1: ${repo.repoUrl}`,
+      `   Version: r${product.version}`,
+      `   Branch: ${repo.branch}`,
+      `${"═".repeat(80)}`
     ]);
 
     setIsReleaseRunning(true);
@@ -224,10 +257,30 @@ export default function ProductReleasePage() {
         version: product.version,
         scanId
       });
-      setSingleCompletedCount(1); // ✅ Always 1/1
+      
+      // UPDATE PRODUCT AFTER SUCCESSFUL RELEASE
+      const payload: Partial<Product> = {
+        version: product.version,
+        updatedAt: new Date().toISOString(),
+        status: "Released" 
+      };
+      
+      const updateResult = await updateProduct(product.id, payload);
+      if (updateResult.error) {
+        toast.error("Release created but failed to update product metadata", { 
+          id: "release-update-warning",
+          duration: 4000 
+        });
+      } else {
+        setProduct(updateResult.data);
+        toast.success(" Release created successfully", { id: "single-release-success" });
+      }
+      
+      setSingleCompletedCount(1);
       return true;
     } catch (e: any) {
-      setReleaseLogs(prev => [...prev, `\n❌ SINGLE Error: ${e.message}`]);
+      setReleaseLogs(prev => [...prev, `\\n❌ SINGLE Error: ${e.message}`]);
+      toast.error(`Single release failed: ${e.message}`, { id: "single-release-error" });
       return false;
     } finally {
       currentScanId.current = null;
@@ -237,7 +290,7 @@ export default function ProductReleasePage() {
     }
   }, [product, isReleaseRunning, releaseMode]);
 
-  // ✅ BATCH RELEASE - 1/N → 2/N → N/N
+  // BATCH RELEASE - 1/N → 2/N → N/N
   const runSequentialRelease = useCallback(async () => {
     if (!product || !window.electronAPI || isReleaseRunning || releaseMode !== 'none') return;
 
@@ -246,14 +299,14 @@ export default function ProductReleasePage() {
     setCurrentRepoIndex(0);
     setBatchCompletedCount(0);
     setReleaseLogs([`🚀 BATCH GitHub Release STARTED: ${product.name}`,
-    `r${product.version} - ${product.repos.length} ${product.repos.length === 1 ? 'Repository' : 'Repositories'}`,
-    `${"═".repeat(80)}\n`]);
+      `r${product.version} - ${product.repos.length} ${product.repos.length === 1 ? 'Repository' : 'Repositories'}`,
+      `${"═".repeat(80)}\\n`]);
 
     setIsReleaseRunning(true);
 
     for (let i = 0; i < product.repos.length; i++) {
       if (isReleaseCancelled.current) {
-        setReleaseLogs(prev => [...prev, "\n⚠️ BATCH cancelled by user"]);
+        setReleaseLogs(prev => [...prev, "\\n⚠️ BATCH cancelled by user"]);
         break;
       }
 
@@ -263,11 +316,11 @@ export default function ProductReleasePage() {
       currentScanId.current = scanId;
 
       setReleaseLogs(prev => [...prev,
-      `\n${"═".repeat(80)}`,
-      `🔹 BATCH REPO ${i + 1}/${product.repos.length}: ${repo.repoUrl}`,
-      `   Version: r${product.version}`,
-      `   Branch: ${repo.branch}`,
-      `${"═".repeat(80)}\n`
+        `${"═".repeat(80)}`,
+        `🔹 BATCH REPO ${i + 1}/${product.repos.length}: ${repo.repoUrl}`,
+        `   Version: r${product.version}`,
+        `   Branch: ${repo.branch}`,
+        `${"═".repeat(80)}`
       ]);
 
       const cleanup = window.electronAPI.onScanLog(scanId, (data) => {
@@ -283,7 +336,7 @@ export default function ProductReleasePage() {
         });
         setBatchCompletedCount(prev => prev + 1);
       } catch (e: any) {
-        setReleaseLogs(prev => [...prev, `\n❌ BATCH Error [${i + 1}]: ${e.message}`]);
+        setReleaseLogs(prev => [...prev, `\\n❌ BATCH Error [${i + 1}]: ${e.message}`]);
       } finally {
         currentScanId.current = null;
         if (cleanup) cleanup();
@@ -294,9 +347,38 @@ export default function ProductReleasePage() {
       }
     }
 
+    // FINAL BATCH UPDATE
+    if (!isReleaseCancelled.current) {
+      const payload: Partial<Product> = {
+        version: product.version,
+        updatedAt: new Date().toISOString(),
+        status: "Released"
+      };
+      
+      try {
+        const updateResult = await updateProduct(product.id, payload);
+        if (updateResult.error) {
+          toast.error("Batch releases created but metadata update failed", { 
+            id: "batch-update-warning",
+            duration: 4000 
+          });
+        } else {
+          setProduct(updateResult.data);
+        }
+      } catch (error) {
+        toast.error("Failed to update product metadata", { id: "batch-update-error" });
+      }
+    }
+
     setIsReleaseRunning(false);
     setReleaseMode('none');
-  }, [product, isReleaseRunning, releaseMode]);
+    
+    if (!isReleaseCancelled.current) {
+      toast.success(` Batch release completed: ${batchCompletedCount}/${product.repos.length}`, { 
+        id: "batch-release-success" 
+      });
+    }
+  }, [product, isReleaseRunning, releaseMode, batchCompletedCount]);
 
   const getProgressInfo = () => {
     if (releaseMode === 'single') {
@@ -317,7 +399,8 @@ export default function ProductReleasePage() {
 
   const progressInfo = getProgressInfo();
 
-  if (!product) {
+  // LOADING STATE
+  if (loading) {
     return (
       <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "50vh" }}>
         <CircularProgress />
@@ -325,6 +408,23 @@ export default function ProductReleasePage() {
     );
   }
 
+  // NO PRODUCT FOUND
+  if (!product) {
+    return (
+      <Container maxWidth="lg" sx={{ pt: 10, minHeight: "50vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Paper sx={{ p: 4, textAlign: "center" }}>
+          <Typography color="text.secondary" mb={2}>
+            Product not found
+          </Typography>
+          <Button variant="contained" onClick={() => navigate("/products")}>
+            Go to Products
+          </Button>
+        </Paper>
+      </Container>
+    );
+  }
+
+  
   return (
     <Box sx={{ pt: 10, pb: 8, minHeight: "100vh", bgcolor: "background.default" }}>
       <Container maxWidth="lg">
