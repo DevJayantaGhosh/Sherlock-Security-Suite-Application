@@ -188,7 +188,7 @@ export default function RepoConfigForm({
   );
 
   return (
-    <Paper sx={{ p: 3, mb: 4, borderRadius: 3, boxShadow: 3 }}>
+    <Paper sx={{ p: 3, borderLeft: `4px solid ${theme.color}`, borderRadius: 1 }}>
       <Stack spacing={2.5}>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
           <Typography variant="h6" fontWeight={700} sx={{ color: theme.color }}>

@@ -281,8 +281,8 @@ export default function BlockchainArchivalCard({
         </Paper>
 
         {/* 2. PUBLIC KEY */}
-        <Paper sx={{ p: 3, mb: 4,  bgcolor: "rgba(0,229,255,0.1)" }}>
-          <Typography variant="h6" fontWeight={500} mb={2.5} color="#00e5ff" sx={{ fontFamily: 'monospace' }}>
+        <Paper sx={{ p: 3, mb: 4, borderRadius: 2, bgcolor: 'rgba(255,255,255, 0.02)', border: '1px solid rgba(255,255,255, 0.08)' }} >
+          <Typography variant="h6" fontWeight={500} mb={2.5}  sx={{ fontFamily: 'monospace' }}>
             🔑 Public Key
           </Typography>
           {/* Existing Path */}
@@ -343,8 +343,8 @@ export default function BlockchainArchivalCard({
         </Paper>
 
         {/* 3. SIGNATURE */}
-        <Paper sx={{ p: 3, bgcolor: "rgba(0,229,255,0.1)" }}>
-          <Typography variant="h6" fontWeight={500} mb={2.5} color="#00e5ff" sx={{ fontFamily: 'monospace' }}>
+        <Paper sx={{ p: 3, mb: 4, borderRadius: 2, bgcolor: 'rgba(255,255,255, 0.02)', border: '1px solid rgba(255,255,255, 0.08)' }} >
+          <Typography variant="h6" fontWeight={500} mb={2.5}  sx={{ fontFamily: 'monospace' }}>
             🔐 Signature File
           </Typography>
 
