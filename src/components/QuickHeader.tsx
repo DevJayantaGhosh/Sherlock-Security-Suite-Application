@@ -42,7 +42,7 @@ const PAGE_CONFIG = {
 } as const;
 
 const FINAL_TITLES = {
-  crypto: 'Cryptographic Signing Station',
+  crypto: 'Quick Cryptographic Signing Station',
   security: 'Quick Security Scan & Analysis',
   verify: 'Digital Signature Verification',
   default: 'Product Dashboard'
