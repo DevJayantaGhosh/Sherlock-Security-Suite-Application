@@ -1,4 +1,4 @@
-// src/pages/QuickSecurityScanPage.tsx - FINAL VERSION WITH TAB SWITCH + DISABLE LOGIC
+// src/pages/QuickSecurityScanPage.tsx - WITH BEAUTIFUL WARNING COLOR BORDERS
 import { useState, useCallback, useEffect, SetStateAction } from "react";
 import isElectron from 'is-electron';
 import {
@@ -55,14 +55,14 @@ export default function QuickSecurityScanPage() {
     : (isValidLocalPath() && branch.trim())
   );
 
-  // ✅ FIXED: Clear fields on tab switch + disable after configure
+  // Clear fields on tab switch + disable after configure
   const handleTabChange = (_: any, newValue: SetStateAction<number>) => {
     if (isConfigured) {
       toast.error("Reset first to change configuration");
       return;
     }
     
-    // ✅ Clear fields on tab switch
+    // Clear fields on tab switch
     if (activeTab !== newValue) {
       setRepoUrl("");
       setLocalRepoFullPath("");
@@ -191,7 +191,6 @@ export default function QuickSecurityScanPage() {
                 )}
               </Stack>
 
-              {/* ✅ FIXED: Tab switch disabled after configure + clear on switch */}
               <Tabs 
                 value={activeTab} 
                 onChange={handleTabChange}
@@ -201,7 +200,7 @@ export default function QuickSecurityScanPage() {
                   label="GitHub Repository"
                   icon={<LinkIcon />}
                   iconPosition="start" 
-                  disabled={isConfigured} // ✅ Disabled after configure
+                  disabled={isConfigured}
                   sx={{ 
                     fontWeight: activeTab === 0 ? 700 : 500,
                     opacity: isConfigured && activeTab !== 0 ? 0.5 : 1
@@ -212,7 +211,7 @@ export default function QuickSecurityScanPage() {
                     label="Local Repository"
                     icon={<FolderOpenIcon />}
                     iconPosition="start"
-                    disabled={isConfigured} // ✅ Disabled after configure
+                    disabled={isConfigured}
                     sx={{ 
                       fontWeight: activeTab === 1 ? 700 : 500,
                       opacity: isConfigured && activeTab !== 1 ? 0.5 : 1
@@ -223,85 +222,137 @@ export default function QuickSecurityScanPage() {
 
               {/* GITHUB TAB */}
               {activeTab === 0 && (
-                <>
-                  <Box sx={{ display: "grid", gridTemplateColumns: "1fr 140px", gap: 2 }}>
-                    <TextField
-                      label="Repository URL *"
-                      value={repoUrl}
-                      onChange={(e) => setRepoUrl(e.target.value)}
-                      placeholder="https://github.com/username/repository"
-                      error={Boolean(!isValidUrl() && repoUrl.trim())}
-                      helperText={!isValidUrl() && repoUrl.trim() ? "Invalid GitHub URL" : ""}
-                      disabled={loading || isConfigured}
-                      size="small"
-                    />
-                    <TextField
-                      label="Branch *"
-                      value={branch}
-                      onChange={(e) => setBranch(e.target.value)}
-                      placeholder="main"
-                      error={Boolean(!branch.trim())}
-                      helperText={!branch.trim() ? "Required" : ""}
-                      disabled={loading || isConfigured}
-                      size="small"
-                    />
-                  </Box>
-
-                  <Box sx={{ display: "flex", alignItems: "center" }}>
-                    <Switch 
-                      checked={standaloneAuth.isPrivate} 
-                      onChange={(e) => setStandaloneAuth({
-                        ...standaloneAuth,
-                        isPrivate: e.target.checked
-                      })}
-                      disabled={loading || isConfigured}
-                      size="small"
-                    />
-                    <Box sx={{ ml: 1.5, flex: 1 }}>
-                      <Typography variant="body2" fontWeight={500}>Private Repository</Typography>
-                      <Typography variant="caption" color="warning.main" sx={{ fontWeight: 500 }}>
-                        ⚠️ Requires authentication
-                      </Typography>
+                <Paper 
+                  sx={{ 
+                    p: 3, 
+                    bgcolor: "rgba(255, 193, 7, 0.03)",
+                    border: `2px solid`,
+                    borderColor: "warning.main",
+                    borderRadius: 3,
+                    boxShadow: 2,
+                    transition: "all 0.3s ease",
+                    "&:hover": {
+                      borderColor: "warning.dark",
+                      boxShadow: 4,
+                      transform: "translateY(-1px)"
+                    }
+                  }}
+                >
+                  <Stack spacing={2}>
+                    <Typography variant="body2" fontWeight={700} color="warning.main">
+                      🌐 GitHub Repository Configuration
+                    </Typography>
+                    
+                    <Box sx={{ display: "grid", gridTemplateColumns: "1fr 140px", gap: 2 }}>
+                      <TextField
+                        label="Repository URL *"
+                        value={repoUrl}
+                        onChange={(e) => setRepoUrl(e.target.value)}
+                        placeholder="https://github.com/username/repository"
+                        error={Boolean(!isValidUrl() && repoUrl.trim())}
+                        helperText={!isValidUrl() && repoUrl.trim() ? "Invalid GitHub URL" : ""}
+                        disabled={loading || isConfigured}
+                        size="small"
+                      />
+                      <TextField
+                        label="Branch *"
+                        value={branch}
+                        onChange={(e) => setBranch(e.target.value)}
+                        placeholder="main"
+                        error={Boolean(!branch.trim())}
+                        helperText={!branch.trim() ? "Required" : ""}
+                        disabled={loading || isConfigured}
+                        size="small"
+                      />
                     </Box>
-                  </Box>
 
-                  {standaloneAuth.isPrivate && (
-                    <Collapse in={standaloneAuth.isPrivate} timeout={200}>
-                      <Paper sx={{ p: 2.5, bgcolor: "rgba(255,152,0,0.05)", border: "1px solid rgba(255,152,0,0.2)" }}>
-                        <Typography variant="body2" fontWeight={600} mb={2} color="warning.main">
-                          🔐 Authentication Required
+                    <Box sx={{ display: "flex", alignItems: "center" }}>
+                      <Switch 
+                        checked={standaloneAuth.isPrivate} 
+                        onChange={(e) => setStandaloneAuth({
+                          ...standaloneAuth,
+                          isPrivate: e.target.checked
+                        })}
+                        disabled={loading || isConfigured}
+                        size="small"
+                      />
+                      <Box sx={{ ml: 1.5, flex: 1 }}>
+                        <Typography variant="body2" fontWeight={500}>Private Repository</Typography>
+                        <Typography variant="caption" color="warning.main" sx={{ fontWeight: 500 }}>
+                          ⚠️ Requires authentication token
                         </Typography>
-                        <TextField
-                          label="GitHub Token (Recommended)"
-                          value={standaloneAuth.githubToken}
-                          onChange={(e) => setStandaloneAuth({ ...standaloneAuth, githubToken: e.target.value })}
-                          type="password"
-                          size="small"
-                          placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                          error={standaloneAuth.isPrivate && !validateStandaloneAuth()}
-                          helperText={
-                            standaloneAuth.isPrivate && !validateStandaloneAuth()
-                              ? "Security Note: Application **NEVER stores** your token"
-                              : ""
-                          }
-                          disabled={loading || isConfigured}
-                          fullWidth
-                          InputProps={{ startAdornment: <InputAdornment position="start">🔑</InputAdornment> }}
-                        />
-                      </Paper>
-                    </Collapse>
-                  )}
-                </>
+                      </Box>
+                    </Box>
+
+                    {standaloneAuth.isPrivate && (
+                      <Collapse in={standaloneAuth.isPrivate} timeout={200}>
+                        <Paper sx={{ 
+                          p: 2.5, 
+                          bgcolor: "rgba(255,152,0,0.08)", 
+                          border: "1px solid rgba(255,152,0,0.3)",
+                          borderRadius: 2 
+                        }}>
+                          <Typography variant="body2" fontWeight={600} mb={2} color="warning.main">
+                            🔐 Authentication Required
+                          </Typography>
+                          <TextField
+                            label="GitHub Token (Recommended)"
+                            value={standaloneAuth.githubToken}
+                            onChange={(e) => setStandaloneAuth({ ...standaloneAuth, githubToken: e.target.value })}
+                            type="password"
+                            size="small"
+                            placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                            error={standaloneAuth.isPrivate && !validateStandaloneAuth()}
+                            helperText={
+                              standaloneAuth.isPrivate && !validateStandaloneAuth()
+                                ? "Security Note: Application **NEVER stores** your token"
+                                : "Paste your GitHub Personal Access Token"
+                            }
+                            disabled={loading || isConfigured}
+                            fullWidth
+                            InputProps={{ startAdornment: <InputAdornment position="start">🔑</InputAdornment> }}
+                          />
+                        </Paper>
+                      </Collapse>
+                    )}
+                  </Stack>
+                </Paper>
               )}
 
               {/* LOCAL TAB */}
               {activeTab === 1 && (
-                <Paper sx={{ p: 3, bgcolor: "rgba(76, 175, 80, 0.05)", border: "1px solid rgba(76, 175, 80, 0.2)" }}>
-                  <Typography variant="body2" fontWeight={600} mb={2} color="success.main">
-                    📁 Local Repository Details
+                <Paper 
+                  sx={{ 
+                    p: 3, 
+                    bgcolor: "rgba(255, 193, 7, 0.04)",
+                    border: `2px solid`,
+                    borderColor: "warning.dark",
+                    borderRadius: 3,
+                    boxShadow: 3,
+                    position: "relative",
+                    "&:before": {
+                      content: '""',
+                      position: "absolute",
+                      top: -2,
+                      left: -2,
+                      right: -2,
+                      height: 4,
+                      bgcolor: "warning.main",
+                      borderRadius: "12px 12px 0 0",
+                      zIndex: 1
+                    },
+                    "&:hover": {
+                      borderColor: "warning.main",
+                      boxShadow: 5,
+                      transform: "translateY(-2px)"
+                    }
+                  }}
+                >
+                  <Typography variant="body2" fontWeight={700} mb={2} color="warning.dark">
+                    📁 Local Repository Configuration
                   </Typography>
                   
-                  <Box sx={{ display: "grid", gridTemplateColumns: "1fr 140px", gap: 2, mb: 2 }}>
+                  <Box sx={{ display: "grid", gridTemplateColumns: "1fr 140px", gap: 2, mb: 2, position: "relative", zIndex: 2 }}>
                     <FolderPicker />
                     <TextField
                       label="Branch *"
@@ -315,8 +366,8 @@ export default function QuickSecurityScanPage() {
                     />
                   </Box>
                   
-                  <Typography variant="caption" sx={{ mt: 1, display: 'block', color: 'success.dark' }}>
-                    💡 Click folder icon or type path manually
+                  <Typography variant="caption" sx={{ mt: 1, display: 'block', color: 'warning.dark', fontWeight: 600 }}>
+                    ⚠️ Both folder path and branch are required
                   </Typography>
                 </Paper>
               )}
