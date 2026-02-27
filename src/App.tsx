@@ -20,6 +20,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import LicenseActivationPage from "./pages/LicenseActivationPage";
 import QuickSecurityScanPage from "./pages/QuickSecurityScanPage";
 import QuickCryptoSigningPage from "./pages/QuickCryptoSigningPage";
+import QuickSignatureVerificationPage from "./pages/QuickSignatureVerificationPage";
 
 export default function App() {
   return (
@@ -71,6 +72,15 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <QuickCryptoSigningPage />
+              </ProtectedRoute>
+            }
+          />
+          
+          <Route
+            path="/quick-sign-verify"
+            element={
+              <ProtectedRoute>
+                <QuickSignatureVerificationPage />
               </ProtectedRoute>
             }
           />

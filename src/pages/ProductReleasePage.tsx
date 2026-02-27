@@ -226,159 +226,209 @@ export default function ProductReleasePage() {
     setCurrentRepoIndex(0);
   };
 
-  // SINGLE REPO - 1/1 PROGRESS
-  const releaseSingleRepo = useCallback(async (repoIndex: number) => {
-    if (!product || !window.electronAPI || isReleaseRunning || releaseMode !== 'none') return;
 
-    setReleaseMode('single');
-    const repo = product.repos[repoIndex];
+
+interface ReleaseResult {
+  success: boolean;
+  error?: string;
+}
+
+// SINGLE REPO - 1/1 PROGRESS
+const releaseSingleRepo = useCallback(async (repoIndex: number): Promise<boolean> => {
+  if (!product || !window.electronAPI || isReleaseRunning || releaseMode !== 'none') {
+    return false;
+  }
+
+  setReleaseMode('single');
+  const repo = product.repos[repoIndex];
+  const scanId = crypto.randomUUID();
+  currentScanId.current = scanId;
+
+  setReleaseLogs(prev => [...prev,
+    `${"═".repeat(80)}`,
+    `🔹 SINGLE REPO 1/1: ${repo.repoUrl}`,
+    `   Version: r${product.version}`,
+    `   Branch: ${repo.branch}`,
+    `${"═".repeat(80)}`
+  ]);
+
+  setIsReleaseRunning(true);
+  setCurrentRepoIndex(repoIndex);
+
+  const cleanup = window.electronAPI.onScanLog(scanId, (data) => {
+    setReleaseLogs((prev) => [...prev, data.log]);
+  });
+
+  try {
+    // Capture result with exact backend type
+    const result: ReleaseResult = await window.electronAPI.createGitHubRelease({
+      repoUrl: repo.repoUrl,
+      branch: repo.branch,
+      version: product.version,
+      scanId
+    });
+
+    //  Only proceed if backend confirms success
+    if (!result.success) {
+      throw new Error(result.error || 'Release creation failed');
+    }
+
+    //  ONLY UPDATE DB ON FULL SUCCESS
+    const payload: Partial<Product> = {
+      version: product.version,
+      updatedAt: new Date().toISOString(),
+      status: "Released" 
+    };
+    
+    const updateResult = await updateProduct(product.id, payload);
+    if (updateResult.error) {
+      console.error('DB update failed:', updateResult.error);
+      toast.error("Release created but DB update failed", { 
+        id: "release-update-warning",
+        duration: 5000 
+      });
+    } else {
+      setProduct(updateResult.data!);
+      toast.success("Release created successfully", { 
+        id: "single-release-success",
+        duration: 5000 
+      });
+    }
+    
+    setSingleCompletedCount(1);
+    return true;
+
+  } catch (e: any) {
+    setReleaseLogs(prev => [...prev, `\n❌ SINGLE Error: ${e.message}`]);
+    toast.error(`Single release failed: ${e.message}`, { 
+      id: "single-release-error",
+      duration: 6000 
+    });
+    return false;
+  } finally {
+    currentScanId.current = null;
+    if (cleanup) cleanup();
+    setIsReleaseRunning(false);
+    setReleaseMode('none');
+  }
+}, [product, isReleaseRunning, releaseMode]);
+
+// BATCH RELEASE - 1/N → 2/N → N/N (All or Nothing)
+const runSequentialRelease = useCallback(async () => {
+  if (!product || !window.electronAPI || isReleaseRunning || releaseMode !== 'none') {
+    return;
+  }
+
+  setReleaseMode('batch');
+  isReleaseCancelled.current = false;
+  setCurrentRepoIndex(0);
+  setBatchCompletedCount(0);
+  let allReposSuccess = true; // Track ALL must succeed
+  const failedRepos: number[] = []; //  Track failures
+
+  setReleaseLogs([`🚀 BATCH GitHub Release STARTED: ${product.name}`,
+    `r${product.version} - ${product.repos.length} ${product.repos.length === 1 ? 'Repository' : 'Repositories'}`,
+    `${"═".repeat(80)}\n`]);
+
+  setIsReleaseRunning(true);
+
+  // ✅ ALL REPOS MUST SUCCEED for batch DB update
+  for (let i = 0; i < product.repos.length; i++) {
+    if (isReleaseCancelled.current) {
+      setReleaseLogs(prev => [...prev, "\n⚠️ BATCH cancelled by user"]);
+      break;
+    }
+
+    setCurrentRepoIndex(i);
+    const repo = product.repos[i];
     const scanId = crypto.randomUUID();
     currentScanId.current = scanId;
 
     setReleaseLogs(prev => [...prev,
       `${"═".repeat(80)}`,
-      `🔹 SINGLE REPO 1/1: ${repo.repoUrl}`,
+      `🔹 BATCH REPO ${i + 1}/${product.repos.length}: ${repo.repoUrl}`,
       `   Version: r${product.version}`,
       `   Branch: ${repo.branch}`,
       `${"═".repeat(80)}`
     ]);
-
-    setIsReleaseRunning(true);
-    setCurrentRepoIndex(repoIndex);
 
     const cleanup = window.electronAPI.onScanLog(scanId, (data) => {
       setReleaseLogs((prev) => [...prev, data.log]);
     });
 
     try {
-      await window.electronAPI.createGitHubRelease({
+      //  Capture result with exact backend type
+      const result: ReleaseResult = await window.electronAPI.createGitHubRelease({
         repoUrl: repo.repoUrl,
         branch: repo.branch,
         version: product.version,
         scanId
       });
-      
-      // UPDATE PRODUCT AFTER SUCCESSFUL RELEASE
-      const payload: Partial<Product> = {
-        version: product.version,
-        updatedAt: new Date().toISOString(),
-        status: "Released" 
-      };
-      
-      const updateResult = await updateProduct(product.id, payload);
-      if (updateResult.error) {
-        toast.error("Release created but failed to update product metadata", { 
-          id: "release-update-warning",
-          duration: 4000 
-        });
+
+      // Only count as success if backend confirms
+      if (result.success) {
+        setBatchCompletedCount(prev => prev + 1);
+        setReleaseLogs(prev => [...prev, `\n✅ REPO ${i + 1} SUCCESS`]);
       } else {
-        setProduct(updateResult.data);
-        toast.success(" Release created successfully", { id: "single-release-success" });
+        allReposSuccess = false;
+        failedRepos.push(i + 1);
+        setReleaseLogs(prev => [...prev, `\n❌ REPO ${i + 1} FAILED: ${result.error}`]);
       }
-      
-      setSingleCompletedCount(1);
-      return true;
     } catch (e: any) {
-      setReleaseLogs(prev => [...prev, `\\n❌ SINGLE Error: ${e.message}`]);
-      toast.error(`Single release failed: ${e.message}`, { id: "single-release-error" });
-      return false;
+      allReposSuccess = false;
+      failedRepos.push(i + 1);
+      setReleaseLogs(prev => [...prev, `\n❌ BATCH Error [${i + 1}]: ${e.message}`]);
     } finally {
       currentScanId.current = null;
       if (cleanup) cleanup();
-      setIsReleaseRunning(false);
-      setReleaseMode('none');
-    }
-  }, [product, isReleaseRunning, releaseMode]);
-
-  // BATCH RELEASE - 1/N → 2/N → N/N
-  const runSequentialRelease = useCallback(async () => {
-    if (!product || !window.electronAPI || isReleaseRunning || releaseMode !== 'none') return;
-
-    setReleaseMode('batch');
-    isReleaseCancelled.current = false;
-    setCurrentRepoIndex(0);
-    setBatchCompletedCount(0);
-    setReleaseLogs([`🚀 BATCH GitHub Release STARTED: ${product.name}`,
-      `r${product.version} - ${product.repos.length} ${product.repos.length === 1 ? 'Repository' : 'Repositories'}`,
-      `${"═".repeat(80)}\\n`]);
-
-    setIsReleaseRunning(true);
-
-    for (let i = 0; i < product.repos.length; i++) {
-      if (isReleaseCancelled.current) {
-        setReleaseLogs(prev => [...prev, "\\n⚠️ BATCH cancelled by user"]);
-        break;
-      }
-
-      setCurrentRepoIndex(i);
-      const repo = product.repos[i];
-      const scanId = crypto.randomUUID();
-      currentScanId.current = scanId;
-
-      setReleaseLogs(prev => [...prev,
-        `${"═".repeat(80)}`,
-        `🔹 BATCH REPO ${i + 1}/${product.repos.length}: ${repo.repoUrl}`,
-        `   Version: r${product.version}`,
-        `   Branch: ${repo.branch}`,
-        `${"═".repeat(80)}`
-      ]);
-
-      const cleanup = window.electronAPI.onScanLog(scanId, (data) => {
-        setReleaseLogs((prev) => [...prev, data.log]);
-      });
-
-      try {
-        await window.electronAPI.createGitHubRelease({
-          repoUrl: repo.repoUrl,
-          branch: repo.branch,
-          version: product.version,
-          scanId
-        });
-        setBatchCompletedCount(prev => prev + 1);
-      } catch (e: any) {
-        setReleaseLogs(prev => [...prev, `\\n❌ BATCH Error [${i + 1}]: ${e.message}`]);
-      } finally {
-        currentScanId.current = null;
-        if (cleanup) cleanup();
-      }
-
-      if (i < product.repos.length - 1 && !isReleaseCancelled.current) {
-        await new Promise(resolve => setTimeout(resolve, 1500));
-      }
     }
 
-    // FINAL BATCH UPDATE
-    if (!isReleaseCancelled.current) {
-      const payload: Partial<Product> = {
-        version: product.version,
-        updatedAt: new Date().toISOString(),
-        status: "Released"
-      };
-      
-      try {
-        const updateResult = await updateProduct(product.id, payload);
-        if (updateResult.error) {
-          toast.error("Batch releases created but metadata update failed", { 
-            id: "batch-update-warning",
-            duration: 4000 
-          });
-        } else {
-          setProduct(updateResult.data);
-        }
-      } catch (error) {
-        toast.error("Failed to update product metadata", { id: "batch-update-error" });
-      }
+    if (i < product.repos.length - 1 && !isReleaseCancelled.current) {
+      await new Promise(resolve => setTimeout(resolve, 1500));
     }
+  }
 
-    setIsReleaseRunning(false);
-    setReleaseMode('none');
+  // ONLY UPDATE DB IF ALL REPOS SUCCESSFUL
+  if (!isReleaseCancelled.current && allReposSuccess) {
+    const payload: Partial<Product> = {
+      version: product.version,
+      updatedAt: new Date().toISOString(),
+      status: "Released"
+    };
     
-    if (!isReleaseCancelled.current) {
-      toast.success(` Batch release completed: ${batchCompletedCount}/${product.repos.length}`, { 
-        id: "batch-release-success" 
-      });
+    try {
+      const updateResult = await updateProduct(product.id, payload);
+      if (updateResult.error) {
+        toast.error("All releases created but DB update failed", { 
+          id: "batch-update-warning",
+          duration: 5000 
+        });
+      } else {
+        setProduct(updateResult.data!);
+        toast.success(`Batch release completed: ${product.repos.length}/${product.repos.length}`, { 
+          id: "batch-release-success",
+          duration: 5000 
+        });
+      }
+    } catch (error) {
+      toast.error("Failed to update product metadata", { id: "batch-update-error" });
     }
-  }, [product, isReleaseRunning, releaseMode, batchCompletedCount]);
+  } else if (!isReleaseCancelled.current) {
+    //  Partial or total failure - no DB update
+    const successCount = batchCompletedCount;
+    toast.error(
+      `Batch failed: ${successCount}/${product.repos.length} successful` + 
+      (failedRepos.length > 0 ? `\nFailed repos: ${failedRepos.join(', ')}` : ''), 
+      { 
+        id: "batch-release-failed", 
+        duration: 7000 
+      }
+    );
+  }
+
+  setIsReleaseRunning(false);
+  setReleaseMode('none');
+}, [product, isReleaseRunning, releaseMode, batchCompletedCount]);
 
   const getProgressInfo = () => {
     if (releaseMode === 'single') {

@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Cryptographic Signing Workflow
   selectFolder: () => ipcRenderer.invoke("dialog:select-folder"),
   selectFile: () => ipcRenderer.invoke("dialog:select-file"),
+  openFilePath: (filePath: string) => ipcRenderer.invoke("dialog:open-file-path", filePath),
   
   generateKeys: (payload: any) => ipcRenderer.invoke("crypto:generate-keys", payload),
   signArtifact: (payload: any) => ipcRenderer.invoke("crypto:sign-artifact", payload),

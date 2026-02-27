@@ -17,6 +17,7 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
   // Cryptographic Signing Workflow
   selectFolder: () => electron.ipcRenderer.invoke("dialog:select-folder"),
   selectFile: () => electron.ipcRenderer.invoke("dialog:select-file"),
+  openFilePath: (filePath) => electron.ipcRenderer.invoke("dialog:open-file-path", filePath),
   generateKeys: (payload) => electron.ipcRenderer.invoke("crypto:generate-keys", payload),
   signArtifact: (payload) => electron.ipcRenderer.invoke("crypto:sign-artifact", payload),
   // GitHub Release Creation

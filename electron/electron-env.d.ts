@@ -73,6 +73,7 @@ interface Window {
 
     selectFolder(): Promise<string | null>;
     selectFile(): Promise<string | null>;
+    openFilePath: (filePath: string) => Promise<void>;
     // Key Generation
     generateKeys(payload: {
       type: "rsa" | "ecdsa";
