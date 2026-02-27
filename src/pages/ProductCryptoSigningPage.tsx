@@ -8,11 +8,13 @@ import {
 } from "@mui/material";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, Variants } from "framer-motion";
+import { toast } from "react-hot-toast";
 import ProductHeader from '../components/ProductHeader';
 import BlockchainArchivalCard from "../components/cryptosigning/BlockchainArchivalCard";
-import { getProducts } from "../services/productService";
+import { getProductById, updateProduct } from "../services/productService";
 import { Product } from "../models/Product";
 import { useUserStore } from "../store/userStore";
+
 
 import VpnKeyIcon from "@mui/icons-material/VpnKey";
 import FingerprintIcon from "@mui/icons-material/Fingerprint";
@@ -160,6 +162,7 @@ export default function ProductCryptoSigningPage() {
   const navigate = useNavigate();
   const user = useUserStore((s) => s.user);
   const [product, setProduct] = useState<Product | null>(null);
+  const [loading, setLoading] = useState(true);
 
   // KEY GENERATION STATE
   const [algo, setAlgo] = useState<"rsa" | "ecdsa">("rsa");
@@ -182,15 +185,40 @@ export default function ProductCryptoSigningPage() {
   const currentScanId = useRef<string | null>(null);
   const isSigningCancelled = useRef(false);
 
-  useEffect(() => {
-    if (!id) return;
-    const p = getProducts().find((x) => x.id === id);
-    if (!p) {
+  // Load product using getProductById(id)
+  const loadProduct = useCallback(async () => {
+    if (!id) {
+      toast.error("Invalid product ID", { id: "invalid-product-id" });
       navigate("/products");
       return;
     }
-    setProduct(p);
+
+    setLoading(true);
+    console.log("[CRYPTO SIGNING PAGE] Loading product:", id);
+
+    try {
+      const result = await getProductById(id);
+      if (result.error || !result.data) {
+        toast.error(`Product not found: ${result.error?.message || "Unknown error"}`, { 
+          id: "product-load-error" 
+        });
+        navigate("/products");
+        return;
+      }
+
+      setProduct(result.data);
+    } catch (error) {
+      toast.error("Failed to load product", { id: "product-load-failed" });
+      navigate("/products");
+    } finally {
+      setLoading(false);
+    }
   }, [id, navigate]);
+
+  // Load product on mount
+  useEffect(() => {
+    loadProduct();
+  }, [loadProduct]);
 
   const handleSelectFolder = async () => {
     try {
@@ -198,6 +226,7 @@ export default function ProductCryptoSigningPage() {
       if (path) setOutputDir(path);
     } catch (e) {
       console.error("Folder selection failed:", e);
+      toast.error("Failed to select folder", { id: "folder-select-error" });
     }
   };
 
@@ -207,6 +236,7 @@ export default function ProductCryptoSigningPage() {
       if (path) setPrivateKeyPath(path);
     } catch (e) {
       console.error("File selection failed:", e);
+      toast.error("Failed to select key file", { id: "keyfile-select-error" });
     }
   };
 
@@ -217,15 +247,40 @@ export default function ProductCryptoSigningPage() {
       if (isSigningRunning) setSigningLogs(prev => [...prev, "\n⏳ Requesting cancellation..."]);
       try {
         await window.electronAPI.cancelScan({ scanId: currentScanId.current });
+        toast.success("Cancellation requested", { id: "cancel-success" });
       } catch (e) {
         console.error("Cancel failed:", e);
+        toast.error("Failed to cancel operation", { id: "cancel-error" });
       }
     }
   };
 
+  // Update product with IPFS signature path only
+  const updateProductWithSignature = async (signatureFilePath: string) => {
+    if (!product) return;
+
+    try {
+      const updatedProduct: Partial<Product> = {
+        signatureFilePath,
+      };
+
+      await updateProduct(product.id, updatedProduct);
+      toast.success(`Signature saved: ${signatureFilePath.substring(0, 50)}...`, { 
+        id: `signature-save-${product.id}` 
+      });
+    } catch (error: any) {
+      console.error("Failed to update product:", error);
+      toast.error("Failed to save signature to product", { 
+        id: `signature-save-error-${product.id}` 
+      });
+    }
+  };
 
   const runKeyGeneration = async () => {
-    if (!product || !outputDir || !window.electronAPI) return;
+    if (!product || !outputDir || !window.electronAPI) {
+      toast.error("Please select output directory", { id: "keygen-missing-dir" });
+      return;
+    }
 
     setIsKeyGenRunning(true);
     setKeyGenLogs([]);
@@ -246,8 +301,10 @@ export default function ProductCryptoSigningPage() {
         outputDir,
         scanId
       });
+      toast.success("Keys generated successfully!", { id: "keygen-success" });
     } catch (e: any) {
       setKeyGenLogs(prev => [...prev, `\n❌ Frontend Error: ${e.message}`]);
+      toast.error(`Key generation failed: ${e.message}`, { id: "keygen-error" });
     } finally {
       setTimeout(() => {
         setIsKeyGenRunning(false);
@@ -265,10 +322,10 @@ export default function ProductCryptoSigningPage() {
     currentScanId.current = scanId;
 
     setSigningLogs(prev => [...prev,
-    `\n${"═".repeat(80)}`,
-    `🔹 REPO ${repoIndex + 1}/${product.repos.length}: ${targetRepo.repoUrl}`,
-    `   Branch: ${targetRepo.branch}`,
-    `${"═".repeat(80)}\n`
+      `\n${"═".repeat(80)}`,
+      `🔹 REPO ${repoIndex + 1}/${product.repos.length}: ${targetRepo.repoUrl}`,
+      `   Branch: ${targetRepo.branch}`,
+      `${"═".repeat(80)}\n`
     ]);
 
     setIsSigningRunning(true);
@@ -286,9 +343,11 @@ export default function ProductCryptoSigningPage() {
         scanId
       });
       setLastSignedFile("signature.sig (Ready for Upload)");
+      toast.success(`Repo ${repoIndex + 1} signed successfully`, { id: `sign-repo-${repoIndex}-success` });
       return true;
     } catch (e: any) {
       setSigningLogs(prev => [...prev, `\n❌ Frontend Error: ${e.message}`]);
+      toast.error(`Failed to sign repo ${repoIndex + 1}: ${e.message}`, { id: `sign-repo-${repoIndex}-error` });
       return false;
     } finally {
       setTimeout(() => {
@@ -309,8 +368,8 @@ export default function ProductCryptoSigningPage() {
 
     //  Initial header
     setSigningLogs([`🔹 Sequential signing STARTED: ${product.name}`,
-    `${product.repos.length} repositories`,
-    `${"═".repeat(80)}\n`]);
+      `${product.repos.length} repositories`,
+      `${"═".repeat(80)}\n`]);
 
     for (let i = 0; i < product.repos.length; i++) {
       if (isSigningCancelled.current) {
@@ -332,13 +391,16 @@ export default function ProductCryptoSigningPage() {
 
   }, [product, privateKeyPath, signPassword, signSingleRepo, completedReposCount]);
 
-
-  if (!product) {
+  if (loading) {
     return (
       <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "50vh" }}>
         <CircularProgress />
       </Box>
     );
+  }
+
+  if (!product) {
+    return null;
   }
 
   return (
@@ -348,7 +410,7 @@ export default function ProductCryptoSigningPage() {
 
           {/* HEADER */}
           <motion.div variants={itemVariants}>
-              <ProductHeader product={product} pageType="crypto" /> 
+            <ProductHeader product={product} pageType="crypto" /> 
           </motion.div>
 
           <Stack spacing={4}>
@@ -363,6 +425,7 @@ export default function ProductCryptoSigningPage() {
                 </Typography>
 
                 <Stack spacing={3}>
+                  {/* ... rest of your existing Key Generation UI ... */}
                   <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems="flex-end">
                     <TextField
                       select
@@ -458,7 +521,7 @@ export default function ProductCryptoSigningPage() {
               </Paper>
             </motion.div>
 
-            {/* DIGITAL SIGNING CARD */}
+            {/* DIGITAL SIGNING CARD - Your existing UI remains the same */}
             <motion.div variants={itemVariants}>
               <Paper sx={{ p: 3, borderLeft: "4px solid #00e5ff", borderRadius: 1 }}>
                 <Typography variant="h6" fontWeight={700} gutterBottom display="flex" alignItems="center" gap={1}>
