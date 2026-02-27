@@ -199,8 +199,8 @@ export default function ProductCryptoSigningPage() {
     try {
       const result = await getProductById(id);
       if (result.error || !result.data) {
-        toast.error(`Product not found: ${result.error?.message || "Unknown error"}`, { 
-          id: "product-load-error" 
+        toast.error(`Product not found: ${result.error?.message || "Unknown error"}`, {
+          id: "product-load-error"
         });
         navigate("/products");
         return;
@@ -255,26 +255,7 @@ export default function ProductCryptoSigningPage() {
     }
   };
 
-  // Update product with IPFS signature path only
-  const updateProductWithSignature = async (signatureFilePath: string) => {
-    if (!product) return;
 
-    try {
-      const updatedProduct: Partial<Product> = {
-        signatureFilePath,
-      };
-
-      await updateProduct(product.id, updatedProduct);
-      toast.success(`Signature saved: ${signatureFilePath.substring(0, 50)}...`, { 
-        id: `signature-save-${product.id}` 
-      });
-    } catch (error: any) {
-      console.error("Failed to update product:", error);
-      toast.error("Failed to save signature to product", { 
-        id: `signature-save-error-${product.id}` 
-      });
-    }
-  };
 
   const runKeyGeneration = async () => {
     if (!product || !outputDir || !window.electronAPI) {
@@ -322,10 +303,10 @@ export default function ProductCryptoSigningPage() {
     currentScanId.current = scanId;
 
     setSigningLogs(prev => [...prev,
-      `\n${"═".repeat(80)}`,
-      `🔹 REPO ${repoIndex + 1}/${product.repos.length}: ${targetRepo.repoUrl}`,
-      `   Branch: ${targetRepo.branch}`,
-      `${"═".repeat(80)}\n`
+    `\n${"═".repeat(80)}`,
+    `🔹 REPO ${repoIndex + 1}/${product.repos.length}: ${targetRepo.repoUrl}`,
+    `   Branch: ${targetRepo.branch}`,
+    `${"═".repeat(80)}\n`
     ]);
 
     setIsSigningRunning(true);
@@ -358,7 +339,7 @@ export default function ProductCryptoSigningPage() {
     }
   }, [product, privateKeyPath, signPassword]);
 
-  // Sequential signing with initial header
+  // Sequential signing 
   const runSequentialSigning = useCallback(async () => {
     if (!product || !privateKeyPath || !window.electronAPI) return;
 
@@ -368,8 +349,8 @@ export default function ProductCryptoSigningPage() {
 
     //  Initial header
     setSigningLogs([`🔹 Sequential signing STARTED: ${product.name}`,
-      `${product.repos.length} repositories`,
-      `${"═".repeat(80)}\n`]);
+    `${product.repos.length} repositories`,
+    `${"═".repeat(80)}\n`]);
 
     for (let i = 0; i < product.repos.length; i++) {
       if (isSigningCancelled.current) {
@@ -410,7 +391,7 @@ export default function ProductCryptoSigningPage() {
 
           {/* HEADER */}
           <motion.div variants={itemVariants}>
-            <ProductHeader product={product} pageType="crypto" /> 
+            <ProductHeader product={product} pageType="crypto" />
           </motion.div>
 
           <Stack spacing={4}>
@@ -521,7 +502,7 @@ export default function ProductCryptoSigningPage() {
               </Paper>
             </motion.div>
 
-            {/* DIGITAL SIGNING CARD - Your existing UI remains the same */}
+            {/* DIGITAL SIGNING CARD  */}
             <motion.div variants={itemVariants}>
               <Paper sx={{ p: 3, borderLeft: "4px solid #00e5ff", borderRadius: 1 }}>
                 <Typography variant="h6" fontWeight={700} gutterBottom display="flex" alignItems="center" gap={1}>
@@ -545,7 +526,7 @@ export default function ProductCryptoSigningPage() {
                     }}
                   >
                     <Typography variant="h6" fontWeight={500} mb={2.5} color="#00e5ff" sx={{ fontFamily: 'monospace' }}>
-                       📂 {product.repos.length === 1 ? 'Repository' : 'Repositories'} ({product.repos.length})
+                      📂 {product.repos.length === 1 ? 'Repository' : 'Repositories'} ({product.repos.length})
                     </Typography>
 
                     <Stack spacing={1.5}>
@@ -702,7 +683,10 @@ export default function ProductCryptoSigningPage() {
 
             {/* BLOCKCHAIN ARCHIVAL */}
             <motion.div variants={itemVariants}>
-              <BlockchainArchivalCard variants={itemVariants} suggestedFile={lastSignedFile} />
+              <BlockchainArchivalCard
+                variants={itemVariants}
+                product={product}
+              />
             </motion.div>
           </Stack>
         </motion.div>
