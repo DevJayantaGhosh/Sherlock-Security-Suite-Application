@@ -1,241 +1,433 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
-  Box, Button, Paper, Stack, Typography, TextField, 
-  IconButton, InputAdornment, Dialog, DialogContent, 
-  Tooltip
+  Box, Button, Paper, Stack, Typography, TextField,
+  IconButton, Dialog, DialogContent,
+  Chip
 } from "@mui/material";
-import { motion, AnimatePresence, Variants } from "framer-motion";
+import { motion, Variants } from "framer-motion";
 import { ethers } from "ethers";
+import { toast } from 'react-hot-toast';
+import isElectron from 'is-electron';
+import { Product } from '../../models/Product';
+import { updateProduct } from '../../services/productService';
+import { uploadToIPFS } from '../../services/ipfsService';
 
 // Icons
 import TokenIcon from "@mui/icons-material/Token";
 import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
-import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import LinkIcon from "@mui/icons-material/Link";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 
-// --- GLOBAL TYPE DECLARATION ---
-// Ensures TS knows about window.ethereum
-declare global {
-  interface Window {
-    ethereum?: any;
-  }
-}
-
-// --- HEDERA CONFIGURATION ---
+// HEDERA CONFIG
 const HEDERA_TESTNET_CONFIG = {
-  chainId: "0x128", // Decimal 296
+  chainId: "0x128",
   chainName: "Hedera Testnet",
   nativeCurrency: { name: "HBAR", symbol: "HBAR", decimals: 18 },
   rpcUrls: ["https://testnet.hashio.io/api"],
   blockExplorerUrls: ["https://hashscan.io/testnet/"],
 };
 
-// --- SUB-COMPONENT: ANIMATED LOADER ---
-const BlockchainLoader = () => (
-  <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 300 }}>
-    <Box sx={{ position: "relative", width: 100, height: 100 }}>
-      <motion.div
-        animate={{ rotate: 360 }}
-        transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-        style={{ position: "absolute", inset: 0, border: "4px solid #ffc107", borderRadius: "12px", borderStyle: "dashed" }}
-      />
-      <motion.div
-        animate={{ scale: [0.8, 1.2, 0.8], opacity: [0.5, 1, 0.5] }}
-        transition={{ duration: 2, repeat: Infinity }}
-        style={{ position: "absolute", inset: 15, background: "rgba(255, 193, 7, 0.2)", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center" }}
-      >
-        <TokenIcon sx={{ fontSize: 40, color: "#ffc107" }} />
-      </motion.div>
-    </Box>
-    <Stack direction="row" spacing={1} mt={4}>
-      {[1, 2, 3, 4, 5].map((i) => (
-        <motion.div
-          key={i}
-          animate={{ height: [10, 30, 10], backgroundColor: ["#333", "#ffc107", "#333"] }}
-          transition={{ duration: 1, repeat: Infinity, delay: i * 0.1 }}
-          style={{ width: 6, borderRadius: 4 }}
-        />
-      ))}
-    </Stack>
-    <Typography variant="h6" sx={{ color: "#ffc107", mt: 3, fontWeight: "bold", letterSpacing: 2 }}>IMMUTABLE LEDGER SYNC</Typography>
-    <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.5)", fontFamily: "monospace" }}>Hashing Signature & Minting Transaction...</Typography>
-  </Box>
-);
-
 interface BlockchainProps {
-    variants: Variants;
-    suggestedFile?: string; // Prop to receive file path from parent
+  variants: Variants;
+  product: Product;
 }
 
-export default function BlockchainArchivalCard({ variants, suggestedFile = "" }: BlockchainProps) {
-  const [walletAddress, setWalletAddress] = useState("");
-  const [signatureFile, setSignatureFile] = useState(suggestedFile);
-  const [isUploading, setIsUploading] = useState(false);
-  const [txHash, setTxHash] = useState("");
-  const [showBlockchainModal, setShowBlockchainModal] = useState(false);
-  const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
-
-  // Sync state if parent passes a new suggested file (e.g., after signing completes)
-  if(suggestedFile && signatureFile !== suggestedFile && signatureFile === "") {
-      setSignatureFile(suggestedFile);
+// UNIVERSAL FILE SELECTION (Electron + Web)
+const selectFileUniversal = async (): Promise<string | null> => {
+  if (isElectron() && (window as any).electronAPI?.selectFile) {
+    try {
+      return await (window as any).electronAPI.selectFile();
+    } catch (error) {
+      console.error("File dialog failed:", error);
+      return null;
+    }
   }
 
-  const handleSelectSigFile = async () => {
-    // Uses global electronAPI defined in your env.d.ts
-    const path = await window.electronAPI.selectFile();
-    if (path) setSignatureFile(path);
-  };
+  // Web browser file picker
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.pub,.pem,.key,.txt,.sig,gpg.asc';
+  input.style.display = 'none';
 
-  const connectWallet = async () => {
-    if (!window.ethereum) { alert("MetaMask is not installed. Please install it."); return; }
-    
+  return new Promise((resolve) => {
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      resolve(file ? file.name : null);
+    };
+    input.oncancel = () => resolve(null);
+    document.body.appendChild(input);
+    input.click();
+    document.body.removeChild(input);
+  });
+};
+
+export default function BlockchainArchivalCard({
+  variants,
+  product
+}: BlockchainProps) {
+  const [walletAddress, setWalletAddress] = useState("");
+  const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
+  const [isElectronApp, setIsElectronApp] = useState(false);
+
+  // File states
+  const [publicKeyLocalPath, setPublicKeyLocalPath] = useState("");
+  const [publicKeyIpfsPath, setPublicKeyIpfsPath] = useState(product.publicKeyFilePath || "");
+  const [signatureLocalPath, setSignatureLocalPath] = useState("");
+  const [signatureIpfsPath, setSignatureIpfsPath] = useState(product.signatureFilePath || "");
+
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [txHash, setTxHash] = useState("");
+  const [showModal, setShowModal] = useState(false);
+
+  // Detect environment
+  useEffect(() => {
+    setIsElectronApp(isElectron());
+  }, []);
+
+  const updateProductWithSignature = useCallback(async (signatureFilePath: string) => {
+    if (!product) return;
+
     try {
-      const browserProvider = new ethers.BrowserProvider(window.ethereum);
-      const accounts = await browserProvider.send("eth_requestAccounts", []);
-      
-      // Check and Switch Network to Hedera Testnet
-      const network = await browserProvider.getNetwork();
-      if (network.chainId !== BigInt(HEDERA_TESTNET_CONFIG.chainId)) {
-        try {
-          await window.ethereum.request({ 
-              method: "wallet_switchEthereumChain", 
-              params: [{ chainId: HEDERA_TESTNET_CONFIG.chainId }] 
-          });
-        } catch (switchError: any) {
-          // This error code 4902 means the chain has not been added to MetaMask.
-          if (switchError.code === 4902) {
-             await window.ethereum.request({ 
-                 method: "wallet_addEthereumChain", 
-                 params: [HEDERA_TESTNET_CONFIG] 
-             });
-          }
-        }
-      }
-      
-      setProvider(browserProvider);
-      setWalletAddress(accounts[0]);
-    } catch (e: any) { 
-        console.error("Wallet Connection Error:", e);
+      const updatedProduct: Partial<Product> = {
+        signatureFilePath,
+      };
+
+      await updateProduct(product.id, updatedProduct);
+      toast.success(`Signature saved: ${signatureFilePath.substring(0, 50)}...`, {
+        id: `signature-save-${product.id}`
+      });
+    } catch (error: any) {
+      console.error("Failed to update product:", error);
+      toast.error("Failed to save signature to product", {
+        id: `signature-save-error-${product.id}`
+      });
+    }
+  }, [product]);
+
+  const updateProductWithPublicKey = useCallback(async (publicKeyFilePath: string) => {
+    if (!product) return;
+
+    try {
+      const updatedProduct: Partial<Product> = {
+        publicKeyFilePath,
+      };
+
+      await updateProduct(product.id, updatedProduct);
+      toast.success(`Public key saved: ${publicKeyFilePath.substring(0, 50)}...`, {
+        id: `publickey-save-${product.id}`
+      });
+    } catch (error: any) {
+      console.error("Failed to update product:", error);
+      toast.error("Failed to save public key to product", {
+        id: `publickey-save-error-${product.id}`
+      });
+    }
+  }, [product]);
+
+  // File selection handlers
+  const handleSelectPublicKeyFile = async () => {
+    const path = await selectFileUniversal();
+    if (path) {
+      setPublicKeyLocalPath(path);
+      toast.success(`File selected`);
     }
   };
 
-  const uploadToBlockchain = async () => {
-    if (!walletAddress || !provider) return;
-    setShowBlockchainModal(true);
-    setIsUploading(true);
-    setTxHash("");
-    
+  const handleSelectSignatureFile = async () => {
+    const path = await selectFileUniversal();
+    if (path) {
+      setSignatureLocalPath(path);
+      toast.success(` File selected`);
+    }
+  };
+
+  // Upload to IPFS (Mock for now)
+  const handleUploadToIPFS = async (localPath: string, type: 'publickey' | 'signature') => {
+    if (!localPath) {
+      toast.error("Please select a file first");
+      return;
+    }
+
+    setIsProcessing(true);
     try {
-        const signer = await provider.getSigner();
-        
-        // Embed file path reference into the transaction data
-        // For a real immutable proof, you would typically hash the file content here using SHA-256
-        // e.g. "ProofOfExistence:<Hash>"
-        const fileDataHex = ethers.hexlify(ethers.toUtf8Bytes(`SigFile:${signatureFile}`));
-        
-        // Send 0 HBAR transaction to self with data
-        const tx = await signer.sendTransaction({
-            to: walletAddress, 
-            value: 0,
-            data: fileDataHex
-        });
-        
-        const receipt = await tx.wait();
-        setTxHash(receipt?.hash || "0xError");
-        setIsUploading(false);
+      const ipfsPath = await uploadToIPFS(localPath);
+
+      if (type === 'publickey') {
+        setPublicKeyIpfsPath(ipfsPath);
+      } else {
+        setSignatureIpfsPath(ipfsPath);
+      }
+
+      toast.success(`${type} uploaded to IPFS: ${ipfsPath.substring(0, 30)}...`);
     } catch (error: any) {
-        console.error("Transaction Failed", error);
-        setIsUploading(false);
-        setShowBlockchainModal(false);
-        alert("Transaction Failed: " + error.message);
+      toast.error(`IPFS upload failed: ${error.message}`);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Connect wallet
+  async function connectWallet() {
+    if (!(window as any).ethereum) {
+      toast.error("MetaMask not installed");
+      return;
+    }
+
+    try {
+      const accounts = await (window as any).ethereum.request({
+        method: "eth_requestAccounts",
+      });
+      setWalletAddress(accounts[0]);
+      toast.success(`Connected: ${accounts[0].slice(0, 6)}...${accounts[0].slice(-4)}`, {
+        id: "wallet-connected",
+        duration: 4000
+      });
+    } catch (err) {
+      toast.error("Wallet connection rejected");
+      console.error("[WALLET] Connection error:", err);
+    }
+  }
+
+  // Archive to blockchain + Save to DB
+  const archiveToBlockchain = async (fileType: 'publickey' | 'signature') => {
+    if (!walletAddress || !provider) {
+      toast.error("Please connect wallet first");
+      return;
+    }
+
+    const ipfsPath = fileType === 'publickey' ? publicKeyIpfsPath : signatureIpfsPath;
+    if (!ipfsPath) {
+      toast.error("Please upload file to IPFS first");
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      // 1. Update DB using YOUR exact functions
+      if (fileType === 'publickey') {
+        await updateProductWithPublicKey(ipfsPath);
+      } else {
+        await updateProductWithSignature(ipfsPath);
+      }
+
+      // 2. Archive to blockchain
+      const signer = await provider.getSigner();
+      const txData = `Product:${product.name}|${fileType}:${ipfsPath}`;
+
+      const tx = await signer.sendTransaction({
+        to: walletAddress,
+        value: 0,
+        data: ethers.hexlify(ethers.toUtf8Bytes(txData))
+      });
+
+      // ✅ FIX: Handle null receipt
+      const receipt = await tx.wait();
+      if (receipt) {
+        setTxHash(receipt.hash);
+        setShowModal(true);
+        toast.success(`✅ ${fileType} archived on Hedera! Tx: ${receipt.hash.slice(0, 10)}...`);
+      }
+    } catch (error: any) {
+      toast.error(`Archive failed: ${error.message}`);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   return (
-    <>
-      <motion.div variants={variants}>
-        <Paper sx={{ p: 3, borderLeft: "4px solid #ffc107", background: "linear-gradient(90deg, rgba(255, 193, 7, 0.05), transparent)" }}>
-          <Typography variant="h6" fontWeight={700} gutterBottom display="flex" alignItems="center" gap={1}>
-            <TokenIcon sx={{ color: "#ffc107" }} /> Blockchain Ledger Archival
-          </Typography>
+    <motion.div variants={variants}>
+      <Paper sx={{ p: 3, borderLeft: "4px solid #00e5ff", borderRadius: 1, mb: 3 }}>
+        <Typography variant="h6" fontWeight={700} gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <TokenIcon sx={{ color: "#00e5ff", fontSize: 24 }} />
+          Blockchain Archival
+        </Typography>
+
+        {/* Product Info */}
+        
           <Typography variant="body2" color="text.secondary" mb={3}>
-             Upload the generated signature hash to the Hedera network for immutable proof of existence.
+            Upload the generated signature hash to the Hedera network for immutable proof of existence.
           </Typography>
+        
 
-          <Stack spacing={3}>
-             {/* Wallet Connection Status */}
-             <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ p: 2, bgcolor: "rgba(255,193,7,0.05)", borderRadius: 1, border: "1px dashed rgba(255,193,7,0.3)" }}>
-                <Box display="flex" alignItems="center" gap={2}>
-                    <AccountBalanceWalletIcon sx={{ color: walletAddress ? "#69f0ae" : "text.secondary" }} />
-                    <Box>
-                        <Typography variant="subtitle2" color="white">{walletAddress ? "Wallet Connected" : "No Wallet Connected"}</Typography>
-                        <Typography variant="caption" color="text.secondary" fontFamily="monospace">{walletAddress || "Connect MetaMask to proceed"}</Typography>
-                    </Box>
-                </Box>
-                {!walletAddress && (
-                    <Button variant="outlined" onClick={connectWallet} sx={{ color: "#ffc107", borderColor: "#ffc107" }}>Connect Wallet</Button>
+        {/*  WALLET */}
+        <Paper sx={{ p: 3, mb: 4, bgcolor: "rgba(0,229,255,0.1)", border: "2px dashed #00e5ff" }}>
+          <Typography variant="h6" fontWeight={500} mb={2.5} color="#00e5ff" sx={{ fontFamily: 'monospace' }}>
+            Connect Wallet
+          </Typography>
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <AccountBalanceWalletIcon sx={{ fontSize: 32, color: walletAddress ? "#4caf50" : "#00e5ff" }} />
+              <Box>
+                <Typography fontWeight={600}>{walletAddress ? "✅ Connected" : "Connect MetaMask"}</Typography>
+                {walletAddress && (
+                  <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
+                    {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                  </Typography>
                 )}
-             </Stack>
-
-             {/* Upload Controls */}
-             <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-                <TextField 
-                    fullWidth label="Signature File" value={signatureFile} 
-                    InputProps={{ 
-                        readOnly: true, 
-                        endAdornment: (<InputAdornment position="end"><IconButton onClick={handleSelectSigFile}><FolderOpenIcon /></IconButton></InputAdornment>) 
-                    }} 
-                />
-                <Button 
-                    variant="contained" size="large" disabled={!walletAddress || !signatureFile} onClick={uploadToBlockchain}
-                    sx={{ bgcolor: "#ffc107", color: "black", fontWeight: "bold", minWidth: 200, "&:hover": { bgcolor: "#ffb300" } }}
-                    startIcon={<CloudUploadIcon />}
-                >
-                    Upload to Ledger
-                </Button>
-             </Stack>
+              </Box>
+            </Box>
+            <Button
+              variant="contained"
+              onClick={connectWallet}
+              disabled={!!walletAddress || isProcessing}
+              sx={{ bgcolor: "#00e5ff", color: "black", fontWeight: 700 }}
+            >
+              {walletAddress ? "Connected" : "Connect Wallet"}
+            </Button>
           </Stack>
         </Paper>
-      </motion.div>
 
-      {/* --- TRANSACTION MODAL --- */}
-      <Dialog 
-        open={showBlockchainModal} maxWidth="sm" fullWidth
-        PaperProps={{ sx: { bgcolor: "#050505", border: "1px solid #333", boxShadow: "0 0 80px rgba(255, 193, 7, 0.15)", borderRadius: 4 } }}
-      >
-        <DialogContent sx={{ p: 5, textAlign: "center", position: "relative", overflow: "hidden" }}>
-           <AnimatePresence mode="wait">
-             {isUploading ? (
-                <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}><BlockchainLoader /></motion.div>
-             ) : (
-                <motion.div key="success" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}>
-                    <Box sx={{ py: 2 }}>
-                        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 200, damping: 10 }}>
-                            <CheckCircleIcon sx={{ fontSize: 90, color: "#69f0ae", mb: 3 }} />
-                        </motion.div>
-                        <Typography variant="h5" color="white" fontWeight="bold" gutterBottom>Transaction Confirmed</Typography>
-                        <Typography color="text.secondary" sx={{ mb: 4 }}>The signature has been successfully mined on Hedera.</Typography>
-                        
-                        <Paper sx={{ p: 2, bgcolor: "#111", border: "1px solid #333", mb: 4, textAlign: "left" }}>
-                            <Typography variant="caption" color="text.secondary" display="block" mb={1}>TRANSACTION HASH</Typography>
-                            <Stack direction="row" alignItems="center" justifyContent="space-between">
-                                <Typography variant="body2" color="#ffc107" fontFamily="monospace" sx={{ wordBreak: "break-all" }}>{txHash}</Typography>
-                                <Tooltip title="View on HashScan">
-                                    <IconButton size="small" sx={{ color: "white" }} href={`https://hashscan.io/testnet/transaction/${txHash}`} target="_blank">
-                                        <LinkIcon fontSize="small" />
-                                    </IconButton>
-                                </Tooltip>
-                            </Stack>
-                        </Paper>
-                        <Button variant="outlined" color="inherit" onClick={() => setShowBlockchainModal(false)} fullWidth>Close Receipt</Button>
-                    </Box>
-                </motion.div>
-             )}
-           </AnimatePresence>
+        {/* 2. PUBLIC KEY */}
+        <Paper sx={{ p: 3, mb: 4,  bgcolor: "rgba(0,229,255,0.1)" }}>
+          <Typography variant="h6" fontWeight={500} mb={2.5} color="#00e5ff" sx={{ fontFamily: 'monospace' }}>
+            🔑 Public Key
+          </Typography>
+          {/* Existing Path */}
+          {product.publicKeyFilePath && (
+            <Chip label="Existing Path" color="success" size="small" sx={{ mb: 2 }} />
+          )}
+
+          {/* File Select Row */}
+          <Stack direction="row" spacing={2} sx={{ mb: 3, alignItems: 'center' }}>
+            <TextField
+              sx={{ flex: 1 }}
+              label="Select File"
+              value={publicKeyLocalPath}
+              InputProps={{
+                readOnly: true,
+                endAdornment: (
+                  <IconButton onClick={handleSelectPublicKeyFile} disabled={isProcessing}>
+                    <FolderOpenIcon />
+                  </IconButton>
+                )
+              }}
+            />
+            <Button
+              variant="outlined"
+              onClick={() => handleUploadToIPFS(publicKeyLocalPath, 'publickey')}
+              disabled={!publicKeyLocalPath || isProcessing}
+              startIcon={<CloudUploadIcon />}
+              sx={{ minWidth: 180 }}
+            >
+              IPFS Upload
+            </Button>
+          </Stack>
+
+          {/* IPFS Path + Archive Row */}
+          <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+            <TextField
+              sx={{ flex: 1 }}
+              label="IPFS Path"
+              value={publicKeyIpfsPath}
+              InputProps={{
+                readOnly: true,
+                endAdornment: publicKeyIpfsPath && (
+                  <IconButton onClick={() => navigator.clipboard.writeText(publicKeyIpfsPath || '')}>
+                    <ContentCopyIcon />
+                  </IconButton>
+                )
+              }}
+            />
+            <Button
+              variant="contained"
+              onClick={() => archiveToBlockchain('publickey')}
+              disabled={!publicKeyIpfsPath || !walletAddress || isProcessing}
+              sx={{ bgcolor: "#4caf50", color: "black", minWidth: 180 }}
+            >
+              Blockchain Archive
+            </Button>
+          </Stack>
+        </Paper>
+
+        {/* 3. SIGNATURE */}
+        <Paper sx={{ p: 3, bgcolor: "rgba(0,229,255,0.1)" }}>
+          <Typography variant="h6" fontWeight={500} mb={2.5} color="#00e5ff" sx={{ fontFamily: 'monospace' }}>
+            🔐 Signature File
+          </Typography>
+
+          {/* Existing Path */}
+          {product.signatureFilePath && (
+            <Chip label="Existing Path" color="success" size="small" sx={{ mb: 2 }} />
+          )}
+
+          {/* File Select Row */}
+          <Stack direction="row" spacing={2} sx={{ mb: 3, alignItems: 'center' }}>
+            <TextField
+              sx={{ flex: 1 }}
+              label="Select File"
+              value={signatureLocalPath}
+              InputProps={{
+                readOnly: true,
+                endAdornment: (
+                  <IconButton onClick={handleSelectSignatureFile} disabled={isProcessing}>
+                    <FolderOpenIcon />
+                  </IconButton>
+                )
+              }}
+            />
+            <Button
+              variant="outlined"
+              onClick={() => handleUploadToIPFS(signatureLocalPath, 'signature')}
+              disabled={!signatureLocalPath || isProcessing}
+              startIcon={<CloudUploadIcon />}
+              sx={{ minWidth: 180 }}
+            >
+              IPFS Upload
+            </Button>
+          </Stack>
+
+          {/* IPFS Path + Archive Row */}
+          <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+            <TextField
+              sx={{ flex: 1 }}
+              label="IPFS Path"
+              value={signatureIpfsPath}
+              InputProps={{
+                readOnly: true,
+                endAdornment: signatureIpfsPath && (
+                  <IconButton onClick={() => navigator.clipboard.writeText(signatureIpfsPath || '')}>
+                    <ContentCopyIcon />
+                  </IconButton>
+                )
+              }}
+            />
+            <Button
+              variant="contained"
+              onClick={() => archiveToBlockchain('signature')}
+              disabled={!signatureIpfsPath || !walletAddress || isProcessing}
+              sx={{ bgcolor: "#00e5ff", color: "black", minWidth: 180 }}
+            >
+              Blockchain Archive
+            </Button>
+          </Stack>
+        </Paper>
+      </Paper>
+
+      {/* Success Modal */}
+      <Dialog open={showModal} maxWidth="sm" fullWidth>
+        <DialogContent sx={{ p: 4, textAlign: 'center' }}>
+          <CheckCircleIcon sx={{ fontSize: 80, color: '#4caf50', mb: 2 }} />
+          <Typography variant="h5" gutterBottom fontWeight={700}>
+            Successfully Archived!
+          </Typography>
+          <Typography sx={{ mb: 3, fontFamily: 'monospace', wordBreak: 'break-all' }}>
+            {txHash}
+          </Typography>
+          <IconButton
+            href={`https://hashscan.io/testnet/transaction/${txHash}`}
+            target="_blank"
+            sx={{ mr: 2 }}
+          >
+            <LinkIcon />
+          </IconButton>
+          <Button variant="contained" onClick={() => setShowModal(false)}>
+            Close
+          </Button>
         </DialogContent>
       </Dialog>
-    </>
+    </motion.div>
   );
 }
