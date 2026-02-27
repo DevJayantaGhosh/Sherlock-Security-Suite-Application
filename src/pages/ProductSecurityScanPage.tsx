@@ -333,8 +333,9 @@ export default function ProductSecurityScanPage() {
                   repoDetails={repo}
                   // Pass the update handler to bubble up changes
                   onRepoUpdate={(updatedRepo) => handleRepoUpdate(idx, updatedRepo)}
-                  disabled={!isAuthorized || saving || product.status!=="Pending"}
-                />
+                  disabled={!isAuthorized || saving || product.status !== "Pending"} 
+                  isQuickScan={false} 
+                  githubToken={""}                />
                 {idx < product.repos.length - 1 && (
                   <Divider sx={{ 
                     my: 3, 

@@ -40,17 +40,21 @@ export default function RepoScanAccordion({
   product,
   repoDetails,
   onRepoUpdate,
-  disabled = false 
+  disabled = false ,
+  isQuickScan= false,
+  githubToken="",
 }: {
   product: Product;
   repoDetails: RepoDetails;
-  onRepoUpdate?: (updatedRepo: RepoDetails) => void;
-  disabled?:boolean;
+  onRepoUpdate: (updatedRepo: RepoDetails) => void;
+  disabled :boolean;
+  isQuickScan: boolean; 
+  githubToken: string
 }) {
   const user = useUserStore((s) => s.user);
   const isAuthorized = authorizeApprove(user, product);
 
-  const shouldEnableButtons = isAuthorized && !disabled; 
+  const shouldEnableButtons = isQuickScan || (isAuthorized && !disabled);
 
   const handleScanUpdate = (
     activity: keyof RepoScanResults, 
@@ -77,21 +81,29 @@ export default function RepoScanAccordion({
       <GPGVerificationPanel
         repoDetails={repoDetails}
         isAuthorized={shouldEnableButtons}
+        isQuickScan={isQuickScan}
+        githubToken={githubToken}
         onScanComplete={(res) => handleScanUpdate('signatureVerification', res)}
       />
       <GitleaksPanel
         repoDetails={repoDetails}
         isAuthorized={shouldEnableButtons}
+        isQuickScan={isQuickScan}
+        githubToken={githubToken}
         onScanComplete={(res) => handleScanUpdate('secretLeakDetection', res)}
       />
       <TrivyPanel
         repoDetails={repoDetails}
         isAuthorized={shouldEnableButtons}
+        isQuickScan={isQuickScan}
+        githubToken={githubToken}
         onScanComplete={(res) => handleScanUpdate('vulnerabilityScan', res)}
       />
       <OpenGrepPanel 
         repoDetails={repoDetails}
         isAuthorized={shouldEnableButtons}
+        isQuickScan={isQuickScan}
+         githubToken={githubToken}
         onScanComplete={(res) => handleScanUpdate('staticAnalysis', res)}
       />
     </Stack>
@@ -104,10 +116,14 @@ export default function RepoScanAccordion({
 function GPGVerificationPanel({
   repoDetails,
   isAuthorized,
+  isQuickScan, 
+  githubToken,
   onScanComplete 
 }: {
   repoDetails: RepoDetails;
   isAuthorized: boolean;
+  isQuickScan: boolean;
+  githubToken: string;
   onScanComplete: (result: SignatureVerificationResult) => void;
 }) {
   const logEndRef = useRef<HTMLDivElement>(null);
@@ -214,6 +230,8 @@ function GPGVerificationPanel({
       const result = await window.electronAPI.verifyGPG({
         repoUrl: repoDetails.repoUrl,
         branch: repoDetails.branch,
+        isQuickScan: isQuickScan,
+        githubToken: githubToken,
         scanId,
       });
 
@@ -620,10 +638,14 @@ function GPGVerificationPanel({
 function GitleaksPanel({
   repoDetails,
   isAuthorized,
+  isQuickScan, 
+  githubToken,
   onScanComplete
 }: {
   repoDetails: RepoDetails;
   isAuthorized: boolean;
+  isQuickScan: boolean;
+  githubToken: string;
   onScanComplete?: (result: SecretLeakDetectionResult) => void;
 }) {
   const logEndRef = useRef<HTMLDivElement>(null);
@@ -731,6 +753,8 @@ function GitleaksPanel({
       const result = await window.electronAPI.runGitleaks({
         repoUrl: repoDetails.repoUrl,
         branch: repoDetails.branch,
+        isQuickScan: isQuickScan,
+        githubToken: githubToken,
         scanId,
       });
 
@@ -1129,10 +1153,14 @@ function GitleaksPanel({
 function TrivyPanel({
   repoDetails,
   isAuthorized,
+  isQuickScan, 
+  githubToken,
   onScanComplete 
 }: {
   repoDetails: RepoDetails;
   isAuthorized: boolean;
+  isQuickScan: boolean;
+  githubToken: string;
   onScanComplete?: (result: VulnerabilityScanResult) => void;
 }) {
   const logEndRef = useRef<HTMLDivElement>(null);
@@ -1241,6 +1269,8 @@ function TrivyPanel({
       const result = await window.electronAPI.runTrivy({
         repoUrl: repoDetails.repoUrl,
         branch: repoDetails.branch,
+        isQuickScan: isQuickScan,
+        githubToken : githubToken,
         scanId,
       });
 
@@ -1639,10 +1669,14 @@ function TrivyPanel({
 function OpenGrepPanel({
   repoDetails,
   isAuthorized,
+  isQuickScan, 
+  githubToken,
   onScanComplete
 }: {
   repoDetails: RepoDetails;
   isAuthorized: boolean;
+  isQuickScan: boolean;
+  githubToken: string;
   onScanComplete?: (result: StaticAnalysisResult) => void;
 }) {
   const logEndRef = useRef<HTMLDivElement>(null);
@@ -1756,6 +1790,8 @@ function OpenGrepPanel({
       const result = await window.electronAPI.runOpenGrep({
         repoUrl: repoDetails.repoUrl,
         branch: repoDetails.branch,
+        isQuickScan: isQuickScan,
+        githubToken: githubToken,
         scanId,
       });
 

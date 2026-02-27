@@ -3997,10 +3997,25 @@ function killProcess(child, processId) {
     }
   }
 }
+const getRepoPath = async (event, repoUrl, branch, isQuickScan, githubToken, scanId) => {
+  if (isQuickScan && repoUrl && repoUrl.trim() && !repoUrl.startsWith("http")) {
+    const cleanPath = repoUrl.trim();
+    if (fsSync.existsSync(cleanPath)) {
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `
+📁 Using local repo: ${cleanPath} (branch: ${branch})
+`,
+        progress: 10
+      });
+      return cleanPath;
+    }
+  }
+  return await cloneRepository(event, repoUrl, branch, isQuickScan, githubToken, scanId);
+};
 function getGitHubToken() {
   return process.env.GITHUB_PAT || null;
 }
-async function cloneRepository(event, repoUrl, branch, scanId) {
+async function cloneRepository(event, repoUrl, branch, isQuickScan, githubToken, scanId) {
   const cacheKey = `${repoUrl}:${branch}`;
   if (repoCache.has(cacheKey)) {
     const cachedPath = repoCache.get(cacheKey);
@@ -4035,7 +4050,10 @@ Branch: ${branch}
 `,
     progress: 10
   });
-  const token = getGitHubToken();
+  let token = getGitHubToken();
+  if (isQuickScan && githubToken) {
+    token = githubToken;
+  }
   let cloneUrl = repoUrl;
   if (token && !repoUrl.includes("x-access-token")) {
     cloneUrl = repoUrl.replace("https://", `https://x-access-token:${token}@`);
@@ -4389,15 +4407,15 @@ ${"═".repeat(60)}
   }
 }
 function registerIPC() {
-  ipcMain.handle("scan:verify-gpg", async (event, { repoUrl, branch, scanId }) => {
+  ipcMain.handle("scan:verify-gpg", async (event, { repoUrl, branch, isQuickScan, githubToken, scanId }) => {
     debugLog(`[GPG] Starting verification for ${repoUrl} on branch ${branch}`);
-    const repoPath = await cloneRepository(event, repoUrl, branch, scanId);
+    const repoPath = await getRepoPath(event, repoUrl, branch, isQuickScan, githubToken, scanId);
     if (!repoPath) {
       event.sender.send(`scan-complete:${scanId}`, {
         success: false,
-        error: "Clone failed"
+        error: "Repository preparation failed"
       });
-      return { success: false, error: "Clone failed" };
+      return { success: false, error: "Repository preparation failed" };
     }
     return new Promise((resolve) => {
       event.sender.send(`scan-log:${scanId}`, {
@@ -4531,7 +4549,7 @@ ${"═".repeat(79)}
       });
     });
   });
-  ipcMain.handle("scan:gitleaks", async (event, { repoUrl, branch, scanId }) => {
+  ipcMain.handle("scan:gitleaks", async (event, { repoUrl, branch, isQuickScan, githubToken, scanId }) => {
     debugLog(`[GITLEAKS] Starting scan for ${repoUrl}`);
     const gitleaksPath = validateTool("gitleaks");
     if (!gitleaksPath) {
@@ -4549,13 +4567,13 @@ ${"═".repeat(79)}
       });
       return { success: false, error: "Tool not found" };
     }
-    const repoPath = await cloneRepository(event, repoUrl, branch, scanId);
+    const repoPath = await getRepoPath(event, repoUrl, branch, isQuickScan, githubToken, scanId);
     if (!repoPath) {
       event.sender.send(`scan-complete:${scanId}`, {
         success: false,
-        error: "Clone failed"
+        error: "Repository preparation failed"
       });
-      return { success: false, error: "Clone failed" };
+      return { success: false, error: "Repository preparation failed" };
     }
     const reportPath = path.join(repoPath, "gitleaks-report.json");
     return new Promise((resolve) => {
@@ -4731,7 +4749,7 @@ ${"═".repeat(79)}
     });
     return report;
   }
-  ipcMain.handle("scan:trivy", async (event, { repoUrl, branch, scanId }) => {
+  ipcMain.handle("scan:trivy", async (event, { repoUrl, branch, isQuickScan, githubToken, scanId }) => {
     debugLog(`[TRIVY] Starting SBOM scan for ${repoUrl}`);
     const trivyPath = validateTool("trivy");
     if (!trivyPath) {
@@ -4749,13 +4767,13 @@ ${"═".repeat(79)}
       });
       return { success: false, error: "Tool not found" };
     }
-    const repoPath = await cloneRepository(event, repoUrl, branch, scanId);
+    const repoPath = await getRepoPath(event, repoUrl, branch, isQuickScan, githubToken, scanId);
     if (!repoPath) {
       event.sender.send(`scan-complete:${scanId}`, {
         success: false,
-        error: "Clone failed"
+        error: "Repository preparation failed"
       });
-      return { success: false, error: "Clone failed" };
+      return { success: false, error: "Repository preparation failed" };
     }
     return new Promise((resolve) => {
       event.sender.send(`scan-log:${scanId}`, {
@@ -4879,7 +4897,7 @@ ${"═".repeat(79)}
       });
     });
   });
-  ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, scanId }) => {
+  ipcMain.handle("scan:opengrep", async (event, { repoUrl, branch, isQuickScan, githubToken, scanId }) => {
     debugLog(`[OPENGREP] Starting multi-language SAST analysis for ${repoUrl}`);
     const opengrepPath = validateTool("opengrep");
     if (!opengrepPath) {
@@ -4894,10 +4912,13 @@ ${"═".repeat(79)}
       event.sender.send(`scan-complete:${scanId}`, { success: false, error: "Tool not found" });
       return { success: false, error: "Tool not found" };
     }
-    const repoPath = await cloneRepository(event, repoUrl, branch, scanId);
+    const repoPath = await getRepoPath(event, repoUrl, branch, isQuickScan, githubToken, scanId);
     if (!repoPath) {
-      event.sender.send(`scan-complete:${scanId}`, { success: false, error: "Clone failed" });
-      return { success: false, error: "Clone failed" };
+      event.sender.send(`scan-complete:${scanId}`, {
+        success: false,
+        error: "Repository preparation failed"
+      });
+      return { success: false, error: "Repository preparation failed" };
     }
     return new Promise((resolve) => {
       event.sender.send(`scan-log:${scanId}`, {
@@ -5485,7 +5506,7 @@ ${"═".repeat(70)}`;
       });
     });
   });
-  ipcMain.handle("crypto:sign-artifact", async (event, { repoUrl, branch, privateKeyPath, password, scanId }) => {
+  ipcMain.handle("crypto:sign-artifact", async (event, { repoUrl, branch, privateKeyPath, password, isQuickScan, githubToken, scanId }) => {
     const exePath = validateTool("SoftwareSigner");
     if (!exePath) {
       event.sender.send(`scan-log:${scanId}`, {
@@ -5497,10 +5518,13 @@ Expected at: ${toolPath("SoftwareSigner")}
       });
       return { success: false, error: "Tool not found" };
     }
-    const repoPath = await cloneRepository(event, repoUrl, branch, scanId);
+    const repoPath = await getRepoPath(event, repoUrl, branch, isQuickScan, githubToken, scanId);
     if (!repoPath) {
-      event.sender.send(`scan-complete:${scanId}`, { success: false, error: "Clone Failed" });
-      return { success: false, error: "Clone Failed" };
+      event.sender.send(`scan-complete:${scanId}`, {
+        success: false,
+        error: "Repository preparation failed"
+      });
+      return { success: false, error: "Repository preparation failed" };
     }
     return new Promise((resolve) => {
       event.sender.send(`scan-log:${scanId}`, {
