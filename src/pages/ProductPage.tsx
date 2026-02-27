@@ -73,66 +73,73 @@ export default function ProductPage() {
   const [confirmTitle, setConfirmTitle] = useState("");
   const [confirmDesc, setConfirmDesc] = useState("");
 
-  /**
-   * ═══════════════════════════════════════════════════════════════════════════════
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════
    *  LOAD PRODUCTS 
-   * ═══════════════════════════════════════════════════════════════════════════════
-   */
-  const loadProducts = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    setIsBackendError(false);
+ * ═══════════════════════════════════════════════════════════════════════════════
+ */
+const [backendErrorShown, setBackendErrorShown] = useState(false); // 🔥 NEW STATE
 
-    try {
-      if (isLicensedUser) {
-        const result = await getProductsPaginated(backendPage, PAGE_SIZE);
-        if (!result.error) {
-          setProductsData(result.data);
-          //SILENT LOAD - No toast on initial/pagination
-        } else {
-          handleApiError(result.error);
-        }
+const loadProducts = useCallback(async () => {
+  setLoading(true);
+  setError(null);
+
+  try {
+    if (isLicensedUser) {
+      const result = await getProductsPaginated(backendPage, PAGE_SIZE);
+      if (!result.error) {
+        setProductsData(result.data);
+        setIsBackendError(false);
+        setBackendErrorShown(false); // Reset on success
       } else {
-        const result = await getOpenSourceProductsPaginated(backendPage, PAGE_SIZE);
-        if (!result.error) {
-          setProductsData(result.data);
-          // SILENT LOAD - No toast on initial/pagination
-        } else {
-          handleApiError(result.error);
-        }
+        handleApiError(result.error);
       }
-    } catch (error: any) {
-      console.error("Load products error:", error);
+    } else {
+      const result = await getOpenSourceProductsPaginated(backendPage, PAGE_SIZE);
+      if (!result.error) {
+        setProductsData(result.data);
+        setIsBackendError(false);
+        setBackendErrorShown(false); //  Reset on success
+      } else {
+        handleApiError(result.error);
+      }
+    }
+  } catch (error: any) {
+    console.error("Load products error:", error);
       const errorMsg = error.message || "Failed to load products";
       setError(errorMsg);
       toast.error(errorMsg);
-    } finally {
-      setLoading(false);
-    }
-  }, [isLicensedUser, backendPage]);
+  } finally {
+    setLoading(false);
+  }
+}, [isLicensedUser, backendPage]);
 
-  // Error handler
-  const handleApiError = (apiError: any) => {
-    const errorMsg = apiError.message || "Unknown error";
+// Error handler
+const handleApiError = (apiError: any) => {
+  const errorMsg = apiError.message || "Unknown error";
 
-    if (
-      errorMsg.includes("ERR_CONNECTION_REFUSED") ||
-      errorMsg.includes("Network Error") ||
+  if (
+    errorMsg.includes("ERR_CONNECTION_REFUSED") ||
+    errorMsg.includes("Network Error") ||
       apiError.status === 0
-    ) {
+  ) {
+    if (!backendErrorShown) { 
       setIsBackendError(true);
+      setBackendErrorShown(true);
       toast("🔌 Backend offline", {
-        duration: 5000,
+        duration: 6000,
+        id: "backend-offline", // UNIQUE ID - prevents duplicates
         style: {
           background: "#fff3cd",
           color: "#856404",
         },
       });
-    } else {
-      setError(errorMsg);
-      toast.error(errorMsg);
     }
-  };
+  } else {
+    setError(errorMsg);
+    toast.error(errorMsg, { id: "general-error" }); // UNIQUE ID
+  }
+};
 
 
   // Initial load - runs ONCE on mount only
@@ -140,23 +147,24 @@ export default function ProductPage() {
     loadProducts();
   }, []); // Empty deps = ONCE only
 
-  // Pagination + licensed user changes
+    // Pagination + licensed user changes
   useEffect(() => {
     loadProducts();
-  }, [isLicensedUser, backendPage]); //  Only when these change
+  }, [ backendPage]); //  Only when these change
 
   // Refresh WITH toast
-  const handleRefresh = useCallback(() => {
-    setBackendPage(0);
-    loadProducts();
-  }, [loadProducts]);
+const handleRefresh = useCallback(() => {
+  setBackendPage(0);
+  setBackendErrorShown(false); // Reset toast guard
+  loadProducts();
+}, [loadProducts]);
 
   // Retry
-  const handleRetry = () => {
-    setError(null);
-    setIsBackendError(false);
-    loadProducts();
-  };
+const handleRetry = () => {
+  setError(null);
+  setIsBackendError(false);
+  loadProducts();
+};
 
   /**
    * ═══════════════════════════════════════════════════════════════════════════════
