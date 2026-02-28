@@ -6,6 +6,7 @@ export type ProductStatus =
   | "Pending"
   | "Approved"
   | "Rejected"
+  | "Signed"
   | "Released";
 
 export type ScanStatus = "idle" | "running" | "success" | "failed";

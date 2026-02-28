@@ -239,13 +239,6 @@ let productDB: Product[] = [
 /* ======================================================
    RBAC FUNCTIONS (UNCHANGED)
 ====================================================== */
-export function authorizeApprove(user: AppUser | null, product: Product): boolean {
-  if (!user) return false;
-  if (user.role === "Admin") return true;
-  if (user.role === "SecurityHead") return product.securityHead === user.email;
-  return false;
-}
-
 export function authorizeCreate(user: AppUser | null): boolean {
   if (!user) return false;
   return user.role === "Admin" || user.role === "ProjectDirector";
@@ -260,6 +253,34 @@ export function authorizeEdit(user: AppUser | null, product: Product): boolean {
   return false;
 }
 
+export function authorizeDelete(user: AppUser | null, product: Product): boolean {
+  console.log((user))
+  if (!user) return false;
+  if (product.status !== "Pending") return false;
+  if (user.role === "Admin") return true;
+  if (user.role === "ProjectDirector") return product.createdBy === user.email;
+  return false;
+}
+
+
+
+// Perform Security Scan & Approve or Reject
+export function authorizeApprove(user: AppUser | null, product: Product): boolean {
+  if (!user) return false;
+  if (user.role === "Admin") return true;
+  if (user.role === "SecurityHead") return product.securityHead === user.email;
+  return false;
+}
+
+// Assigned Release Engineer can Sign & Release
+export function authorizeToSign(user: AppUser | null, product: Product): boolean {
+  if (!user) return false;
+  if (user.role === "Admin") return true;
+  return (
+    user.role === "ReleaseEngineer" &&
+    product.releaseEngineers.includes(user.email)
+  );
+}
 export function authorizeRelease(user: AppUser | null, product: Product): boolean {
   if (!user) return false;
   if (user.role === "Admin") return true;
