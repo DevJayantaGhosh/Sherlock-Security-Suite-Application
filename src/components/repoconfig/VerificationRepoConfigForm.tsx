@@ -10,6 +10,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import SecurityIcon from '@mui/icons-material/Security';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import LinkIcon from '@mui/icons-material/Link';
+import SearchIcon from '@mui/icons-material/Search';
 
 export interface VerificationRepoDetails {
   repoUrl: string;
@@ -27,14 +28,14 @@ interface VerificationRepoConfigProps {
 }
 
 const PAGE_CONFIG = {
-  verify: { 
-    color: '#4caf50', 
-    shadow: 'rgba(76,175,80,0.5)', 
+  verify: {
+    color: '#4caf50',
+    shadow: 'rgba(76,175,80,0.5)',
     nameColor: '#4caf50'
   },
-  default: { 
-    color: '#4caf50', 
-    shadow: 'rgba(76,175,80,0.5)', 
+  default: {
+    color: '#4caf50',
+    shadow: 'rgba(76,175,80,0.5)',
     nameColor: '#4caf50'
   }
 } as const;
@@ -91,7 +92,7 @@ export default function VerificationRepoConfigForm({
     return Boolean(standaloneAuth.githubToken.trim());
   };
 
-  const isFormReady = (activeTab === 0 
+  const isFormReady = (activeTab === 0
     ? (isValidUrl() && isValidReleaseTag() && validateStandaloneAuth())
     : isValidLocalPath()
   );
@@ -101,14 +102,14 @@ export default function VerificationRepoConfigForm({
       toast.error("Reset first to change configuration");
       return;
     }
-    
+
     if (activeTab !== newValue) {
       setRepoUrl("");
       setLocalRepoPath("");
       setReleaseTag("");
       setStandaloneAuth({ isPrivate: false, githubToken: "" });
     }
-    
+
     setActiveTab(newValue);
   };
 
@@ -117,13 +118,13 @@ export default function VerificationRepoConfigForm({
       toast.error("Folder picker available only in desktop app");
       return;
     }
-    
+
     try {
       if (isLoading || !window.electronAPI?.selectFolder) {
         toast.error("Folder picker temporarily unavailable");
         return;
       }
-      
+
       const path = await window.electronAPI.selectFolder();
       if (path) {
         setLocalRepoPath(path);
@@ -166,10 +167,10 @@ export default function VerificationRepoConfigForm({
         readOnly: false,
         endAdornment: isElectronMode && !isLoading && !isConfigured ? (
           <InputAdornment position="end">
-            <IconButton 
-              onClick={handleSelectFolder} 
-              size="small" 
-              edge="end" 
+            <IconButton
+              onClick={handleSelectFolder}
+              size="small"
+              edge="end"
               sx={{ mr: 0.5 }}
             >
               <FolderOpenIcon />
@@ -184,8 +185,9 @@ export default function VerificationRepoConfigForm({
     <Paper sx={{ p: 3, borderLeft: `4px solid ${theme.color}`, borderRadius: 1 }}>
       <Stack spacing={2.5}>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Typography variant="h6" fontWeight={700} sx={{ color: theme.color }}>
-            🔍 Verification Target
+          <Typography variant="h6" fontWeight={700} sx={{ color: theme.color, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <SearchIcon sx={{ fontSize: 24 }} />
+            Verification Target
           </Typography>
           {isConfigured && (
             <Chip label="CONFIGURED" color="success" size="small" sx={{ fontWeight: 600 }} />
@@ -193,14 +195,14 @@ export default function VerificationRepoConfigForm({
         </Stack>
 
         <Tabs value={activeTab} onChange={handleTabChange} sx={{ mb: 3 }}>
-          <Tab 
-            label="GitHub Repository" 
+          <Tab
+            label="GitHub Repository"
             icon={<LinkIcon />}
-            iconPosition="start" 
+            iconPosition="start"
             disabled={isConfigured}
           />
           {isElectronMode && (
-            <Tab 
+            <Tab
               label="Local Repository"
               icon={<FolderOpenIcon />}
               iconPosition="start"
@@ -211,8 +213,8 @@ export default function VerificationRepoConfigForm({
 
         {/* GitHub Tab */}
         {activeTab === 0 && (
-          <Paper sx={{ 
-            p: 3, 
+          <Paper sx={{
+            p: 3,
             bgcolor: "rgba(76, 175, 80, 0.03)",
             border: `2px solid ${theme.color}`,
             borderRadius: 3,
@@ -222,7 +224,7 @@ export default function VerificationRepoConfigForm({
               <Typography variant="body2" fontWeight={700} sx={{ color: theme.color }}>
                 🌐 GitHub Repository & Version (Release Tag)
               </Typography>
-              
+
               <Box sx={{ display: "grid", gridTemplateColumns: "1fr 160px", gap: 2 }}>
                 <TextField
                   label="Repository URL *"
@@ -247,8 +249,8 @@ export default function VerificationRepoConfigForm({
               </Box>
 
               <Box sx={{ display: "flex", alignItems: "center" }}>
-                <Switch 
-                  checked={standaloneAuth.isPrivate} 
+                <Switch
+                  checked={standaloneAuth.isPrivate}
                   onChange={(e) => setStandaloneAuth({
                     ...standaloneAuth,
                     isPrivate: e.target.checked
@@ -268,11 +270,11 @@ export default function VerificationRepoConfigForm({
 
               {standaloneAuth.isPrivate && (
                 <Collapse in={standaloneAuth.isPrivate} timeout={200}>
-                  <Paper sx={{ 
-                    p: 2.5, 
-                    bgcolor: "rgba(76,175,80,0.08)", 
+                  <Paper sx={{
+                    p: 2.5,
+                    bgcolor: "rgba(76,175,80,0.08)",
                     border: "1px solid rgba(76,175,80,0.3)",
-                    borderRadius: 2 
+                    borderRadius: 2
                   }}>
                     <Typography variant="body2" fontWeight={600} mb={2} sx={{ color: theme.color }}>
                       🔐 GitHub Token Required
@@ -280,9 +282,9 @@ export default function VerificationRepoConfigForm({
                     <TextField
                       label="GitHub Personal Access Token"
                       value={standaloneAuth.githubToken}
-                      onChange={(e) => setStandaloneAuth({ 
-                        ...standaloneAuth, 
-                        githubToken: e.target.value 
+                      onChange={(e) => setStandaloneAuth({
+                        ...standaloneAuth,
+                        githubToken: e.target.value
                       })}
                       type="password"
                       size="small"
@@ -295,8 +297,8 @@ export default function VerificationRepoConfigForm({
                       }
                       disabled={isLoading || isConfigured}
                       fullWidth
-                      InputProps={{ 
-                        startAdornment: <InputAdornment position="start">🔑</InputAdornment> 
+                      InputProps={{
+                        startAdornment: <InputAdornment position="start">🔑</InputAdornment>
                       }}
                     />
                   </Paper>
@@ -308,8 +310,8 @@ export default function VerificationRepoConfigForm({
 
         {/* Local Tab - No Release Tag */}
         {activeTab === 1 && (
-          <Paper sx={{ 
-            p: 3, 
+          <Paper sx={{
+            p: 3,
             bgcolor: "rgba(76, 175, 80, 0.04)",
             border: `2px solid ${theme.color}`,
             borderRadius: 3,
@@ -318,11 +320,11 @@ export default function VerificationRepoConfigForm({
             <Typography variant="body2" fontWeight={700} mb={2} sx={{ color: theme.color }}>
               📁 Local Repository Only
             </Typography>
-            
+
             <Box sx={{ mb: 2 }}>
               <FolderPicker />
             </Box>
-            
+
           </Paper>
         )}
 
@@ -340,9 +342,9 @@ export default function VerificationRepoConfigForm({
             onClick={handleConfigureRepo}
             disabled={!isFormReady || isLoading || isConfigured}
             startIcon={<SecurityIcon />}
-            sx={{ 
-              minWidth: 220, 
-              height: 42, 
+            sx={{
+              minWidth: 220,
+              height: 42,
               fontWeight: 600,
               backgroundColor: theme.color,
               '&:hover': { backgroundColor: theme.shadow }
@@ -366,9 +368,9 @@ export default function VerificationRepoConfigForm({
             onClick={onReset}
             disabled={isLoading}
             startIcon={<RefreshIcon />}
-            sx={{ 
-              minWidth: 100, 
-              height: 42, 
+            sx={{
+              minWidth: 100,
+              height: 42,
               fontWeight: 600,
               borderColor: theme.color,
               color: theme.color,

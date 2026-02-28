@@ -6,6 +6,7 @@ import {
   TextField,
   MenuItem,
   Stack,
+  InputAdornment,
 } from "@mui/material";
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
@@ -29,6 +30,7 @@ import { useUserStore } from "../store/userStore";
 
 import AddIcon from "@mui/icons-material/Add";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import SearchIcon from '@mui/icons-material/Search';
 
 const PAGE_SIZE = 6;
 
@@ -316,7 +318,7 @@ const handleRetry = () => {
       <Container maxWidth="xl">
         {/* HEADER */}
         <Typography variant="h4" textAlign="center" fontWeight={800} mb={3}>
-          Product Dashboard
+          Product Distribution Pipeline
           {isLicensedUser && (
             <Typography variant="body2" color="text.secondary" mt={1}>
               (All Products)
@@ -345,23 +347,31 @@ const handleRetry = () => {
             onChange={(e) => setFilter(e.target.value as any)}
           >
             <MenuItem value="All">All Status</MenuItem>
-            <MenuItem value="Pending">⏳ Pending</MenuItem>
-            <MenuItem value="Approved"> Approved</MenuItem>
-            <MenuItem value="Rejected">❌ Rejected</MenuItem>
-            <MenuItem value="Released">🚀 Released</MenuItem>
+            <MenuItem value="Pending">Pending</MenuItem>
+            <MenuItem value="Approved">Approved</MenuItem>
+            <MenuItem value="Rejected">Rejected</MenuItem>
+            <MenuItem value="Released">Released</MenuItem>
           </TextField>
 
           <Box sx={{ flex: 1, minWidth: 300 }}>
-            <TextField
-              placeholder="🔍 Search products..."
-              fullWidth
-              size="small"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              sx={{
-                "& .MuiInputBase-root": { height: 40 }
-              }}
-            />
+<TextField
+  placeholder="Search products..."
+  fullWidth
+  size="small"
+  value={search}
+  onChange={(e) => setSearch(e.target.value)}
+  InputProps={{
+    startAdornment: (
+      <InputAdornment position="start">
+        <SearchIcon />
+      </InputAdornment>
+    )
+  }}
+  sx={{
+    "& .MuiInputBase-root": { height: 40 }
+  }}
+/>
+
           </Box>
 
           {isLicensedUser && (
@@ -431,7 +441,7 @@ const handleRetry = () => {
           <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 3 }}>
             {filteredProducts.length === 0 ? (
               <Typography variant="h6" textAlign="center" py={8} color="text.secondary">
-                No products found matching your criteria
+                No products found !
               </Typography>
             ) : (
               filteredProducts.map((p) => (

@@ -21,11 +21,11 @@ export default function LicenseActivationPage() {
         <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.6 }}>
           <Paper sx={{ p: 6, borderRadius: 4, boxShadow: "0 20px 60px rgba(255,193,7,0.3)" }}>
             <Typography variant="h4" fontWeight={600} mb={3} color="warning.main">
-              ⚠️ License Expired
+              ⚠️ Inactive License !
             </Typography>
 
             <Alert severity="warning" sx={{ mb: 4 }}>
-              Your license has expired. Choose an activation option below.
+              Your license is not active. Choose an activation option below.
             </Alert>
 
             <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, gap: 2, mb: 3 }}>

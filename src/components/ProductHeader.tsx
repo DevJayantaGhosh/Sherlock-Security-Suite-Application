@@ -53,7 +53,7 @@ const FINAL_TITLES = {
   security: 'Security Scan & Analysis',
   release: 'Release Station',
   verify: 'Digital Signature Verification',
-  default: 'Product Dashboard'
+  default: 'Product Distribution Pipeline'
 } as const;
 
 const ProductHeader: React.FC<ProductHeaderProps> = ({ 

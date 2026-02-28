@@ -34,6 +34,7 @@ import { AppUser } from "../../models/User";
 import toast from "react-hot-toast";
 
 const REPOSITORIES = [
+  "https://github.com/projectcs23m513/bad-project",
   "https://github.com/org/web-ui",
   "https://github.com/org/backend-api",
   "https://github.com/org/mobile-app",
