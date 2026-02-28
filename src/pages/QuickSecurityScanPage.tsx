@@ -1,4 +1,3 @@
-// src/pages/QuickSecurityScanPage.tsx
 import { useState, useCallback } from "react";
 import {
   Box, Container, Stack, Typography
@@ -7,7 +6,7 @@ import { toast } from "react-hot-toast";
 import { motion } from "framer-motion";
 import QuickHeader from "../components/QuickHeader";
 import RepoScanAccordion from "../components/security/RepoScanAccordion";
-import RepoConfigForm from "../components/RepoConfigForm";
+import RepoConfigForm from "../components/repoconfig/RepoConfigForm";
 import { RepoDetails } from "../models/Product";
 
 export default function QuickSecurityScanPage() {
@@ -51,12 +50,13 @@ export default function QuickSecurityScanPage() {
           <QuickHeader pageType="security" />
 
           <RepoConfigForm
-            themeColor="security"  // 🎨 Use 'crypto', 'security', 'verify', or 'default'
+            themeColor="security"  
             onConfigure={handleConfigureRepo}
             onReset={handleReset}
             isLoading={loading}
             isConfigured={isConfigured}
             repoDetails={repoDetails}
+            hideBranchForLocal={false}
           />
 
           {isConfigured && repoDetails && (

@@ -3914,6 +3914,9 @@ process.env.APP_ROOT = path.join(__dirname$1, "..");
 const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
 const MAIN_DIST = path.join(process.env.APP_ROOT, "dist-electron");
 const RENDERER_DIST = path.join(process.env.APP_ROOT, "dist");
+const SOFTWARE_DIGITAL_SIGNATURE = "software-digital-Signature";
+const SIGNATURE_FILE_NAME = "signature.sig";
+const SOFTWARE_SECURITY_SCAN = "software-security-scans";
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, "public") : RENDERER_DIST;
 const envPaths = [
   path.join(process.env.APP_ROOT, ".env"),
@@ -4062,7 +4065,7 @@ Branch: ${branch}
   const timestamp = Date.now();
   const tempDir = path.join(
     app.getPath("temp"),
-    "software-security-scans",
+    SOFTWARE_SECURITY_SCAN,
     `${repoName}-${branch.replace(/\//g, "-")}-${timestamp}`
   );
   try {
@@ -4167,7 +4170,7 @@ ${"═".repeat(60)}
     return null;
   }
 }
-async function cloneRepositoryByTag(event, repoUrl, tag, scanId) {
+async function cloneRepositoryByTag(event, repoUrl, tag, isQuickScan, githubToken, scanId) {
   const cacheKey = `${repoUrl}:tag-${tag}`;
   if (repoCache.has(cacheKey)) {
     const cachedPath = repoCache.get(cacheKey);
@@ -4202,7 +4205,10 @@ Tag: ${tag}
 `,
     progress: 10
   });
-  const token = getGitHubToken();
+  let token = getGitHubToken();
+  if (isQuickScan && githubToken) {
+    token = githubToken;
+  }
   let cloneUrl = repoUrl;
   if (token && !repoUrl.includes("x-access-token")) {
     cloneUrl = repoUrl.replace("https://", `https://x-access-token:${token}@`);
@@ -4211,7 +4217,7 @@ Tag: ${tag}
   const timestamp = Date.now();
   const tempDir = path.join(
     app.getPath("temp"),
-    "software-security-scans",
+    SOFTWARE_SECURITY_SCAN,
     `${repoName}-tag-${tag.replace(/[^a-zA-Z0-9]/g, "-")}-${timestamp}`
   );
   try {
@@ -5518,7 +5524,12 @@ Expected at: ${toolPath("SoftwareSigner")}
       });
       return { success: false, error: "Tool not found" };
     }
-    const repoPath = await getRepoPath(event, repoUrl, branch, isQuickScan, githubToken, scanId);
+    let repoPath;
+    if (isQuickScan) {
+      repoPath = repoUrl;
+    } else {
+      repoPath = await cloneRepository(event, repoUrl, branch, isQuickScan, githubToken, scanId);
+    }
     if (!repoPath) {
       event.sender.send(`scan-complete:${scanId}`, {
         success: false,
@@ -5536,7 +5547,14 @@ ${"═".repeat(60)}
 `,
         progress: 30
       });
-      const outputSigPath = path.join(repoPath, "signature.sig");
+      const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").slice(0, 19).replace("T", "-");
+      const tempDir = path.join(
+        app.getPath("temp"),
+        SOFTWARE_DIGITAL_SIGNATURE,
+        timestamp
+      );
+      fsSync.mkdirSync(tempDir, { recursive: true });
+      const outputSigPath = path.join(tempDir, SIGNATURE_FILE_NAME);
       event.sender.send(`scan-log:${scanId}`, {
         log: `🔹 Target Repo : ${repoUrl}
 🔹 Branch      : ${branch}
@@ -5590,7 +5608,7 @@ ${"═".repeat(60)}
 
  🔏 Signature Details:
  ───────────────────────────────────────────────
- 📄 File              : ${outputSigPath}
+ 📄 File             : ${outputSigPath}
  💾 Size             : ${sigSize}
  🔑 Key Used   : ${privateKeyPath}
 
@@ -5637,7 +5655,7 @@ Required: GITHUB_PAT environment variable
       return { success: false, error: "Invalid GitHub repository URL" };
     }
     const [, owner, repo] = repoMatch;
-    const releaseTag = `r${version2}`;
+    const releaseTag = `${version2}`;
     event.sender.send(`scan-log:${scanId}`, {
       log: `
 ${"═".repeat(70)}
@@ -5704,8 +5722,8 @@ ${"═".repeat(70)}
         repo,
         tag_name: releaseTag,
         target_commitish: branch,
-        name: `Release r${version2}`,
-        body: `# Release r${version2}
+        name: `Release ${version2}`,
+        body: `# Release ${version2}
 
 **Created from ${branch} branch**
 
@@ -5750,7 +5768,7 @@ HTTP ${error.status || "N/A"}
       return { success: false, error: errorMsg };
     }
   });
-  ipcMain.handle("verify:signature", async (event, { repoUrl, branch, version: version2, publicKeyPath, signaturePath, scanId }) => {
+  ipcMain.handle("verify:signature", async (event, { repoUrl, branch, version: version2, publicKeyPath, signaturePath, isQuickScan, localRepoLocation, githubToken, scanId }) => {
     const exePath = validateTool("SoftwareVerifier");
     if (!exePath) {
       event.sender.send(`scan-log:${scanId}`, {
@@ -5780,11 +5798,25 @@ Expected at: ${toolPath("SoftwareVerifier")}
       });
       return { success: false, error: "Signature file not found" };
     }
-    const tagName = `r${version2}`;
-    const repoPath = await cloneRepositoryByTag(event, repoUrl, tagName, scanId);
+    const tagName = `${version2}`;
+    let repoPath;
+    if (isQuickScan && localRepoLocation) {
+      if (!fsSync.existsSync(localRepoLocation)) {
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `
+❌ Local repository folder not found: ${localRepoLocation}
+`,
+          progress: 0
+        });
+        return { success: false, error: "Local repository folder not found" };
+      }
+      repoPath = localRepoLocation;
+    } else {
+      repoPath = await cloneRepositoryByTag(event, repoUrl, tagName, isQuickScan, githubToken, scanId);
+    }
     if (!repoPath) {
       event.sender.send(`scan-complete:${scanId}`, { success: false, error: "Clone failed" });
-      return { success: false, error: `Failed to clone repository at tag r${version2}` };
+      return { success: false, error: `Failed to clone repository at tag ${version2}` };
     }
     return new Promise((resolve) => {
       event.sender.send(`scan-log:${scanId}`, {
@@ -5798,10 +5830,10 @@ ${"═".repeat(70)}
       });
       event.sender.send(`scan-log:${scanId}`, {
         log: `🔹 Repository  : ${repoUrl}
-🔹 Release Tag : r${version2}
+🔹 Release Tag : ${version2}
 🔹 Branch      : ${branch}
-🔹 Public Key  : ${path.basename(publicKeyPath)}
-🔹 Signature   : ${path.basename(signaturePath)}
+🔹 Public Key  : ${publicKeyPath}
+🔹 Signature   : ${signaturePath}
 🔹 Content Path: ${repoPath}
 
 `,
@@ -5846,16 +5878,14 @@ ${"═".repeat(70)}
         const verified = code === 0;
         const fullOutput = buffer + stderrBuffer;
         const summary = `
-╔═══════════════════════════════════════════════════════════════════════════════╗
-║                                                                               ║
-║                       🔍 SIGNATURE VERIFICATION RESULT                       ║
-║                                                                               ║
-╚═══════════════════════════════════════════════════════════════════════════════╝
+╔══════════════════════════════════════════════════════════════════════╗
+                     🔍 DIGITAL SIGNATURE VERIFICATION REPORT                            
+╚══════════════════════════════════════════════════════════════════════╝
 
 Repository     : ${repoUrl}
-Release Tag    : r${version2}
-Status         : ${verified ? "✅ SIGNATURE VALID" : "❌ SIGNATURE INVALID"}
-Exit Code      : ${code}
+Release Tag    : ${version2}
+Status            : ${verified ? "✅ SIGNATURE VALID" : "❌ SIGNATURE INVALID"}
+Exit Code        : ${code}
 Output Size    : ${Buffer.byteLength(fullOutput, "utf8")} bytes
 
 ${verified ? "🔓 Signature matches public key and content!" : "🔒 Signature verification failed!"}
@@ -6010,5 +6040,8 @@ app.on("before-quit", () => {
 export {
   MAIN_DIST,
   RENDERER_DIST,
+  SIGNATURE_FILE_NAME,
+  SOFTWARE_DIGITAL_SIGNATURE,
+  SOFTWARE_SECURITY_SCAN,
   VITE_DEV_SERVER_URL
 };

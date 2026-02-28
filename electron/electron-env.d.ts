@@ -86,10 +86,12 @@ interface Window {
 
     // Artifact Signing (UPDATED)
     signArtifact(payload: {
-      repoUrl: string;       // Changed from contentPath
+      repoUrl: string;       
       branch: string;
       privateKeyPath: string;
       password?: string;
+      isQuickScan: booleanl
+      githubToken: string
       scanId: string;
     }): Promise<{ success: boolean; error?: string }>;
 
@@ -109,6 +111,9 @@ interface Window {
       version: string;
       publicKeyPath: string;
       signaturePath: string;
+      isQuickScan: boolean;
+      localRepoLocation: string;
+      githubToken : string;
       scanId: string;
     }): Promise<{ 
       success: boolean; 

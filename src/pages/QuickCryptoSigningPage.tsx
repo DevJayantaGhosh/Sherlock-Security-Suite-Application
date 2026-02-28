@@ -1,4 +1,3 @@
-// src/pages/QuickCryptoSigningPage.tsx
 import { useState, useCallback, useRef, useEffect } from "react";
 import {
   Box, Container, Stack, Typography, Paper, TextField, 
@@ -8,7 +7,7 @@ import {
 import { toast } from "react-hot-toast";
 import { motion, Variants } from "framer-motion";
 import QuickHeader from "../components/QuickHeader";
-import RepoConfigForm from "../components/RepoConfigForm";
+import RepoConfigForm from "../components/repoconfig/RepoConfigForm";
 import { RepoDetails } from "../models/Product";
 import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 import VpnKeyIcon from "@mui/icons-material/VpnKey";
@@ -44,6 +43,20 @@ interface LogTerminalProps {
   title: string;
   color: string;
 }
+
+const getLogStyle = (text: string) => {
+  if (text.includes("❌") || text.includes("Error") || text.includes("FAILED") || text.includes("MISSING") || text.includes("💥"))
+    return { color: "#ff5252", fontWeight: "bold" };
+  if (text.includes("✅") || text.includes("EXISTS") || text.includes("SUCCESS") || text.includes("OK"))
+    return { color: "#69f0ae", fontWeight: "bold" };
+  if (text.includes("🔴") || text.includes("⚠️") || text.includes("ERROR") || text.includes("ISSUE"))
+    return { color: "#ffd740" };
+  if (text.includes("🔑") || text.includes("🔍") || text.includes("INITIATED") || text.includes("STARTED"))
+    return { color: "#00e5ff", fontWeight: "bold" };
+  if (text.includes("🔹")) return { color: "#b39ddb" };
+  if (text.includes("═")) return { color: "rgb(38, 194, 191)" };
+  return { color: "#e0e0e0" };
+};
 
 const LogTerminal = ({ logs, isVisible, isRunning, onCancel, title, color }: LogTerminalProps) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -129,23 +142,9 @@ const LogTerminal = ({ logs, isVisible, isRunning, onCancel, title, color }: Log
   );
 };
 
-const getLogStyle = (text: string) => {
-  if (text.includes("❌") || text.includes("Error") || text.includes("FAILED") || text.includes("MISSING") || text.includes("💥"))
-    return { color: "#ff5252", fontWeight: "50" };
-  if (text.includes("✅") || text.includes("EXISTS") || text.includes("SUCCESS") || text.includes("OK"))
-    return { color: "#69f0ae", fontWeight: "50" };
-  if (text.includes("🔴") || text.includes("⚠️") || text.includes("ERROR") || text.includes("ISSUE"))
-    return { color: "#ffd740" };
-  if (text.includes("🔑") || text.includes("🔍") || text.includes("INITIATED") || text.includes("STARTED"))
-    return { color: "#00e5ff", fontWeight: "50" };
-  if (text.includes("🔹")) return { color: "#b39ddb" };
-  if (text.includes("═")) return { color: "rgb(38, 194, 191)" };
-  return { color: "#e0e0e0" };
-};
-
 export default function QuickCryptoSigningPage() {
   const [repoDetails, setRepoDetails] = useState<RepoDetails | null>(null);
-  const [githubToken, setGithubToken] = useState("");
+  const [githubToken, setGithubToken] = useState(""); // ✅ Token state maintained
   const [loading, setLoading] = useState(false);
   const [isConfigured, setIsConfigured] = useState(false);
 
@@ -168,14 +167,15 @@ export default function QuickCryptoSigningPage() {
   const currentScanId = useRef<string | null>(null);
   const isSigningCancelled = useRef(false);
 
-  const handleConfigureRepo = useCallback((repoDetails: RepoDetails, githubToken?: string) => {
+  const handleConfigureRepo = useCallback((repoDetails: RepoDetails, token?: string) => {
     setRepoDetails(repoDetails);
-    setGithubToken(githubToken || "");
+    setGithubToken(token || ""); // ✅ Properly store token from RepoConfigForm
     setIsConfigured(true);
     setLoading(false);
     
     const type = repoDetails.repoUrl.includes('github.com') ? 'GitHub' : 'Local';
-    toast.success(`${type} repository configured!`, { duration: 4000 });
+    const tokenInfo = token ? ' (Private)' : '';
+    toast.success(`${type} repository configured${tokenInfo}!`, { duration: 4000 });
   }, []);
 
   const handleReset = useCallback(() => {
@@ -200,7 +200,10 @@ export default function QuickCryptoSigningPage() {
   const handleSelectFolder = async () => {
     try {
       const path = await window.electronAPI?.selectFolder();
-      if (path) setOutputDir(path);
+      if (path) {
+        setOutputDir(path);
+        toast.success(`Output directory: ${path}`);
+      }
     } catch (e) {
       console.error("Folder selection failed:", e);
       toast.error("Failed to select folder");
@@ -210,7 +213,10 @@ export default function QuickCryptoSigningPage() {
   const handleSelectKeyFile = async () => {
     try {
       const path = await window.electronAPI?.selectFile();
-      if (path) setPrivateKeyPath(path);
+      if (path) {
+        setPrivateKeyPath(path);
+        toast.success("Private key selected");
+      }
     } catch (e) {
       console.error("File selection failed:", e);
       toast.error("Failed to select key file");
@@ -223,7 +229,7 @@ export default function QuickCryptoSigningPage() {
       if (isKeyGenRunning) setKeyGenLogs(prev => [...prev, "\n⏳ Requesting cancellation..."]);
       if (isSigningRunning) setSigningLogs(prev => [...prev, "\n⏳ Requesting cancellation..."]);
       try {
-        await window.electronAPI.cancelScan({ scanId: currentScanId.current });
+        await window.electronAPI.cancelScan({ scanId: currentScanId.current! });
         toast.success("Cancellation requested");
       } catch (e) {
         console.error("Cancel failed:", e);
@@ -257,10 +263,10 @@ export default function QuickCryptoSigningPage() {
         outputDir,
         scanId
       });
-      toast.success("Keys generated successfully!");
+      toast.success("✅ Keys generated successfully!");
     } catch (e: any) {
       setKeyGenLogs(prev => [...prev, `\n❌ Frontend Error: ${e.message}`]);
-      toast.error(`Key generation failed: ${e.message}`);
+      toast.error(`❌ Key generation failed: ${e.message}`);
     } finally {
       setTimeout(() => {
         setIsKeyGenRunning(false);
@@ -271,15 +277,23 @@ export default function QuickCryptoSigningPage() {
   };
 
   const signSingleRepo = useCallback(async () => {
-    if (!repoDetails || !privateKeyPath || !window.electronAPI) return false;
+    if (!repoDetails || !privateKeyPath || !window.electronAPI) {
+      toast.error("Missing repository, private key, or Electron API");
+      return false;
+    }
 
     const scanId = crypto.randomUUID();
     currentScanId.current = scanId;
 
+    // ✅ SHOW TOKEN STATUS IN LOGS
+    const repoType = repoDetails.repoUrl.includes('github.com') ? 
+      (githubToken ? 'Private GitHub' : 'Public GitHub') : 'Local';
+    
     setSigningLogs(prev => [...prev,
       `\n${"═".repeat(80)}`,
       `🔹 REPO: ${repoDetails.repoUrl}`,
-      `  Branch: ${repoDetails.branch}`,
+      `   Branch: ${repoDetails.branch}`,
+      `   Type: ${repoType}`,
       `${"═".repeat(80)}\n`
     ]);
 
@@ -290,18 +304,23 @@ export default function QuickCryptoSigningPage() {
     });
 
     try {
+      // ✅ FIXED: Include githubToken in payload (undefined for local repos)
       await window.electronAPI.signArtifact({
         repoUrl: repoDetails.repoUrl,
         branch: repoDetails.branch,
         privateKeyPath,
-        password: signPassword,
+        password: signPassword || undefined,
+        isQuickScan: true,
+        githubToken: githubToken || "",  // ✅ NOW PROPERLY INCLUDED
         scanId
       });
-      toast.success("Repository signed successfully");
+      
+      toast.success("✅ Repository signed successfully!");
+      setCompletedReposCount(1);
       return true;
     } catch (e: any) {
       setSigningLogs(prev => [...prev, `\n❌ Frontend Error: ${e.message}`]);
-      toast.error(`Failed to sign repository: ${e.message}`);
+      toast.error(`❌ Failed to sign repository: ${e.message}`);
       return false;
     } finally {
       setTimeout(() => {
@@ -310,26 +329,31 @@ export default function QuickCryptoSigningPage() {
         if (cleanup) cleanup();
       }, 1500);
     }
-  }, [repoDetails, privateKeyPath, signPassword]);
+  }, [repoDetails, privateKeyPath, signPassword, githubToken]); // ✅ Added githubToken to deps
 
   const runSigning = useCallback(async () => {
-    if (!repoDetails || !privateKeyPath || !window.electronAPI) return;
+    if (!repoDetails || !privateKeyPath || !window.electronAPI) {
+      toast.error("Please configure repository and select private key");
+      return;
+    }
 
     isSigningCancelled.current = false;
-    setSigningLogs([`🔹 Digital signing STARTED: ${repoDetails.repoUrl}`, `${"═".repeat(80)}\n`]);
+    const repoType = repoDetails.repoUrl.includes('github.com') ? 
+      (githubToken ? 'Private GitHub' : 'Public GitHub') : 'Local';
+    
+    setSigningLogs([`🔹 Digital signing STARTED: ${repoDetails.repoUrl}`,
+      `Branch: ${repoDetails.branch}`,
+      `Type: ${repoType}`,
+      `${"═".repeat(80)}\n`]);
 
     const success = await signSingleRepo();
     if (success) {
       setCompletedReposCount(1);
     }
-  }, [repoDetails, privateKeyPath, signPassword, signSingleRepo]);
-
-  // const handleRepoUpdate = useCallback((updatedRepo: RepoDetails) => {
-  //   setRepoDetails(updatedRepo);
-  // }, []);
+  }, [repoDetails, privateKeyPath, githubToken, signSingleRepo]);
 
   return (
-    <Box sx={{ pt: 10, pb: 8, minHeight: "100vh" }}>
+    <Box sx={{ pt: 10, pb: 8, minHeight: "100vh", bgcolor: "background.default" }}>
       <Container maxWidth="lg">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
           <QuickHeader pageType="crypto" />
@@ -447,13 +471,14 @@ export default function QuickCryptoSigningPage() {
             isLoading={loading}
             isConfigured={isConfigured}
             repoDetails={repoDetails}
+            hideBranchForLocal={true}
           />
 
           {isConfigured && repoDetails && (
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} transition={{ duration: 0.3 }}>
               {/* DIGITAL SIGNING CARD */}
               <motion.div variants={itemVariants}>
-                <Paper sx={{ p: 3 ,mt:4, borderLeft: "4px solid #00e5ff", borderRadius: 1 }}>
+                <Paper sx={{ p: 3, mt: 4, borderLeft: "4px solid #00e5ff", borderRadius: 1 }}>
                   <Typography variant="h6" fontWeight={700} gutterBottom display="flex" alignItems="center" gap={1}>
                     <FingerprintIcon sx={{ color: "#00e5ff", fontSize: 24 }} /> Digital Signing
                   </Typography>
@@ -468,17 +493,29 @@ export default function QuickCryptoSigningPage() {
                         📂 Repository (1)
                       </Typography>
                       <Paper sx={{ p: 2, borderRadius: 1, border: '2px solid rgba(0, 229, 255, 0.3)', bgcolor: 'rgba(0, 229, 255, 0.08)' }}>
-                        <Stack direction="row" spacing={2} alignItems="center">
+                        <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
                           <Box sx={{ width: 40, height: 40, borderRadius: 1, bgcolor: 'rgba(0, 229, 255, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #00e5ff' }}>
                             <Typography variant="subtitle2" fontWeight={700} color="#00e5ff" sx={{ fontSize: '1rem' }}>1</Typography>
                           </Box>
-                          <Box sx={{ flex: 1 }}>
-                            <Typography variant="caption" color="text.secondary" fontSize={11} mb={0.5} sx={{ fontFamily: 'monospace' }}>Repository</Typography>
+                          <Box sx={{ flex: 1, minWidth: 200 }}>
+                            <Typography variant="caption" color="text.secondary" fontSize={11} mb={0.5} sx={{ fontFamily: 'monospace' }}>
+                              Repository{repoDetails.repoUrl.includes('github.com') ? '' : ' Path'}
+                            </Typography>
                             <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.85rem', color: '#00e5ff', fontWeight: 600, wordBreak: 'break-all' }}>
                               {repoDetails.repoUrl}
                             </Typography>
                           </Box>
-                          <Chip label={repoDetails.branch} size="small" sx={{ height: 28, fontFamily: 'monospace', fontSize: '0.75rem', bgcolor: 'rgba(0, 229, 255, 0.2)', color: '#00e5ff', border: '1px solid rgba(0, 229, 255, 0.3)' }} />
+                          <Chip 
+                            label={repoDetails.branch} 
+                            size="small" 
+                            sx={{ height: 28, fontFamily: 'monospace', fontSize: '0.75rem', bgcolor: 'rgba(0, 229, 255, 0.2)', color: '#00e5ff' }} 
+                          />
+                          <Chip 
+                            label={repoDetails.repoUrl.includes('github.com') ? (githubToken ? 'PRIVATE' : 'PUBLIC') : 'LOCAL'} 
+                            size="small" 
+                            color={repoDetails.repoUrl.includes('github.com') ? (githubToken ? "warning" : "primary") : "default"}
+                            sx={{ height: 28, fontFamily: 'monospace', fontSize: '0.75rem' }} 
+                          />
                           {isSigningRunning && <CircularProgress size={20} />}
                         </Stack>
                       </Paper>
@@ -495,8 +532,8 @@ export default function QuickCryptoSigningPage() {
 
                     <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
                       <TextField
-                        fullWidth
-                        label="Private Key File"
+                        fullWidth={!privateKeyPath}
+                        label="Private Key File (.pem)"
                         value={privateKeyPath}
                         disabled={isSigningRunning}
                         InputProps={{
@@ -512,11 +549,12 @@ export default function QuickCryptoSigningPage() {
                       />
                       <TextField
                         type="password"
-                        label="Key Password"
+                        label="Key Password (if encrypted)"
                         value={signPassword}
                         onChange={(e) => setSignPassword(e.target.value)}
                         sx={{ minWidth: 200 }}
                         disabled={isSigningRunning}
+                        placeholder="Leave empty for unprotected keys"
                       />
                     </Stack>
 
@@ -530,11 +568,12 @@ export default function QuickCryptoSigningPage() {
                         color: "black",
                         fontWeight: "bold",
                         boxShadow: "0 4px 14px 0 rgb(0 229 255 / 40%)",
-                        "&:hover": { bgcolor: "#00b8d4" }
+                        "&:hover": { bgcolor: "#00b8d4" },
+                        minWidth: 280
                       }}
-                      startIcon={isSigningRunning ? <CircularProgress size={20} /> : <PlayArrowIcon />}
+                      startIcon={isSigningRunning ? <CircularProgress size={20} color="inherit" /> : <PlayArrowIcon />}
                     >
-                      {isSigningRunning ? `Signing... (1/1)` : `Sign Artifact`}
+                      {isSigningRunning ? `Signing... (${repoDetails.repoUrl.includes('github.com') ? (githubToken ? 'Private' : 'Public') : 'Local'})` : `Sign Artifact`}
                     </Button>
 
                     <LogTerminal
@@ -548,8 +587,6 @@ export default function QuickCryptoSigningPage() {
                   </Stack>
                 </Paper>
               </motion.div>
-
-
             </motion.div>
           )}
         </motion.div>

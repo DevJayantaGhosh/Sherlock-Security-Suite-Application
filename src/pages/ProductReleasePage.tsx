@@ -247,7 +247,7 @@ const releaseSingleRepo = useCallback(async (repoIndex: number): Promise<boolean
   setReleaseLogs(prev => [...prev,
     `${"═".repeat(80)}`,
     `🔹 SINGLE REPO 1/1: ${repo.repoUrl}`,
-    `   Version: r${product.version}`,
+    `   Version: ${product.version}`,
     `   Branch: ${repo.branch}`,
     `${"═".repeat(80)}`
   ]);
@@ -327,7 +327,7 @@ const runSequentialRelease = useCallback(async () => {
   const failedRepos: number[] = []; //  Track failures
 
   setReleaseLogs([`🚀 BATCH GitHub Release STARTED: ${product.name}`,
-    `r${product.version} - ${product.repos.length} ${product.repos.length === 1 ? 'Repository' : 'Repositories'}`,
+    `${product.version} - ${product.repos.length} ${product.repos.length === 1 ? 'Repository' : 'Repositories'}`,
     `${"═".repeat(80)}\n`]);
 
   setIsReleaseRunning(true);
@@ -347,7 +347,7 @@ const runSequentialRelease = useCallback(async () => {
     setReleaseLogs(prev => [...prev,
       `${"═".repeat(80)}`,
       `🔹 BATCH REPO ${i + 1}/${product.repos.length}: ${repo.repoUrl}`,
-      `   Version: r${product.version}`,
+      `   Version: ${product.version}`,
       `   Branch: ${repo.branch}`,
       `${"═".repeat(80)}`
     ]);
@@ -551,7 +551,7 @@ const runSequentialRelease = useCallback(async () => {
                             border: index === currentRepoIndex ? '1px solid rgba(123, 92, 255, 0.3)' : 'none',
                           }} />
 
-                          <Chip label={`r${product.version}`} size="small" color="success"
+                          <Chip label={`${product.version}`} size="small" color="success"
                             sx={{ height: 32, fontSize: '0.75rem', fontFamily: 'monospace' }} />
 
                           <Button
@@ -628,7 +628,7 @@ const runSequentialRelease = useCallback(async () => {
                     >
                       {isReleaseRunning && releaseMode === 'batch'
                         ? `Batch Release... (${batchCompletedCount}/${product.repos.length})`
-                        : `Release All - r${product.version}`
+                        : `Release All - ${product.version}`
                       }
                     </Button>
                   </Stack>

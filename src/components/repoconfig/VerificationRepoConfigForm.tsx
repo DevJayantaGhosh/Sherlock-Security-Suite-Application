@@ -1,4 +1,3 @@
-// src/components/security/RepoConfigForm.tsx
 import { useState, useCallback, useEffect } from "react";
 import isElectron from 'is-electron';
 import {
@@ -11,70 +10,49 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import SecurityIcon from '@mui/icons-material/Security';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import LinkIcon from '@mui/icons-material/Link';
-import { RepoDetails } from "../models/Product";
 
-interface ThemeConfig {
-  color: string;
-  shadow: string;
-  nameColor: string;
+export interface VerificationRepoDetails {
+  repoUrl: string;
+  releaseTag?: string;  // Optional for local repos
+  isLocal: boolean;
 }
 
-interface RepoConfigFormProps {
-  onConfigure: (repoDetails: RepoDetails, githubToken?: string) => void;
+interface VerificationRepoConfigProps {
+  onConfigure: (details: VerificationRepoDetails, githubToken?: string) => void;
   onReset: () => void;
   isLoading: boolean;
   isConfigured: boolean;
-  repoDetails: RepoDetails | null;
-  themeColor: keyof typeof PAGE_CONFIG;
+  repoDetails: VerificationRepoDetails | null;
+  themeColor?: string;
 }
 
 const PAGE_CONFIG = {
-  crypto: { 
-    color: '#00e5ff', 
-    shadow: 'rgba(0,229,255,0.5)', 
-    nameColor: '#00e5ff'
-  },
-  security: { 
-    color: '#ff9800', 
-    shadow: 'rgba(255,152,0,0.5)', 
-    nameColor: '#ff9800'
-  },
   verify: { 
     color: '#4caf50', 
     shadow: 'rgba(76,175,80,0.5)', 
     nameColor: '#4caf50'
   },
   default: { 
-    color: '#00e5ff', 
-    shadow: 'rgba(0,229,255,0.5)', 
-    nameColor: '#00e5ff'
+    color: '#4caf50', 
+    shadow: 'rgba(76,175,80,0.5)', 
+    nameColor: '#4caf50'
   }
 } as const;
 
-export default function RepoConfigForm({
+export default function VerificationRepoConfigForm({
   onConfigure,
   onReset,
   isLoading,
   isConfigured,
   repoDetails,
   themeColor = 'default'
-}: RepoConfigFormProps) {
-  const theme: ThemeConfig = PAGE_CONFIG[themeColor];
+}: VerificationRepoConfigProps) {
+  const theme = PAGE_CONFIG[themeColor as keyof typeof PAGE_CONFIG];
 
-    useEffect(() => {
-    if (!isConfigured) {
-      setActiveTab(0);
-      setRepoUrl("");
-      setBranch("main");
-      setLocalRepoFullPath("");
-      setStandaloneAuth({ isPrivate: false, githubToken: "" });
-    }
-  }, [isConfigured]); // Reset when isConfigured changes to false
-  
   const [activeTab, setActiveTab] = useState(0);
   const [repoUrl, setRepoUrl] = useState("");
-  const [branch, setBranch] = useState("main");
-  const [localRepoFullPath, setLocalRepoFullPath] = useState("");
+  const [releaseTag, setReleaseTag] = useState("");
+  const [localRepoPath, setLocalRepoPath] = useState("");
   const [standaloneAuth, setStandaloneAuth] = useState({
     isPrivate: false,
     githubToken: "",
@@ -85,9 +63,27 @@ export default function RepoConfigForm({
     setIsElectronMode(isElectron());
   }, []);
 
+  useEffect(() => {
+    if (!isConfigured) {
+      setActiveTab(0);
+      setRepoUrl("");
+      setReleaseTag("");
+      setLocalRepoPath("");
+      setStandaloneAuth({ isPrivate: false, githubToken: "" });
+    }
+  }, [isConfigured]);
+
   const isValidUrl = (): boolean => {
     const urlPattern = /^(https:\/\/github\.com\/[^\/\s]+\/[^\/\s]+)(\.git)?\/?$/i;
     return urlPattern.test(repoUrl.trim());
+  };
+
+  const isValidReleaseTag = (): boolean => {
+    return /^r\d+\.\d+\.\d+$/.test(releaseTag.trim());
+  };
+
+  const isValidLocalPath = (): boolean => {
+    return localRepoPath.trim().length > 0;
   };
 
   const validateStandaloneAuth = (): boolean => {
@@ -95,13 +91,9 @@ export default function RepoConfigForm({
     return Boolean(standaloneAuth.githubToken.trim());
   };
 
-  const isValidLocalPath = (): boolean => {
-    return localRepoFullPath.trim().length > 0;
-  };
-
   const isFormReady = (activeTab === 0 
-    ? (isValidUrl() && validateStandaloneAuth() && branch.trim())
-    : (isValidLocalPath() && branch.trim())
+    ? (isValidUrl() && isValidReleaseTag() && validateStandaloneAuth())
+    : isValidLocalPath()
   );
 
   const handleTabChange = (_: any, newValue: number) => {
@@ -112,9 +104,9 @@ export default function RepoConfigForm({
     
     if (activeTab !== newValue) {
       setRepoUrl("");
-      setLocalRepoFullPath("");
+      setLocalRepoPath("");
+      setReleaseTag("");
       setStandaloneAuth({ isPrivate: false, githubToken: "" });
-      setBranch("main");
     }
     
     setActiveTab(newValue);
@@ -134,7 +126,7 @@ export default function RepoConfigForm({
       
       const path = await window.electronAPI.selectFolder();
       if (path) {
-        setLocalRepoFullPath(path);
+        setLocalRepoPath(path);
         toast.success(`Selected: ${path}`);
       }
     } catch (e) {
@@ -149,24 +141,25 @@ export default function RepoConfigForm({
       return;
     }
 
-    const configuredRepo: RepoDetails = {
-      repoUrl: activeTab === 0 ? repoUrl.trim() : localRepoFullPath.trim(),
-      branch: branch.trim(),
-      scans: {}
+    const configuredRepo: VerificationRepoDetails = {
+      repoUrl: activeTab === 0 ? repoUrl.trim() : localRepoPath.trim(),
+      releaseTag: activeTab === 0 ? releaseTag.trim() : undefined,
+      isLocal: activeTab === 1
     };
 
-    onConfigure(configuredRepo, activeTab === 0 ? standaloneAuth.githubToken : undefined);
-  }, [repoUrl, branch, localRepoFullPath, standaloneAuth, activeTab, isFormReady, onConfigure]);
+    const token = activeTab === 0 ? (standaloneAuth.githubToken || undefined) : undefined;
+    onConfigure(configuredRepo, token);
+  }, [repoUrl, releaseTag, localRepoPath, standaloneAuth, activeTab, isFormReady, onConfigure]);
 
   const FolderPicker = () => (
     <TextField
       fullWidth
-      label="Full Folder Path *"
-      value={localRepoFullPath}
-      onChange={(e) => setLocalRepoFullPath(e.target.value)}
-      placeholder="C:\\Projects\\my-repo or /home/user/projects/my-repo"
+      label="Repository Path *"
+      value={localRepoPath}
+      onChange={(e) => setLocalRepoPath(e.target.value)}
+      placeholder="/home/user/my-repo or C:\\Projects\\my-repo"
       error={!isValidLocalPath()}
-      helperText={!isValidLocalPath() ? "Required: Select your cloned repo folder" : ""}
+      helperText={!isValidLocalPath() ? "Required: Select cloned repo folder" : ""}
       disabled={isLoading || isConfigured}
       size="small"
       InputProps={{
@@ -192,7 +185,7 @@ export default function RepoConfigForm({
       <Stack spacing={2.5}>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
           <Typography variant="h6" fontWeight={700} sx={{ color: theme.color }}>
-            📝 Configure Repository
+            🔍 Verification Target
           </Typography>
           {isConfigured && (
             <Chip label="CONFIGURED" color="success" size="small" sx={{ fontWeight: 600 }} />
@@ -201,14 +194,10 @@ export default function RepoConfigForm({
 
         <Tabs value={activeTab} onChange={handleTabChange} sx={{ mb: 3 }}>
           <Tab 
-            label="GitHub Repository"
+            label="GitHub Repository" 
             icon={<LinkIcon />}
             iconPosition="start" 
             disabled={isConfigured}
-            sx={{ 
-              fontWeight: activeTab === 0 ? 700 : 500,
-              opacity: isConfigured && activeTab !== 0 ? 0.5 : 1
-            }} 
           />
           {isElectronMode && (
             <Tab 
@@ -216,35 +205,25 @@ export default function RepoConfigForm({
               icon={<FolderOpenIcon />}
               iconPosition="start"
               disabled={isConfigured}
-              sx={{ 
-                fontWeight: activeTab === 1 ? 700 : 500,
-                opacity: isConfigured && activeTab !== 1 ? 0.5 : 1
-              }} 
             />
           )}
         </Tabs>
 
+        {/* GitHub Tab */}
         {activeTab === 0 && (
           <Paper sx={{ 
             p: 3, 
-            bgcolor: "rgba(255, 193, 7, 0.03)",
-            border: `2px solid`,
-            borderColor: theme.color,
+            bgcolor: "rgba(76, 175, 80, 0.03)",
+            border: `2px solid ${theme.color}`,
             borderRadius: 3,
-            boxShadow: 2,
-            transition: "all 0.3s ease",
-            "&:hover": {
-              borderColor: theme.shadow,
-              boxShadow: 4,
-              transform: "translateY(-1px)"
-            }
+            boxShadow: 2
           }}>
             <Stack spacing={2}>
               <Typography variant="body2" fontWeight={700} sx={{ color: theme.color }}>
-                🌐 GitHub Repository Configuration
+                🌐 GitHub Repository & Version (Release Tag)
               </Typography>
               
-              <Box sx={{ display: "grid", gridTemplateColumns: "1fr 140px", gap: 2 }}>
+              <Box sx={{ display: "grid", gridTemplateColumns: "1fr 160px", gap: 2 }}>
                 <TextField
                   label="Repository URL *"
                   value={repoUrl}
@@ -256,12 +235,12 @@ export default function RepoConfigForm({
                   size="small"
                 />
                 <TextField
-                  label="Branch *"
-                  value={branch}
-                  onChange={(e) => setBranch(e.target.value)}
-                  placeholder="main"
-                  error={Boolean(!branch.trim())}
-                  helperText={!branch.trim() ? "Required" : ""}
+                  label="Version (Release Tag) *"
+                  value={releaseTag}
+                  onChange={(e) => setReleaseTag(e.target.value)}
+                  placeholder="1.2.3"
+                  error={Boolean(!isValidReleaseTag() && releaseTag.trim())}
+                  helperText={!isValidReleaseTag() && releaseTag.trim() ? "Format: 1.2.3" : ""}
                   disabled={isLoading || isConfigured}
                   size="small"
                 />
@@ -278,9 +257,11 @@ export default function RepoConfigForm({
                   size="small"
                 />
                 <Box sx={{ ml: 1.5, flex: 1 }}>
-                  <Typography variant="body2" fontWeight={500}>Private Repository</Typography>
+                  <Typography variant="body2" fontWeight={500}>
+                    Private Repository
+                  </Typography>
                   <Typography variant="caption" sx={{ color: theme.color, fontWeight: 500 }}>
-                    ⚠️ Requires authentication token
+                    Enable for private repos (Public repos don't need token)
                   </Typography>
                 </Box>
               </Box>
@@ -289,29 +270,34 @@ export default function RepoConfigForm({
                 <Collapse in={standaloneAuth.isPrivate} timeout={200}>
                   <Paper sx={{ 
                     p: 2.5, 
-                    bgcolor: "rgba(255,152,0,0.08)", 
-                    border: "1px solid rgba(255,152,0,0.3)",
+                    bgcolor: "rgba(76,175,80,0.08)", 
+                    border: "1px solid rgba(76,175,80,0.3)",
                     borderRadius: 2 
                   }}>
                     <Typography variant="body2" fontWeight={600} mb={2} sx={{ color: theme.color }}>
-                      🔐 Authentication Required
+                      🔐 GitHub Token Required
                     </Typography>
                     <TextField
-                      label="GitHub Token (Recommended)"
+                      label="GitHub Personal Access Token"
                       value={standaloneAuth.githubToken}
-                      onChange={(e) => setStandaloneAuth({ ...standaloneAuth, githubToken: e.target.value })}
+                      onChange={(e) => setStandaloneAuth({ 
+                        ...standaloneAuth, 
+                        githubToken: e.target.value 
+                      })}
                       type="password"
                       size="small"
                       placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
                       error={standaloneAuth.isPrivate && !validateStandaloneAuth()}
                       helperText={
                         standaloneAuth.isPrivate && !validateStandaloneAuth()
-                          ? "Security Note: Application **NEVER stores** your token"
-                          : "Paste your GitHub Personal Access Token"
+                          ? "Required for private repos"
+                          : "Scopes: repo (full), public_repo. Token never stored"
                       }
                       disabled={isLoading || isConfigured}
                       fullWidth
-                      InputProps={{ startAdornment: <InputAdornment position="start">🔑</InputAdornment> }}
+                      InputProps={{ 
+                        startAdornment: <InputAdornment position="start">🔑</InputAdornment> 
+                      }}
                     />
                   </Paper>
                 </Collapse>
@@ -320,53 +306,23 @@ export default function RepoConfigForm({
           </Paper>
         )}
 
+        {/* Local Tab - No Release Tag */}
         {activeTab === 1 && (
           <Paper sx={{ 
             p: 3, 
-            bgcolor: "rgba(255, 193, 7, 0.04)",
-            border: `2px solid`,
-            borderColor: theme.shadow,
+            bgcolor: "rgba(76, 175, 80, 0.04)",
+            border: `2px solid ${theme.color}`,
             borderRadius: 3,
-            boxShadow: 3,
-            position: "relative",
-            "&:before": {
-              content: '""',
-              position: "absolute",
-              top: -2,
-              left: -2,
-              right: -2,
-              height: 4,
-              bgcolor: theme.color,
-              borderRadius: "12px 12px 0 0",
-              zIndex: 1
-            },
-            "&:hover": {
-              borderColor: theme.color,
-              boxShadow: 5,
-              transform: "translateY(-2px)"
-            }
+            boxShadow: 3
           }}>
-            <Typography variant="body2" fontWeight={700} mb={2} sx={{ color: theme.shadow }}>
-              📁 Local Repository Configuration
+            <Typography variant="body2" fontWeight={700} mb={2} sx={{ color: theme.color }}>
+              📁 Local Repository Only
             </Typography>
             
-            <Box sx={{ display: "grid", gridTemplateColumns: "1fr 140px", gap: 2, mb: 2, position: "relative", zIndex: 2 }}>
+            <Box sx={{ mb: 2 }}>
               <FolderPicker />
-              <TextField
-                label="Branch *"
-                value={branch}
-                onChange={(e) => setBranch(e.target.value)}
-                placeholder="main"
-                error={Boolean(!branch.trim())}
-                helperText={!branch.trim() ? "Required" : ""}
-                disabled={isLoading || isConfigured}
-                size="small"
-              />
             </Box>
             
-            <Typography variant="caption" sx={{ mt: 1, display: 'block', color: theme.shadow, fontWeight: 600 }}>
-              ⚠️ Both folder path and branch are required
-            </Typography>
           </Paper>
         )}
 
@@ -385,13 +341,11 @@ export default function RepoConfigForm({
             disabled={!isFormReady || isLoading || isConfigured}
             startIcon={<SecurityIcon />}
             sx={{ 
-              minWidth: 180, 
+              minWidth: 220, 
               height: 42, 
               fontWeight: 600,
               backgroundColor: theme.color,
-              '&:hover': {
-                backgroundColor: theme.shadow,
-              }
+              '&:hover': { backgroundColor: theme.shadow }
             }}
           >
             {isLoading ? (
@@ -402,7 +356,7 @@ export default function RepoConfigForm({
             ) : isConfigured ? (
               "Configured"
             ) : (
-              `Configure & Scan ${activeTab === 0 ? '(GitHub)' : '(Local)'}`
+              `Configure Verification Target`
             )}
           </Button>
 
@@ -420,7 +374,7 @@ export default function RepoConfigForm({
               color: theme.color,
               '&:hover': {
                 borderColor: theme.shadow,
-                color: theme.shadow,
+                color: theme.shadow
               }
             }}
           >
