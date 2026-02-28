@@ -282,7 +282,10 @@ export default function SignatureVerificationPage() {
         version: product.version,
         publicKeyPath,
         signaturePath,
-        scanId
+        isQuickScan: false,
+        localRepoLocation: "",
+        githubToken: "",
+        scanId,
       });
 
       cleanupLogListener();

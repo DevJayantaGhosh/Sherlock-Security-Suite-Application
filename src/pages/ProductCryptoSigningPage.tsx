@@ -321,6 +321,8 @@ export default function ProductCryptoSigningPage() {
         branch: targetRepo.branch,
         privateKeyPath,
         password: signPassword,
+        isQuickScan: false,
+        githubToken: "",
         scanId
       });
       setLastSignedFile("signature.sig (Ready for Upload)");
