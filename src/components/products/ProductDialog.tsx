@@ -447,7 +447,7 @@ const submit = async () => {
                 onChange={(e) => updateField("productDirector", e.target.value || null)}
               >
                 {users.map((u) => (
-                  <MenuItem key={u.id} value={u.id}>
+                  <MenuItem key={u.id} value={u.email}>
                     {u.name} ({u.role})
                   </MenuItem>
                 ))}
@@ -463,7 +463,7 @@ const submit = async () => {
                 onChange={(e) => updateField("securityHead", e.target.value || null)}
               >
                 {users.map((u) => (
-                  <MenuItem key={u.id} value={u.id}>
+                  <MenuItem key={u.id} value={u.email}>
                     {u.name} ({u.role})
                   </MenuItem>
                 ))}
@@ -480,7 +480,7 @@ const submit = async () => {
                 onChange={(e) => updateField("releaseEngineers", e.target.value as unknown as string[])}
               >
                 {users.map((u) => (
-                  <MenuItem key={u.id} value={u.id}>
+                  <MenuItem key={u.id} value={u.email}>
                     <Chip label={u.name} size="small" />
                   </MenuItem>
                 ))}

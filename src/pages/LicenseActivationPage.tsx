@@ -8,8 +8,8 @@ import { toast } from "react-hot-toast";
 export default function LicenseActivationPage() {
   const navigate = useNavigate();
 
-  const handleTryLoginAgain = () => {
-    navigate("/login");
+  const handleTryExplore = () => {
+    navigate("/products");
   };
 
   return (
@@ -24,8 +24,8 @@ export default function LicenseActivationPage() {
               ⚠️ Inactive License !
             </Typography>
 
-            <Alert severity="warning" sx={{ mb: 4 }}>
-              Your license is not active. Choose an activation option below.
+            <Alert severity="warning" sx={{ mb: 4 , alignItems:"flex-start"}}>
+License activation is required to access the proprietary product distribution pipeline, <br></br>although open source products remain fully accessible via our distribution pipeline.
             </Alert>
 
             <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, gap: 2, mb: 3 }}>
@@ -154,9 +154,9 @@ export default function LicenseActivationPage() {
               size="large"
               fullWidth
               sx={{ mt: 4 }}
-              onClick={handleTryLoginAgain}
+              onClick={handleTryExplore}
             >
-              Try Login Again
+              Explore Open-Source Products
             </Button>
           </Paper>
         </motion.div>

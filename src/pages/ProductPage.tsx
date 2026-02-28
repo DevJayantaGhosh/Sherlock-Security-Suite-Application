@@ -23,6 +23,7 @@ import {
   deleteProduct,
   authorizeApprove,
   authorizeRelease,
+  authorizeCreate,
 } from "../services/productService";
 
 import { Product } from "../models/Product";
@@ -43,6 +44,7 @@ export default function ProductPage() {
   const navigate = useNavigate();
   const user = useUserStore((s) => s.user);
   const isLicensedUser = user?.licenseValid;
+  const canAddProject = authorizeCreate(user);
 
   // Backend pagination
   const [productsData, setProductsData] = useState({
@@ -75,73 +77,73 @@ export default function ProductPage() {
   const [confirmTitle, setConfirmTitle] = useState("");
   const [confirmDesc, setConfirmDesc] = useState("");
 
-/**
- * ═══════════════════════════════════════════════════════════════════════════════
-   *  LOAD PRODUCTS 
- * ═══════════════════════════════════════════════════════════════════════════════
- */
-const [backendErrorShown, setBackendErrorShown] = useState(false); // 🔥 NEW STATE
+  /**
+   * ═══════════════════════════════════════════════════════════════════════════════
+     *  LOAD PRODUCTS 
+   * ═══════════════════════════════════════════════════════════════════════════════
+   */
+  const [backendErrorShown, setBackendErrorShown] = useState(false); // 🔥 NEW STATE
 
-const loadProducts = useCallback(async () => {
-  setLoading(true);
-  setError(null);
+  const loadProducts = useCallback(async () => {
+    setLoading(true);
+    setError(null);
 
-  try {
-    if (isLicensedUser) {
-      const result = await getProductsPaginated(backendPage, PAGE_SIZE);
-      if (!result.error) {
-        setProductsData(result.data);
-        setIsBackendError(false);
-        setBackendErrorShown(false); // Reset on success
+    try {
+      if (isLicensedUser) {
+        const result = await getProductsPaginated(backendPage, PAGE_SIZE);
+        if (!result.error) {
+          setProductsData(result.data);
+          setIsBackendError(false);
+          setBackendErrorShown(false); // Reset on success
+        } else {
+          handleApiError(result.error);
+        }
       } else {
-        handleApiError(result.error);
+        const result = await getOpenSourceProductsPaginated(backendPage, PAGE_SIZE);
+        if (!result.error) {
+          setProductsData(result.data);
+          setIsBackendError(false);
+          setBackendErrorShown(false); //  Reset on success
+        } else {
+          handleApiError(result.error);
+        }
       }
-    } else {
-      const result = await getOpenSourceProductsPaginated(backendPage, PAGE_SIZE);
-      if (!result.error) {
-        setProductsData(result.data);
-        setIsBackendError(false);
-        setBackendErrorShown(false); //  Reset on success
-      } else {
-        handleApiError(result.error);
-      }
-    }
-  } catch (error: any) {
-    console.error("Load products error:", error);
+    } catch (error: any) {
+      console.error("Load products error:", error);
       const errorMsg = error.message || "Failed to load products";
       setError(errorMsg);
       toast.error(errorMsg);
-  } finally {
-    setLoading(false);
-  }
-}, [isLicensedUser, backendPage]);
-
-// Error handler
-const handleApiError = (apiError: any) => {
-  const errorMsg = apiError.message || "Unknown error";
-
-  if (
-    errorMsg.includes("ERR_CONNECTION_REFUSED") ||
-    errorMsg.includes("Network Error") ||
-      apiError.status === 0
-  ) {
-    if (!backendErrorShown) { 
-      setIsBackendError(true);
-      setBackendErrorShown(true);
-      toast("🔌 Backend offline", {
-        duration: 6000,
-        id: "backend-offline", // UNIQUE ID - prevents duplicates
-        style: {
-          background: "#fff3cd",
-          color: "#856404",
-        },
-      });
+    } finally {
+      setLoading(false);
     }
-  } else {
-    setError(errorMsg);
-    toast.error(errorMsg, { id: "general-error" }); // UNIQUE ID
-  }
-};
+  }, [isLicensedUser, backendPage]);
+
+  // Error handler
+  const handleApiError = (apiError: any) => {
+    const errorMsg = apiError.message || "Unknown error";
+
+    if (
+      errorMsg.includes("ERR_CONNECTION_REFUSED") ||
+      errorMsg.includes("Network Error") ||
+      apiError.status === 0
+    ) {
+      if (!backendErrorShown) {
+        setIsBackendError(true);
+        setBackendErrorShown(true);
+        toast("🔌 Backend offline", {
+          duration: 6000,
+          id: "backend-offline", // UNIQUE ID - prevents duplicates
+          style: {
+            background: "#fff3cd",
+            color: "#856404",
+          },
+        });
+      }
+    } else {
+      setError(errorMsg);
+      toast.error(errorMsg, { id: "general-error" }); // UNIQUE ID
+    }
+  };
 
 
   // Initial load - runs ONCE on mount only
@@ -149,24 +151,24 @@ const handleApiError = (apiError: any) => {
     loadProducts();
   }, []); // Empty deps = ONCE only
 
-    // Pagination + licensed user changes
+  // Pagination + licensed user changes
   useEffect(() => {
     loadProducts();
-  }, [ backendPage]); //  Only when these change
+  }, [backendPage]); //  Only when these change
 
   // Refresh WITH toast
-const handleRefresh = useCallback(() => {
-  setBackendPage(0);
-  setBackendErrorShown(false); // Reset toast guard
-  loadProducts();
-}, [loadProducts]);
+  const handleRefresh = useCallback(() => {
+    setBackendPage(0);
+    setBackendErrorShown(false); // Reset toast guard
+    loadProducts();
+  }, [loadProducts]);
 
   // Retry
-const handleRetry = () => {
-  setError(null);
-  setIsBackendError(false);
-  loadProducts();
-};
+  const handleRetry = () => {
+    setError(null);
+    setIsBackendError(false);
+    loadProducts();
+  };
 
   /**
    * ═══════════════════════════════════════════════════════════════════════════════
@@ -354,28 +356,29 @@ const handleRetry = () => {
           </TextField>
 
           <Box sx={{ flex: 1, minWidth: 300 }}>
-<TextField
-  placeholder="Search products..."
-  fullWidth
-  size="small"
-  value={search}
-  onChange={(e) => setSearch(e.target.value)}
-  InputProps={{
-    startAdornment: (
-      <InputAdornment position="start">
-        <SearchIcon />
-      </InputAdornment>
-    )
-  }}
-  sx={{
-    "& .MuiInputBase-root": { height: 40 }
-  }}
-/>
+            <TextField
+              placeholder="Search products..."
+              fullWidth
+              size="small"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                )
+              }}
+              sx={{
+                "& .MuiInputBase-root": { height: 40 }
+              }}
+            />
 
           </Box>
 
-          {isLicensedUser && (
-            <Box sx={{ display: "flex", gap: 1 }}>
+
+          <Box sx={{ display: "flex", gap: 1 }}>
+            {canAddProject && (
               <Button
                 startIcon={<AddIcon />}
                 variant="contained"
@@ -392,33 +395,78 @@ const handleRetry = () => {
               >
                 Add Product
               </Button>
-              <Button
-                startIcon={<RefreshIcon />}
-                variant="outlined"
-                size="small"
-                onClick={handleRefresh}
-                sx={{
-                  minWidth: 120,
-                  height: 40,
-                  color: "#7b5cff",
+            )}
+            <Button
+              startIcon={<RefreshIcon />}
+              variant="outlined"
+              size="small"
+              onClick={handleRefresh}
+              sx={{
+                minWidth: 120,
+                height: 40,
+                color: "#7b5cff",
+                borderColor: "#7b5cff",
+                fontWeight: 600,
+                fontSize: "0.875rem",
+                "&:hover": {
+                  backgroundColor: "#7b5cff",
+                  color: "white",
                   borderColor: "#7b5cff",
-                  fontWeight: 600,
-                  fontSize: "0.875rem",
-                  "&:hover": {
-                    backgroundColor: "#7b5cff",
-                    color: "white",
-                    borderColor: "#7b5cff",
-                  },
-                }}
-              >
-                Refresh
-              </Button>
-            </Box>
-          )}
+                },
+              }}
+            >
+              Refresh
+            </Button>
+          </Box>
+
         </Stack>
 
         {/* LOADING */}
         {loading && <LoadingSpinner message="Loading products..." />}
+
+        {!loading && !isLicensedUser && (
+          <Box sx={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            textAlign: "center",
+            mb: 4,
+            p: 3,
+            bgcolor: "warning.lighter",
+            border: "1px solid",
+            borderColor: "warning.light",
+            borderRadius: 2,
+            mx: "auto"
+          }}>
+            <Typography variant="h6" fontWeight={600} color="warning.dark" gutterBottom>
+              ⚠️ License Required
+            </Typography>
+            <Typography variant="body2" color="text.secondary" mb={2}>
+              License activation is required to access the proprietary product distribution pipeline, although open source products remain fully accessible via our distribution pipeline.
+
+            </Typography>
+            <Button
+              variant="contained"
+              size="medium"
+              sx={{
+                background: "linear-gradient(135deg, #ff9800, #f57c00)",
+                boxShadow: "0 4px 12px rgba(255,152,0,0.3)",
+                fontWeight: 600,
+                px: 3,
+                "&:hover": {
+                  background: "linear-gradient(135deg, #f57c00, #ef6c00)",
+                  boxShadow: "0 6px 16px rgba(255,152,0,0.4)",
+                  transform: "translateY(-1px)"
+                }
+              }}
+              onClick={() => navigate("/license-activation")}
+            >
+              Activate License
+            </Button>
+          </Box>
+        )}
+
 
         {/* BACKEND ERROR */}
         {isBackendError && !loading && (
@@ -438,11 +486,36 @@ const handleRetry = () => {
 
         {/* PRODUCTS GRID */}
         {!loading && !isBackendError && (
-          <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 3 }}>
+          <Box sx={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+            gap: 3,
+            minHeight: "300px"
+          }}>
             {filteredProducts.length === 0 ? (
-              <Typography variant="h6" textAlign="center" py={8} color="text.secondary">
-                No products found !
-              </Typography>
+              <Box
+                sx={{
+                  gridColumn: "1 / -1",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  py: 8,
+                  gap: 1,
+                }}
+              >
+                <Typography
+                  variant="h6"
+                  fontWeight={600}
+                  color="text.secondary"
+                  sx={{ mb: 1 }}
+                >
+                  No products found!
+                </Typography>
+                <Typography variant="body2" color="text.disabled">
+                  Try adjusting your search or filters
+                </Typography>
+              </Box>
             ) : (
               filteredProducts.map((p) => (
                 <ProductCard

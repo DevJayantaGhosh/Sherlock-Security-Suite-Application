@@ -45,7 +45,7 @@ export default function Login() {
       const { licenseValid } = result.data; 
       
       if (!licenseValid) {
-        navigate("/license-activation"); // ✅ GO TO SEPARATE PAGE
+        navigate("/license-activation"); 
         return;
       }
       
