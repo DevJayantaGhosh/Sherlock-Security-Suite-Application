@@ -107,6 +107,9 @@ export default function Login() {
               <Button onClick={() => navigate("/forgot-password")} variant="text" size="small">
                 Forgot Password?
               </Button>
+              <Button onClick={() => navigate("/register")} variant="text" size="small">
+                New User?
+              </Button>
             </Box>
 
             <Typography variant="caption" sx={{ display: "block", mt: 2, color: "text.secondary" }}>

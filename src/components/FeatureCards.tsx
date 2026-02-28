@@ -9,8 +9,8 @@ import FingerprintIcon from '@mui/icons-material/Fingerprint';
 
 const features = [
   {
-    title: 'Threat Detection',
-    body: 'Real-time scanning and proactive defense against next-gen cyber attacks.',
+    title: 'Vulnerability Scan',
+    body: 'Vulnerability scanning and proactive defense against next-gen cyber attacks.',
     icon: <SecurityIcon fontSize="large" />,
   },
   {

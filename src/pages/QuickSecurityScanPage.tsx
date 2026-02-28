@@ -9,6 +9,8 @@ import RepoScanAccordion from "../components/security/RepoScanAccordion";
 import RepoConfigForm from "../components/repoconfig/RepoConfigForm";
 import { RepoDetails } from "../models/Product";
 
+import SearchIcon from '@mui/icons-material/Search';
+
 export default function QuickSecurityScanPage() {
   const [repoDetails, setRepoDetails] = useState<RepoDetails | null>(null);
   const [githubToken, setGithubToken] = useState("");
@@ -65,10 +67,11 @@ export default function QuickSecurityScanPage() {
               animate={{ opacity: 1, height: "auto" }}
               transition={{ duration: 0.3 }}
             >
-              <Stack spacing={3}>
-                <Typography variant="h5" fontWeight={700}>
-                  🔍 Repository Security Scans & Analysis
-                </Typography>
+              <Stack spacing={3} sx={{mt:3}}>
+<Typography variant="h5" fontWeight={700} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+  <SearchIcon sx={{ fontSize: 28, color: 'inherit' }} />
+  Repository Security Scans & Analysis
+</Typography>
 
                 <RepoScanAccordion
                   product={{} as any}
