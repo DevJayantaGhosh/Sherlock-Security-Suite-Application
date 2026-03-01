@@ -4,17 +4,17 @@ import {
   Typography, Chip, TextField, MenuItem,
   IconButton, Collapse,
   CircularProgress, Tooltip,
-  InputAdornment, LinearProgress
+  InputAdornment, LinearProgress, Alert
 } from "@mui/material";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, Variants } from "framer-motion";
 import { toast } from "react-hot-toast";
 import ProductHeader from '../components/ProductHeader';
 import BlockchainArchivalCard from "../components/cryptosigning/BlockchainArchivalCard";
-import { getProductById, updateProduct } from "../services/productService";
+import { authorizeToSign, getProductById, updateProduct } from "../services/productService";
 import { Product } from "../models/Product";
 import { useUserStore } from "../store/userStore";
-
+import { ACCESS_MESSAGES } from "../constants/accessMessages";
 
 import VpnKeyIcon from "@mui/icons-material/VpnKey";
 import FingerprintIcon from "@mui/icons-material/Fingerprint";
@@ -120,12 +120,13 @@ const LogTerminal = ({ logs, isVisible, isRunning, onCancel, title, color }: Log
           <Box
             ref={scrollContainerRef}
             sx={{
-              p: 2,
+              p: 1.5, // Reduced padding
               maxHeight: 300,
               height: 300,
               overflowY: "auto",
               fontFamily: "'Consolas', 'Monaco', monospace",
-              fontSize: 13,
+              fontSize: "12px", // 🔧 SMALL FONT LIKE SECURITY PAGE
+              lineHeight: 1.4, // Tighter line height
               bgcolor: "#0a0a0a",
               scrollbarWidth: "thin",
               "&::-webkit-scrollbar": {
@@ -141,12 +142,22 @@ const LogTerminal = ({ logs, isVisible, isRunning, onCancel, title, color }: Log
             }}
           >
             {logs.length === 0 && (
-              <Typography color="text.secondary" textAlign="center" mt={8} variant="caption" display="block" sx={{ opacity: 0.5 }}>
+              <Typography color="text.secondary" textAlign="center" mt={8} variant="caption" display="block" sx={{ opacity: 0.5, fontSize: "12px" }}>
                 _ Waiting for backend process...
               </Typography>
             )}
             {logs.map((log, i) => (
-              <Typography key={i} component="div" sx={{ m: 0, whiteSpace: "pre-wrap", lineHeight: 1.6, ...getLogStyle(log) }}>
+              <Typography 
+                key={i} 
+                component="div" 
+                sx={{ 
+                  m: 0, 
+                  whiteSpace: "pre-wrap", 
+                  lineHeight: 1.4,
+                  fontSize: "12px", // 🔧 CONSISTENT SMALL FONT
+                  ...getLogStyle(log) 
+                }}
+              >
                 {log}
               </Typography>
             ))}
@@ -215,12 +226,26 @@ export default function ProductCryptoSigningPage() {
     }
   }, [id, navigate]);
 
-  // Load product on mount
   useEffect(() => {
     loadProduct();
   }, [loadProduct]);
 
+  // AUTHORIZATION LOGIC
+const isAuthorized = product ? authorizeToSign(user, product) : false;
+const isViewOnlyMode = product?.status !== "Approved" || !isAuthorized;
+
+const tooltip = isViewOnlyMode 
+  ? (product?.status !== "Approved"
+      ? `Product status is "${product?.status}". No actions allowed.`
+      : ACCESS_MESSAGES.RELEASE_ENGINEER_SIGN_MSG)
+  : "";
+
+
   const handleSelectFolder = async () => {
+    if (!isAuthorized) {
+      toast.error("View-only mode: Cannot select folders", { id: "auth-folder" });
+      return;
+    }
     try {
       const path = await window.electronAPI?.selectFolder();
       if (path) setOutputDir(path);
@@ -231,6 +256,10 @@ export default function ProductCryptoSigningPage() {
   };
 
   const handleSelectKeyFile = async () => {
+    if (!isAuthorized) {
+      toast.error("View-only mode: Cannot select files", { id: "auth-keyfile" });
+      return;
+    }
     try {
       const path = await window.electronAPI?.selectFile();
       if (path) setPrivateKeyPath(path);
@@ -255,9 +284,11 @@ export default function ProductCryptoSigningPage() {
     }
   };
 
-
-
   const runKeyGeneration = async () => {
+    if (!isAuthorized) {
+      toast.error("Only authorized users can generate keys");
+      return;
+    }
     if (!product || !outputDir || !window.electronAPI) {
       toast.error("Please select output directory", { id: "keygen-missing-dir" });
       return;
@@ -341,15 +372,17 @@ export default function ProductCryptoSigningPage() {
     }
   }, [product, privateKeyPath, signPassword]);
 
-  // Sequential signing 
   const runSequentialSigning = useCallback(async () => {
+    if (!isAuthorized) {
+      toast.error("Only authorized users can sign artifacts");
+      return;
+    }
     if (!product || !privateKeyPath || !window.electronAPI) return;
 
     isSigningCancelled.current = false;
     setCurrentRepoIndex(0);
     setCompletedReposCount(0);
 
-    //  Initial header
     setSigningLogs([`🔹 Sequential signing STARTED: ${product.name}`,
     `${product.repos.length} repositories`,
     `${"═".repeat(80)}\n`]);
@@ -371,7 +404,6 @@ export default function ProductCryptoSigningPage() {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
-
   }, [product, privateKeyPath, signPassword, signSingleRepo, completedReposCount]);
 
   if (loading) {
@@ -396,6 +428,25 @@ export default function ProductCryptoSigningPage() {
             <ProductHeader product={product} pageType="crypto" />
           </motion.div>
 
+          {/* 🔐 AUTHORIZATION WARNING */}
+          {!isAuthorized && (
+            <motion.div variants={itemVariants}>
+              <Paper sx={{
+                p: 2,
+                mb: 3,
+                bgcolor: "rgba(255,193,7,0.1)",
+                border: "1px solid rgba(255,193,7,0.3)",
+              }}>
+                <Typography color="warning.main" fontWeight={600}>
+                  View-Only Mode
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {ACCESS_MESSAGES.RELEASE_ENGINEER_SIGN_MSG}
+                </Typography>
+              </Paper>
+            </motion.div>
+          )}
+
           <Stack spacing={4}>
             {/* KEY GENERATION CARD */}
             <motion.div variants={itemVariants}>
@@ -408,7 +459,6 @@ export default function ProductCryptoSigningPage() {
                 </Typography>
 
                 <Stack spacing={3}>
-                  {/* ... rest of your existing Key Generation UI ... */}
                   <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems="flex-end">
                     <TextField
                       select
@@ -416,7 +466,7 @@ export default function ProductCryptoSigningPage() {
                       value={algo}
                       onChange={(e) => setAlgo(e.target.value as "rsa" | "ecdsa")}
                       sx={{ minWidth: 150 }}
-                      disabled={isKeyGenRunning}
+                      disabled={!isAuthorized || isKeyGenRunning}
                     >
                       <MenuItem value="rsa">RSA</MenuItem>
                       <MenuItem value="ecdsa">ECDSA</MenuItem>
@@ -429,7 +479,7 @@ export default function ProductCryptoSigningPage() {
                         value={keySize}
                         onChange={(e) => setKeySize(Number(e.target.value))}
                         sx={{ minWidth: 150 }}
-                        disabled={isKeyGenRunning}
+                        disabled={!isAuthorized || isKeyGenRunning}
                       >
                         <MenuItem value={2048}>2048-bit</MenuItem>
                         <MenuItem value={4096}>4096-bit</MenuItem>
@@ -441,7 +491,7 @@ export default function ProductCryptoSigningPage() {
                         value={curve}
                         onChange={(e) => setCurve(e.target.value as string)}
                         sx={{ minWidth: 150 }}
-                        disabled={isKeyGenRunning}
+                        disabled={!isAuthorized || isKeyGenRunning}
                       >
                         <MenuItem value="P-256">P-256</MenuItem>
                         <MenuItem value="P-384">P-384</MenuItem>
@@ -455,7 +505,7 @@ export default function ProductCryptoSigningPage() {
                       value={keyPassword}
                       onChange={(e) => setKeyPassword(e.target.value)}
                       fullWidth
-                      disabled={isKeyGenRunning}
+                      disabled={!isAuthorized || isKeyGenRunning}
                       placeholder="Leave empty for unprotected key"
                     />
                   </Stack>
@@ -465,31 +515,44 @@ export default function ProductCryptoSigningPage() {
                       fullWidth
                       label="Output Directory"
                       value={outputDir}
+                      disabled={!isAuthorized}
                       InputProps={{
                         readOnly: true,
                         endAdornment: (
                           <InputAdornment position="end">
-                            <IconButton onClick={handleSelectFolder} disabled={isKeyGenRunning} size="small">
-                              <FolderOpenIcon />
-                            </IconButton>
+                            <Tooltip title={!isAuthorized ? tooltip : ""} arrow>
+                              <span>
+                                <IconButton 
+                                  onClick={handleSelectFolder} 
+                                  disabled={!isAuthorized || isKeyGenRunning}
+                                  size="small"
+                                >
+                                  <FolderOpenIcon />
+                                </IconButton>
+                              </span>
+                            </Tooltip>
                           </InputAdornment>
                         )
                       }}
                     />
-                    <Button
-                      variant="contained"
-                      onClick={runKeyGeneration}
-                      disabled={!outputDir || isKeyGenRunning}
-                      sx={{
-                        minWidth: 160,
-                        bgcolor: "#7b5cff",
-                        boxShadow: "0 4px 14px 0 rgb(123 92 255 / 40%)",
-                        "&:hover": { bgcolor: "#6633cc" }
-                      }}
-                      startIcon={isKeyGenRunning ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
-                    >
-                      {isKeyGenRunning ? "Generating..." : "Generate Keys"}
-                    </Button>
+                    <Tooltip title={!isAuthorized ? tooltip : ""} arrow>
+                      <span>
+                        <Button
+                          variant="contained"
+                          onClick={runKeyGeneration}
+                          disabled={!outputDir || isKeyGenRunning || !isAuthorized}
+                          sx={{
+                            minWidth: 160,
+                            bgcolor: "#7b5cff",
+                            boxShadow: "0 4px 14px 0 rgb(123 92 255 / 40%)",
+                            "&:hover": { bgcolor: "#6633cc" }
+                          }}
+                          startIcon={isKeyGenRunning ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
+                        >
+                          {isKeyGenRunning ? "Generating..." : "Generate Keys"}
+                        </Button>
+                      </span>
+                    </Tooltip>
                   </Stack>
 
                   <LogTerminal
@@ -504,7 +567,7 @@ export default function ProductCryptoSigningPage() {
               </Paper>
             </motion.div>
 
-            {/* DIGITAL SIGNING CARD  */}
+            {/* DIGITAL SIGNING CARD */}
             <motion.div variants={itemVariants}>
               <Paper sx={{ p: 3, borderLeft: "4px solid #00e5ff", borderRadius: 1 }}>
                 <Typography variant="h6" fontWeight={700} gutterBottom display="flex" alignItems="center" gap={1}>
@@ -515,22 +578,18 @@ export default function ProductCryptoSigningPage() {
                 </Typography>
 
                 <Stack spacing={3}>
-
-
-                  <Paper
-                    sx={{
-                      p: 3,
-                      mb: 3,
-                      borderRadius: 2,
-                      bgcolor: 'rgba(255,255,255, 0.02)',
-                      border: '1px solid rgba(255,255,255, 0.08)',
-                      boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
-                    }}
-                  >
+                  {/* REPO LIST */}
+                  <Paper sx={{
+                    p: 3,
+                    mb: 3,
+                    borderRadius: 2,
+                    bgcolor: 'rgba(255,255,255, 0.02)',
+                    border: '1px solid rgba(255,255,255, 0.08)',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
+                  }}>
                     <Typography variant="h6" fontWeight={500} mb={2.5} color="#00e5ff" sx={{ fontFamily: 'monospace' }}>
                       📂 {product.repos.length === 1 ? 'Repository' : 'Repositories'} ({product.repos.length})
                     </Typography>
-
                     <Stack spacing={1.5}>
                       {product.repos.map((repo, index) => (
                         <Paper
@@ -542,14 +601,9 @@ export default function ProductCryptoSigningPage() {
                             bgcolor: index === currentRepoIndex ? 'rgba(0, 229, 255, 0.08)' : 'transparent',
                             border: index === currentRepoIndex ? '2px solid rgba(0, 229, 255, 0.3)' : '1px solid rgba(255,255,255, 0.05)',
                             transition: 'all 0.3s ease',
-                            '&:hover': {
-                              bgcolor: index === currentRepoIndex ? 'rgba(0, 229, 255, 0.12)' : 'rgba(255,255,255, 0.05)',
-                              boxShadow: index === currentRepoIndex ? '0 8px 25px rgba(0, 229, 255, 0.25)' : '0 4px 12px rgba(0,0,0,0.1)'
-                            }
                           }}
                         >
                           <Stack direction="row" spacing={1.5} alignItems="center">
-                            {/* Repo Number */}
                             <Box sx={{
                               width: 36, height: 36,
                               borderRadius: 1,
@@ -561,28 +615,21 @@ export default function ProductCryptoSigningPage() {
                                 {index + 1}
                               </Typography>
                             </Box>
-
-                            {/* Repo URL */}
                             <Box sx={{ flex: 1 }}>
                               <Typography variant="caption" color="text.secondary" fontSize={11} mb={0.25} sx={{ fontFamily: 'monospace' }}>
                                 Repository
                               </Typography>
-                              <Typography
-                                variant="body2"
-                                sx={{
-                                  fontFamily: 'monospace',
-                                  fontSize: '0.8rem',
-                                  color: index === currentRepoIndex ? '#00e5ff' : 'white',
-                                  fontWeight: index === currentRepoIndex ? 600 : 400,
-                                  wordBreak: 'break-all',
-                                  lineHeight: 1.2
-                                }}
-                              >
+                              <Typography variant="body2" sx={{
+                                fontFamily: 'monospace',
+                                fontSize: '0.8rem',
+                                color: index === currentRepoIndex ? '#00e5ff' : 'white',
+                                fontWeight: index === currentRepoIndex ? 600 : 400,
+                                wordBreak: 'break-all',
+                                lineHeight: 1.2
+                              }}>
                                 {repo.repoUrl}
                               </Typography>
                             </Box>
-
-                            {/* Branch */}
                             <Chip
                               label={repo.branch}
                               size="small"
@@ -596,8 +643,6 @@ export default function ProductCryptoSigningPage() {
                                 '& .MuiChip-label': { py: 0.25 }
                               }}
                             />
-
-                            {/* Spinner */}
                             {index === currentRepoIndex && isSigningRunning && (
                               <CircularProgress size={20} />
                             )}
@@ -606,7 +651,6 @@ export default function ProductCryptoSigningPage() {
                       ))}
                     </Stack>
                   </Paper>
-
 
                   {/* Progress Summary */}
                   {isSigningRunning && (
@@ -629,14 +673,22 @@ export default function ProductCryptoSigningPage() {
                       fullWidth
                       label="Private Key File"
                       value={privateKeyPath}
-                      disabled={isSigningRunning}
+                      disabled={!isAuthorized || isSigningRunning}
                       InputProps={{
                         readOnly: true,
                         endAdornment: (
                           <InputAdornment position="end">
-                            <IconButton onClick={handleSelectKeyFile} disabled={isSigningRunning} size="small">
-                              <FolderOpenIcon />
-                            </IconButton>
+                            <Tooltip title={!isAuthorized ? tooltip : ""} arrow>
+                              <span>
+                                <IconButton 
+                                  onClick={handleSelectKeyFile} 
+                                  disabled={!isAuthorized || isSigningRunning}
+                                  size="small"
+                                >
+                                  <FolderOpenIcon />
+                                </IconButton>
+                              </span>
+                            </Tooltip>
                           </InputAdornment>
                         )
                       }}
@@ -647,39 +699,43 @@ export default function ProductCryptoSigningPage() {
                       value={signPassword}
                       onChange={(e) => setSignPassword(e.target.value)}
                       sx={{ minWidth: 200 }}
-                      disabled={isSigningRunning}
+                      disabled={!isAuthorized || isSigningRunning}
                     />
                   </Stack>
 
-                  <Button
-                    variant="contained"
-                    size="large"
-                    onClick={runSequentialSigning}
-                    disabled={!privateKeyPath || isSigningRunning}
-                    sx={{
-                      bgcolor: "#00e5ff",
-                      color: "black",
-                      fontWeight: "bold",
-                      boxShadow: "0 4px 14px 0 rgb(0 229 255 / 40%)",
-                      "&:hover": { bgcolor: "#00b8d4" }
-                    }}
-                    startIcon={isSigningRunning ? <CircularProgress size={20} /> : <PlayArrowIcon />}
-                  >
-                    {isSigningRunning
-                      ? `Signing... (${completedReposCount}/${product.repos.length})`
-                      : `Sign Artifacts`
-                    }
-                  </Button>
-                </Stack>
+                  <Tooltip title={!isAuthorized ? tooltip : ""} arrow>
+                    <span>
+                      <Button
+                        variant="contained"
+                        size="large"
+                        onClick={runSequentialSigning}
+                        disabled={!privateKeyPath || isSigningRunning || !isAuthorized}
+                        sx={{
+                          bgcolor: "#00e5ff",
+                          color: "black",
+                          fontWeight: "bold",
+                          boxShadow: "0 4px 14px 0 rgb(0 229 255 / 40%)",
+                          "&:hover": { bgcolor: "#00b8d4" }
+                        }}
+                        startIcon={isSigningRunning ? <CircularProgress size={20} /> : <PlayArrowIcon />}
+                      >
+                        {isSigningRunning
+                          ? `Signing... (${completedReposCount}/${product.repos.length})`
+                          : `Sign Artifacts`
+                        }
+                      </Button>
+                    </span>
+                  </Tooltip>
 
-                <LogTerminal
-                  logs={signingLogs}
-                  isVisible={signingLogs.length > 0 || isSigningRunning}
-                  isRunning={isSigningRunning}
-                  onCancel={handleCancel}
-                  title="SEQUENTIAL SIGNING OUTPUT"
-                  color="#00e5ff"
-                />
+                  <LogTerminal
+                    logs={signingLogs}
+                    isVisible={signingLogs.length > 0 || isSigningRunning}
+                    isRunning={isSigningRunning}
+                    onCancel={handleCancel}
+                    title="SEQUENTIAL SIGNING OUTPUT"
+                    color="#00e5ff"
+                  />
+                </Stack>
               </Paper>
             </motion.div>
 
@@ -688,6 +744,7 @@ export default function ProductCryptoSigningPage() {
               <BlockchainArchivalCard
                 variants={itemVariants}
                 product={product}
+                disabled={!isAuthorized}
               />
             </motion.div>
           </Stack>
