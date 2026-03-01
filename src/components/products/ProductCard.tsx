@@ -23,13 +23,20 @@ import { Product } from "../../models/Product";
 import { authorizeEdit } from "../../services/productService";
 import { useUserStore } from "../../store/userStore";
 
+/**
+ * STATUS COLORS - Maps product status to gradient background colors for chips
+ */
 const STATUS: Record<Product["status"], string> = {
   Pending: "#ffe920ff",
   Approved: "#1ca153ff",
-  Rejected: "#c22020ff",
+  Signed: "#00e5ff",
   Released: "#7b5cff",
+  Rejected: "#c22020ff",
 };
 
+/**
+ * PIPELINE STEPS CONFIG - Defines 4-step workflow with icons and colors
+ */
 const PIPELINE_STEPS = [
   { label: "Security Scan", icon: SecurityIcon, color: "#ff9800" },
   { label: "Sign", icon: FingerprintIcon, color: "#00e5ff" },
@@ -48,6 +55,11 @@ interface Props {
   onSignatureVerify: () => void;
 }
 
+/**
+ * ProductCard - Visual representation of product pipeline status
+ * Handles visual states only. All RBAC + business logic in ProductPage
+ * Buttons are ALWAYS clickable - ProductPage handles authorization popups
+ */
 export default function ProductCard({
   product,
   onView,
@@ -60,17 +72,22 @@ export default function ProductCard({
 }: Props) {
   const user = useUserStore((s) => s.user);
 
-  // Pipeline state based on product status
+  /**
+   * Calculates pipeline progress based on product status
+   * Rejected shows all 4 steps as failed (red X icons)
+   */
   const getPipelineState = () => {
     switch (product.status) {
       case "Released":
-        return { progress: 4, failed: false };
+        return { progress: 4, failed: false }; // All steps complete
+      case "Signed":
+        return { progress: 2, failed: false }; // Sign complete (step 2/4)
       case "Approved":
-        return { progress: 1, failed: false };
+        return { progress: 1, failed: false }; // Scan complete (step 1/4)
       case "Pending":
-        return { progress: 0, failed: false };
+        return { progress: 0, failed: false }; // No steps started
       case "Rejected":
-        return { progress: 4, failed: true }; // All steps marked as failed
+        return { progress: 4, failed: true };  // All steps failed
       default:
         return { progress: 0, failed: false };
     }
@@ -78,6 +95,15 @@ export default function ProductCard({
 
   const { progress: pipelineProgress, failed } = getPipelineState();
   const isRejected = product.status === "Rejected";
+
+  /**
+   * Visual completion states for button glow effects
+   * No business logic - purely visual feedback
+   */
+  const isSecurityScanComplete = pipelineProgress >= 1 && !isRejected;
+  const isSignComplete = pipelineProgress >= 2 && !isRejected;
+  const isReleaseComplete = pipelineProgress >= 3 && !isRejected;
+  const isVerifyComplete = pipelineProgress >= 4 && !isRejected;
 
   return (
     <motion.div
@@ -93,6 +119,7 @@ export default function ProductCard({
           flex: 1,
           p: 3,
           borderRadius: 3,
+          // Dramatic red styling for rejected products
           background: isRejected
             ? "linear-gradient(140deg, #200a0a, #150707, #0a0505)"
             : "linear-gradient(140deg,#0c1023,#090c1c,#060712)",
@@ -108,7 +135,7 @@ export default function ProductCard({
           overflow: "hidden",
         }}
       >
-        {/* HEADER SECTION */}
+        {/* HEADER - Product name, version, status chip, description */}
         <Box sx={{ mb: 2 }}>
           <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1} mb={1}>
             <Stack direction="row" alignItems="center" spacing={1.5}>
@@ -118,20 +145,20 @@ export default function ProductCard({
                 sx={{
                   lineHeight: 1.3,
                   wordBreak: "break-word",
-                  color: isRejected ? "#ff5252" : "inherit",
+                  color: isRejected ? "#ff5252" : "inherit", // Red title for rejected
                 }}
               >
                 {product.name}
               </Typography>
             </Stack>
 
-            {/* Version + Status + OpenSource Chips */}
+            {/* Version + Status + OpenSource chips */}
             <Stack direction="row" spacing={0.5} alignItems="flex-start">
               <Chip
                 label={`v${product.version}`}
                 size="small"
                 sx={{
-                  bgcolor: "#ded7c8", 
+                  bgcolor: "#ded7c8",
                   fontWeight: 800,
                   color: "#000",
                   flexShrink: 0,
@@ -170,17 +197,13 @@ export default function ProductCard({
           </Typography>
         </Box>
 
-        {/* Pipeline Stepper with Proper Icon-Text Spacing */}
+        {/* PIPELINE STEPPER - Visual progress indicator */}
         <Paper
           sx={{
             p: 2,
             mb: 2.5,
-            bgcolor: isRejected
-              ? "rgba(255,82,82,0.1)"
-              : "rgba(255,255,255,0.03)",
-            border: isRejected
-              ? "2px solid rgba(255,82,82,0.4)"
-              : "1px solid rgba(255,255,255,0.1)",
+            bgcolor: isRejected ? "rgba(255,82,82,0.1)" : "rgba(255,255,255,0.03)",
+            border: isRejected ? "2px solid rgba(255,82,82,0.4)" : "1px solid rgba(255,255,255,0.1)",
             borderRadius: 2,
           }}
         >
@@ -201,15 +224,8 @@ export default function ProductCard({
             sx={{
               py: 1,
               gap: 1,
-              "& .MuiStepper-horizontal": {
-                minHeight: 52,
-                alignItems: "center",
-              },
-              "& .MuiStep-root": {
-                flex: 1,
-                minWidth: 0,
-                padding: "4px 8px",
-              },
+              "& .MuiStepper-horizontal": { minHeight: 52, alignItems: "center" },
+              "& .MuiStep-root": { flex: 1, minWidth: 0, padding: "4px 8px" },
               "& .MuiStepConnector-lineHorizontal": {
                 borderTopWidth: 3,
                 minHeight: 4,
@@ -234,7 +250,7 @@ export default function ProductCard({
                         display: "flex",
                         flexDirection: "column",
                         alignItems: "center",
-                        gap: 1, // Increased gap between icon and text
+                        gap: 1,
                       },
                       "& .MuiStepLabel-label": {
                         marginTop: 0,
@@ -286,10 +302,9 @@ export default function ProductCard({
                     )}
                   >
                     <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
-                      {/* Icon with proper spacing above text */}
                       <IconComponent
                         sx={{
-                          mb:1,
+                          mb: 1,
                           fontSize: 16,
                           color: failedStep
                             ? "#f44336 !important"
@@ -297,7 +312,6 @@ export default function ProductCard({
                           opacity: failedStep ? 1 : completed ? 1 : active ? 1 : 0.7,
                         }}
                       />
-                      {/* Text below icon with increased spacing */}
                       <Typography
                         variant="caption"
                         fontWeight={700}
@@ -324,18 +338,18 @@ export default function ProductCard({
           </Stepper>
         </Paper>
 
-        {/* Action Buttons - Split Layout */}
+        {/* ACTION BUTTONS - ALWAYS CLICKABLE (RBAC handled by ProductPage) */}
         <Stack direction="row" justifyContent="space-between" spacing={2}>
-          {/* Pipeline Actions (Left Side) */}
+          {/* PIPELINE ACTIONS - Visual feedback only */}
           <Stack direction="row" spacing={1.5} sx={{ flex: 1 }}>
-            {/* Security Scan - Always enabled */}
+            {/* Security Scan Button - Hero button for rejected products */}
             <Tooltip title="Security Scan">
               <IconButton
                 size="medium"
                 color="warning"
                 onClick={onSecurityScan}
                 sx={{
-                  bgcolor: pipelineProgress >= 1 && !isRejected ? "#ff980025" : "transparent",
+                  bgcolor: isSecurityScanComplete ? "#ff980025" : "transparent",
                   color: "#ff9800",
                   width: 44,
                   height: 44,
@@ -349,96 +363,74 @@ export default function ProductCard({
               </IconButton>
             </Tooltip>
 
-            {/* Cryptographic Sign - Disabled on Rejected */}
-            <Tooltip title={isRejected ? "Fix security scan first" : "Cryptographic Sign"}>
-              <span>
-                <IconButton
-                  size="medium"
-                  disabled={isRejected}
-                  sx={{
-                    color: "#00e5ff",
-                    bgcolor: !isRejected && pipelineProgress >= 2 ? "#00e5ff25" : "transparent",
-                    width: 44,
-                    height: 44,
-                    "&:hover": {
-                      bgcolor: !isRejected ? "#00e5ff25" : "transparent",
-                      transform: isRejected ? "none" : "scale(1.05)",
-                    },
-                    "&.Mui-disabled": {
-                      bgcolor: "rgba(255,82,82,0.15)",
-                      color: "error.light",
-                    },
-                  }}
-                  onClick={onCryptographicSign}
-                >
-                  <FingerprintIcon />
-                </IconButton>
-              </span>
+            {/* Cryptographic Sign */}
+            <Tooltip title="Cryptographic Sign">
+              <IconButton
+                size="medium"
+                onClick={onCryptographicSign}
+                sx={{
+                  color: "#00e5ff",
+                  bgcolor: isSignComplete ? "#00e5ff25" : "transparent",
+                  width: 44,
+                  height: 44,
+                  "&:hover": {
+                    bgcolor: "#00e5ff25",
+                    transform: "scale(1.05)",
+                  },
+                }}
+              >
+                <FingerprintIcon />
+              </IconButton>
             </Tooltip>
 
-            {/* Release Workflow - Disabled on Rejected */}
-            <Tooltip title={isRejected ? "Fix security scan first" : "Release Workflow"}>
-              <span>
-                <IconButton
-                  size="medium"
-                  disabled={isRejected}
-                  sx={{
-                    color: "#7b5cff",
-                    bgcolor: !isRejected && pipelineProgress >= 3 ? "#7b5cff25" : "transparent",
-                    width: 44,
-                    height: 44,
-                    "&:hover": {
-                      bgcolor: !isRejected ? "#7b5cff25" : "transparent",
-                      transform: isRejected ? "none" : "scale(1.05)",
-                    },
-                    "&.Mui-disabled": {
-                      bgcolor: "rgba(255,82,82,0.15)",
-                      color: "error.light",
-                    },
-                  }}
-                  onClick={onRelease}
-                >
-                  <RocketLaunchIcon />
-                </IconButton>
-              </span>
+            {/* Release Workflow */}
+            <Tooltip title="Release Workflow">
+              <IconButton
+                size="medium"
+                onClick={onRelease}
+                sx={{
+                  color: "#7b5cff",
+                  bgcolor: isReleaseComplete ? "#7b5cff25" : "transparent",
+                  width: 44,
+                  height: 44,
+                  "&:hover": {
+                    bgcolor: "#7b5cff25",
+                    transform: "scale(1.05)",
+                  },
+                }}
+              >
+                <RocketLaunchIcon />
+              </IconButton>
             </Tooltip>
 
-            {/* Signature Verify - Disabled on Rejected */}
-            <Tooltip title={isRejected ? "Fix security scan first" : "Verify Signature"}>
-              <span>
-                <IconButton
-                  size="medium"
-                  disabled={isRejected}
-                  color="success"
-                  sx={{
-                    bgcolor: !isRejected && pipelineProgress >= 4 ? "#4caf5025" : "transparent",
-                    width: 44,
-                    height: 44,
-                    "&:hover": {
-                      bgcolor: !isRejected ? "#4caf5025" : "transparent",
-                      transform: isRejected ? "none" : "scale(1.05)",
-                    },
-                    "&.Mui-disabled": {
-                      bgcolor: "rgba(255,82,82,0.15)",
-                      color: "error.light",
-                    },
-                  }}
-                  onClick={onSignatureVerify}
-                >
-                  <ReceiptLongIcon />
-                </IconButton>
-              </span>
+            {/* Signature Verify */}
+            <Tooltip title="Verify Signature">
+              <IconButton
+                size="medium"
+                color="success"
+                onClick={onSignatureVerify}
+                sx={{
+                  bgcolor: isVerifyComplete ? "#4caf5025" : "transparent",
+                  width: 44,
+                  height: 44,
+                  "&:hover": {
+                    bgcolor: "#4caf5025",
+                    transform: "scale(1.05)",
+                  },
+                }}
+              >
+                <ReceiptLongIcon />
+              </IconButton>
             </Tooltip>
           </Stack>
 
-          {/* CRUD Actions (Right Side) */}
+          {/* CRUD ACTIONS - Uses existing authorizeEdit logic */}
           <Stack direction="row" spacing={0.75}>
             <Tooltip title="View">
               <IconButton onClick={onView} size="medium" sx={{ width: 44, height: 44 }}>
                 <VisibilityIcon />
               </IconButton>
             </Tooltip>
-
             {authorizeEdit(user, product) && (
               <>
                 <Tooltip title="Edit">
