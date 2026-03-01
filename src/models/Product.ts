@@ -130,6 +130,7 @@ export interface ProductStatsResponse {
   pending: number;
   approved: number;
   rejected: number;
+  signed: number;
   released: number;
   openSource: number;
 }

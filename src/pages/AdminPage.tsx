@@ -19,7 +19,7 @@ import { ProductStatsResponse } from "../models/Product";
 export default function AdminPage() {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [stats, setStats] = useState<ProductStatsResponse>({
-    total: 0, pending: 0, approved: 0, rejected: 0, released: 0, openSource: 0
+    total: 0, pending: 0, approved: 0, rejected: 0,signed:0,released: 0, openSource: 0
   });
   const [loading, setLoading] = useState(true);
   const [usersLoading, setUsersLoading] = useState(false);
@@ -51,15 +51,11 @@ export default function AdminPage() {
       const statsResult = await getProductStats();
       if (statsResult.error) {
         toast.error("Failed to load stats: " + statsResult.error.message);
-        setStats({ total: 0, pending: 0, approved: 0, rejected: 0, released: 0, openSource: 0 });
+        setStats({ total: 0, pending: 0, approved: 0, rejected: 0,signed:0, released: 0, openSource: 0 });
       } else {
         setStats(statsResult.data);
       }
       
-      //  TOAST ONLY ON MANUAL REFRESH
-      if (showToast) {
-        toast.success("Dashboard refreshed successfully!");
-      }
     } catch (error) {
       toast.error("Failed to refresh dashboard");
       console.error("Load data error:", error);
@@ -142,21 +138,23 @@ export default function AdminPage() {
 
           {/* ROW 1: STATUS CARDS */}
           <Box sx={{ mb: 4 }}>
-            <Box sx={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 3, width: "100%", px: 0, mx: 0 }}>
+            <Box sx={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 3, width: "100%", px: 0, mx: 0 }}>
               <AdminStats title="Pending" value={stats.pending} color="#f59e0b" loading={statsLoading} />
               <AdminStats title="Approved" value={stats.approved} color="#10b981" loading={statsLoading} />
               <AdminStats title="Rejected" value={stats.rejected} color="#ef4444" loading={statsLoading} />
+              <AdminStats title="Signed" value={stats.signed} color="#00e5ff" loading={statsLoading} />
               <AdminStats title="Released" value={stats.released} color="#8b5cf6" loading={statsLoading} />
             </Box>
           </Box>
 
           {/* ROW 2: KEY METRICS */}
           <Box sx={{ mb: 6 }}>
-            <Box sx={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 3, width: "100%", px: 0, mx: 0 }}>
+            <Box sx={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 3, width: "100%", px: 0, mx: 0 }}>
               <AdminStats title="Total Products" value={stats.total} color="#7b5cff" loading={statsLoading} />
               <AdminStats title="Open Source" value={stats.openSource} color="#10b981" loading={statsLoading} />
               <AdminStats title="Total Users" value={users.length} color="#3b82f6" loading={usersLoading} />
               <AdminStats title="External Users" value={users.filter(u => !u.licenseValid).length} color="#ef4444" loading={usersLoading} />
+              <AdminStats title="Internal Users" value={users.length - users.filter(u => !u.licenseValid).length} color="#ef4444" loading={usersLoading} />
             </Box>
           </Box>
 

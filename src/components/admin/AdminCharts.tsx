@@ -24,6 +24,7 @@ const PRODUCT_COLORS = {
   Pending: "#ffce56",
   Approved: "#5ce1e6", 
   Rejected: "#ff6b6b",
+  Signed: "#00e5ff",
   Released: "#7b5cff",
 };
 
@@ -60,6 +61,7 @@ export default function AdminCharts({ productsStats, users }: Props) {
     Pending: productsStats.pending,
     Approved: productsStats.approved,
     Rejected: productsStats.rejected,
+    Signed: productsStats.signed,
     Released: productsStats.released,
   };
 
