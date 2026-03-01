@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Box, Button, Paper, Stack, Typography, TextField,
   IconButton, Dialog, DialogContent,
-  Chip
+  Chip, Tooltip
 } from "@mui/material";
 import { motion, Variants } from "framer-motion";
 import { ethers } from "ethers";
@@ -21,7 +21,12 @@ import LinkIcon from "@mui/icons-material/Link";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 
-// HEDERA CONFIG
+interface BlockchainProps {
+  variants: Variants;
+  product: Product;
+  disabled?: boolean; 
+}
+
 const HEDERA_TESTNET_CONFIG = {
   chainId: "0x128",
   chainName: "Hedera Testnet",
@@ -29,11 +34,6 @@ const HEDERA_TESTNET_CONFIG = {
   rpcUrls: ["https://testnet.hashio.io/api"],
   blockExplorerUrls: ["https://hashscan.io/testnet/"],
 };
-
-interface BlockchainProps {
-  variants: Variants;
-  product: Product;
-}
 
 // UNIVERSAL FILE SELECTION (Electron + Web)
 const selectFileUniversal = async (): Promise<string | null> => {
@@ -66,7 +66,8 @@ const selectFileUniversal = async (): Promise<string | null> => {
 
 export default function BlockchainArchivalCard({
   variants,
-  product
+  product,
+  disabled = false 
 }: BlockchainProps) {
   const [walletAddress, setWalletAddress] = useState("");
   const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
@@ -87,8 +88,13 @@ export default function BlockchainArchivalCard({
     setIsElectronApp(isElectron());
   }, []);
 
+  // 🔐 DISABLED TOOLTIP MESSAGE
+  const disabledTooltip = disabled 
+    ? "View-Only Mode: Blockchain operations disabled" 
+    : "";
+
   const updateProductWithSignature = useCallback(async (signatureFilePath: string) => {
-    if (!product) return;
+    if (!product || disabled) return;
 
     try {
       const updatedProduct: Partial<Product> = {
@@ -105,10 +111,10 @@ export default function BlockchainArchivalCard({
         id: `signature-save-error-${product.id}`
       });
     }
-  }, [product]);
+  }, [product, disabled]);
 
   const updateProductWithPublicKey = useCallback(async (publicKeyFilePath: string) => {
-    if (!product) return;
+    if (!product || disabled) return;
 
     try {
       const updatedProduct: Partial<Product> = {
@@ -125,10 +131,14 @@ export default function BlockchainArchivalCard({
         id: `publickey-save-error-${product.id}`
       });
     }
-  }, [product]);
+  }, [product, disabled]);
 
-  // File selection handlers
+  // PROTECTED HANDLERS
   const handleSelectPublicKeyFile = async () => {
+    if (disabled) {
+      toast.error("View-only mode: Cannot select files", { id: "auth-blockchain-file" });
+      return;
+    }
     const path = await selectFileUniversal();
     if (path) {
       setPublicKeyLocalPath(path);
@@ -137,15 +147,22 @@ export default function BlockchainArchivalCard({
   };
 
   const handleSelectSignatureFile = async () => {
+    if (disabled) {
+      toast.error("View-only mode: Cannot select files", { id: "auth-blockchain-sig" });
+      return;
+    }
     const path = await selectFileUniversal();
     if (path) {
       setSignatureLocalPath(path);
-      toast.success(` File selected`);
+      toast.success(`File selected`);
     }
   };
 
-  // Upload to IPFS (Mock for now)
   const handleUploadToIPFS = async (localPath: string, type: 'publickey' | 'signature') => {
+    if (disabled) {
+      toast.error("View-only mode: Cannot upload to IPFS", { id: "auth-ipfs" });
+      return;
+    }
     if (!localPath) {
       toast.error("Please select a file first");
       return;
@@ -169,8 +186,11 @@ export default function BlockchainArchivalCard({
     }
   };
 
-  // Connect wallet
   async function connectWallet() {
+    if (disabled) {
+      toast.error("View-only mode: Cannot connect wallet", { id: "auth-wallet" });
+      return;
+    }
     if (!(window as any).ethereum) {
       toast.error("MetaMask not installed");
       return;
@@ -191,8 +211,11 @@ export default function BlockchainArchivalCard({
     }
   }
 
-  // Archive to blockchain + Save to DB
   const archiveToBlockchain = async (fileType: 'publickey' | 'signature') => {
+    if (disabled) {
+      toast.error("View-only mode: Cannot archive to blockchain", { id: "auth-blockchain" });
+      return;
+    }
     if (!walletAddress || !provider) {
       toast.error("Please connect wallet first");
       return;
@@ -206,7 +229,7 @@ export default function BlockchainArchivalCard({
 
     setIsProcessing(true);
     try {
-      // 1. Update DB using YOUR exact functions
+      // 1. Update DB 
       if (fileType === 'publickey') {
         await updateProductWithPublicKey(ipfsPath);
       } else {
@@ -223,7 +246,6 @@ export default function BlockchainArchivalCard({
         data: ethers.hexlify(ethers.toUtf8Bytes(txData))
       });
 
-      // ✅ FIX: Handle null receipt
       const receipt = await tx.wait();
       if (receipt) {
         setTxHash(receipt.hash);
@@ -246,11 +268,11 @@ export default function BlockchainArchivalCard({
         </Typography>
 
         {/* Product Info */}
-        
-          <Typography variant="body2" color="text.secondary" mb={3}>
-            Upload the generated signature hash to the Hedera network for immutable proof of existence.
-          </Typography>
-        
+
+        <Typography variant="body2" color="text.secondary" mb={3}>
+          Upload the generated signature hash to the Hedera network for immutable proof of existence.
+        </Typography>
+
 
         {/*  WALLET */}
         <Paper sx={{ p: 3, mb: 4, bgcolor: "rgba(0,229,255,0.1)", border: "2px dashed #00e5ff" }}>
@@ -269,20 +291,24 @@ export default function BlockchainArchivalCard({
                 )}
               </Box>
             </Box>
-            <Button
-              variant="contained"
-              onClick={connectWallet}
-              disabled={!!walletAddress || isProcessing}
-              sx={{ bgcolor: "#00e5ff", color: "black", fontWeight: 700 }}
-            >
-              {walletAddress ? "Connected" : "Connect Wallet"}
-            </Button>
+            <Tooltip title={disabled ? disabledTooltip : ""} arrow>
+              <span>
+                <Button
+                  variant="contained"
+                  onClick={connectWallet}
+                  disabled={!!walletAddress || isProcessing || disabled}
+                  sx={{ bgcolor: "#00e5ff", color: "black", fontWeight: 700 }}
+                >
+                  {walletAddress ? "Connected" : "Connect Wallet"}
+                </Button>
+              </span>
+            </Tooltip>
           </Stack>
         </Paper>
 
-        {/* 2. PUBLIC KEY */}
-        <Paper sx={{ p: 3, mb: 4, borderRadius: 2, bgcolor: 'rgba(255,255,255, 0.02)', border: '1px solid rgba(255,255,255, 0.08)' }} >
-          <Typography variant="h6" fontWeight={500} mb={2.5}  sx={{ fontFamily: 'monospace' }}>
+        {/* PUBLIC KEY SECTION */}
+        <Paper sx={{ p: 3, mb: 4, borderRadius: 2, bgcolor: 'rgba(255,255,255, 0.02)', border: '1px solid rgba(255,255,255, 0.08)' }}>
+          <Typography variant="h6" fontWeight={500} mb={2.5} sx={{ fontFamily: 'monospace' }}>
             🔑 Public Key
           </Typography>
           {/* Existing Path */}
@@ -296,24 +322,36 @@ export default function BlockchainArchivalCard({
               sx={{ flex: 1 }}
               label="Select File"
               value={publicKeyLocalPath}
+              disabled={disabled || isProcessing}
               InputProps={{
                 readOnly: true,
                 endAdornment: (
-                  <IconButton onClick={handleSelectPublicKeyFile} disabled={isProcessing}>
-                    <FolderOpenIcon />
-                  </IconButton>
+                  <Tooltip title={disabled ? disabledTooltip : ""} arrow>
+                    <span>
+                      <IconButton 
+                        onClick={handleSelectPublicKeyFile} 
+                        disabled={disabled || isProcessing}
+                      >
+                        <FolderOpenIcon />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
                 )
               }}
             />
-            <Button
-              variant="outlined"
-              onClick={() => handleUploadToIPFS(publicKeyLocalPath, 'publickey')}
-              disabled={!publicKeyLocalPath || isProcessing}
-              startIcon={<CloudUploadIcon />}
-              sx={{ minWidth: 180 }}
-            >
-              IPFS Upload
-            </Button>
+            <Tooltip title={disabled ? disabledTooltip : ""} arrow>
+              <span>
+                <Button
+                  variant="outlined"
+                  onClick={() => handleUploadToIPFS(publicKeyLocalPath, 'publickey')}
+                  disabled={!publicKeyLocalPath || isProcessing || disabled}
+                  startIcon={<CloudUploadIcon />}
+                  sx={{ minWidth: 180 }}
+                >
+                  IPFS Upload
+                </Button>
+              </span>
+            </Tooltip>
           </Stack>
 
           {/* IPFS Path + Archive Row */}
@@ -322,33 +360,36 @@ export default function BlockchainArchivalCard({
               sx={{ flex: 1 }}
               label="IPFS Path"
               value={publicKeyIpfsPath}
+              disabled={disabled}
               InputProps={{
                 readOnly: true,
-                endAdornment: publicKeyIpfsPath && (
+                endAdornment: publicKeyIpfsPath && !disabled && (
                   <IconButton onClick={() => navigator.clipboard.writeText(publicKeyIpfsPath || '')}>
                     <ContentCopyIcon />
                   </IconButton>
                 )
               }}
             />
-            <Button
-              variant="contained"
-              onClick={() => archiveToBlockchain('publickey')}
-              disabled={!publicKeyIpfsPath || !walletAddress || isProcessing}
-              sx={{ bgcolor: "#4caf50", color: "black", minWidth: 180 }}
-            >
-              Blockchain Archive
-            </Button>
+            <Tooltip title={disabled ? disabledTooltip : ""} arrow>
+              <span>
+                <Button
+                  variant="contained"
+                  onClick={() => archiveToBlockchain('publickey')}
+                  disabled={!publicKeyIpfsPath || !walletAddress || isProcessing || disabled}
+                  sx={{ bgcolor: "#4caf50", color: "black", minWidth: 180 }}
+                >
+                  Blockchain Archive
+                </Button>
+              </span>
+            </Tooltip>
           </Stack>
         </Paper>
 
-        {/* 3. SIGNATURE */}
-        <Paper sx={{ p: 3, mb: 4, borderRadius: 2, bgcolor: 'rgba(255,255,255, 0.02)', border: '1px solid rgba(255,255,255, 0.08)' }} >
-          <Typography variant="h6" fontWeight={500} mb={2.5}  sx={{ fontFamily: 'monospace' }}>
+        {/* SIGNATURE SECTION */}
+        <Paper sx={{ p: 3, mb: 4, borderRadius: 2, bgcolor: 'rgba(255,255,255, 0.02)', border: '1px solid rgba(255,255,255, 0.08)' }}>
+          <Typography variant="h6" fontWeight={500} mb={2.5} sx={{ fontFamily: 'monospace' }}>
             🔐 Signature File
           </Typography>
-
-          {/* Existing Path */}
           {product.signatureFilePath && (
             <Chip label="Existing Path" color="success" size="small" sx={{ mb: 2 }} />
           )}
@@ -359,24 +400,36 @@ export default function BlockchainArchivalCard({
               sx={{ flex: 1 }}
               label="Select File"
               value={signatureLocalPath}
+              disabled={disabled || isProcessing}
               InputProps={{
                 readOnly: true,
                 endAdornment: (
-                  <IconButton onClick={handleSelectSignatureFile} disabled={isProcessing}>
-                    <FolderOpenIcon />
-                  </IconButton>
+                  <Tooltip title={disabled ? disabledTooltip : ""} arrow>
+                    <span>
+                      <IconButton 
+                        onClick={handleSelectSignatureFile} 
+                        disabled={disabled || isProcessing}
+                      >
+                        <FolderOpenIcon />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
                 )
               }}
             />
-            <Button
-              variant="outlined"
-              onClick={() => handleUploadToIPFS(signatureLocalPath, 'signature')}
-              disabled={!signatureLocalPath || isProcessing}
-              startIcon={<CloudUploadIcon />}
-              sx={{ minWidth: 180 }}
-            >
-              IPFS Upload
-            </Button>
+            <Tooltip title={disabled ? disabledTooltip : ""} arrow>
+              <span>
+                <Button
+                  variant="outlined"
+                  onClick={() => handleUploadToIPFS(signatureLocalPath, 'signature')}
+                  disabled={!signatureLocalPath || isProcessing || disabled}
+                  startIcon={<CloudUploadIcon />}
+                  sx={{ minWidth: 180 }}
+                >
+                  IPFS Upload
+                </Button>
+              </span>
+            </Tooltip>
           </Stack>
 
           {/* IPFS Path + Archive Row */}
@@ -385,23 +438,28 @@ export default function BlockchainArchivalCard({
               sx={{ flex: 1 }}
               label="IPFS Path"
               value={signatureIpfsPath}
+              disabled={disabled}
               InputProps={{
                 readOnly: true,
-                endAdornment: signatureIpfsPath && (
+                endAdornment: signatureIpfsPath && !disabled && (
                   <IconButton onClick={() => navigator.clipboard.writeText(signatureIpfsPath || '')}>
                     <ContentCopyIcon />
                   </IconButton>
                 )
               }}
             />
-            <Button
-              variant="contained"
-              onClick={() => archiveToBlockchain('signature')}
-              disabled={!signatureIpfsPath || !walletAddress || isProcessing}
-              sx={{ bgcolor: "#00e5ff", color: "black", minWidth: 180 }}
-            >
-              Blockchain Archive
-            </Button>
+            <Tooltip title={disabled ? disabledTooltip : ""} arrow>
+              <span>
+                <Button
+                  variant="contained"
+                  onClick={() => archiveToBlockchain('signature')}
+                  disabled={!signatureIpfsPath || !walletAddress || isProcessing || disabled}
+                  sx={{ bgcolor: "#00e5ff", color: "black", minWidth: 180 }}
+                >
+                  Blockchain Archive
+                </Button>
+              </span>
+            </Tooltip>
           </Stack>
         </Paper>
       </Paper>
