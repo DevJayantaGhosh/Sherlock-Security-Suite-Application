@@ -446,7 +446,7 @@ const submit = async () => {
                 disabled={isView}
                 onChange={(e) => updateField("productDirector", e.target.value || null)}
               >
-                {users.map((u) => (
+                {users.filter(u=>u.role=='ProjectDirector').map((u) => (
                   <MenuItem key={u.id} value={u.email}>
                     {u.name} ({u.role})
                   </MenuItem>
@@ -462,7 +462,7 @@ const submit = async () => {
                 disabled={isView}
                 onChange={(e) => updateField("securityHead", e.target.value || null)}
               >
-                {users.map((u) => (
+                {users.filter(u=>u.role=='SecurityHead').map((u) => (
                   <MenuItem key={u.id} value={u.email}>
                     {u.name} ({u.role})
                   </MenuItem>
@@ -479,7 +479,7 @@ const submit = async () => {
                 disabled={isView}
                 onChange={(e) => updateField("releaseEngineers", e.target.value as unknown as string[])}
               >
-                {users.map((u) => (
+                {users.filter(u=>u.role=='ReleaseEngineer').map((u) => (
                   <MenuItem key={u.id} value={u.email}>
                     <Chip label={u.name} size="small" />
                   </MenuItem>
