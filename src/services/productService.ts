@@ -245,7 +245,6 @@ export function authorizeCreate(user: AppUser | null): boolean {
 }
 
 export function authorizeEdit(user: AppUser | null, product: Product): boolean {
-  console.log((user))
   if (!user) return false;
   if (product.status !== "Pending") return false;
   if (user.role === "Admin") return true;
@@ -254,7 +253,6 @@ export function authorizeEdit(user: AppUser | null, product: Product): boolean {
 }
 
 export function authorizeDelete(user: AppUser | null, product: Product): boolean {
-  console.log((user))
   if (!user) return false;
   if (product.status !== "Pending") return false;
   if (user.role === "Admin") return true;
