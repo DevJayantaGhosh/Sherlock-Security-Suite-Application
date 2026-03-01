@@ -18,6 +18,7 @@ import {
   useMediaQuery
 } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
+import HelpOutlineIcon from "@mui/icons-material/HelpOutline"; // ← NEW IMPORT
 import MinimizeIcon from "@mui/icons-material/HorizontalRuleRounded";
 import MaximizeIcon from "@mui/icons-material/CheckBoxOutlineBlankRounded";
 import CloseIcon from "@mui/icons-material/CloseRounded";
@@ -130,7 +131,7 @@ export default function NavBar() {
             )}
           </Box>
 
-          {/* RIGHT - AUTH & WINDOW CONTROLS */}
+          {/* RIGHT - HELP + AUTH + WINDOW CONTROLS */}
           <Box
             sx={{
               display: "flex",
@@ -139,6 +140,22 @@ export default function NavBar() {
               WebkitAppRegion: "no-drag"
             }}
           >
+            {/* 🆕 HELP BUTTON - Right side before user menu */}
+            <IconButton
+              onClick={() => navigate("/user-guide")}
+              title="User Guide & Help"
+              sx={{
+                color: "rgba(255,255,255,0.7)",
+                "&:hover": {
+                  bgcolor: "rgba(255,255,255,0.12)",
+                  color: "white",
+                  transform: "scale(1.1)",
+                },
+              }}
+            >
+              <HelpOutlineIcon />
+            </IconButton>
+
             {!user ? (
               <Button component={Link} to="/login" color="inherit">
                 Login
