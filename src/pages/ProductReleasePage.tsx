@@ -182,10 +182,6 @@ export default function ProductReleasePage() {
       }
 
       setProduct(result.data);
-      toast.success("Product loaded successfully", { 
-        id: "product-load-success",
-        duration: 2000 
-      });
     } catch (error) {
       console.error("[RELEASE PAGE] Failed to load product:", error);
       toast.error("Failed to load product", { id: "product-load-failed" });
