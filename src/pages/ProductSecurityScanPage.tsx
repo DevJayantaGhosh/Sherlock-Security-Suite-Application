@@ -21,6 +21,7 @@ import RepoScanAccordion from "../components/security/RepoScanAccordion";
 import DependencyAudit from "../components/security/DependencyAudit";
 import { Product, RepoDetails, ProductStatus } from "../models/Product";
 import { motion, Variants } from "framer-motion";
+import { ACCESS_MESSAGES } from "../constants/accessMessages";
 
 // Animation variants (keeping your exact style)
 const containerVariants: Variants = {
@@ -201,18 +202,18 @@ export default function ProductSecurityScanPage() {
 
   // Authorization check and View-OnlyMode
   const isAuthorized = product ? authorizeApprove(user, product) : false;
-  const isViewOnlyMode = product?.status !== "Pending" || !authorizeApprove(user, product);
+  const isViewOnlyMode = product?.status !== "Pending" || !isAuthorized;
 
-  const tooltip = isViewOnlyMode 
+const tooltip = isViewOnlyMode 
   ? (product?.status !== "Pending" 
       ? `Product status is "${product?.status}". No actions allowed.`
-      : "You can view this page, but cannot perform any actions. Only Security Head/Admin authorized to run security scans or approve/reject")
+      : ACCESS_MESSAGES.SECURITY_HEAD_MSG)
   : "";
 
   // Decision handlers
   function handleDecision(type: "approve" | "reject") {
     if (!isAuthorized) {
-      toast.error("Only Security Head/Admin can approve/reject");
+      toast.error("Only Security-Head/Admin can approve/reject");
       return;
     }
     if (!wallet) {
@@ -306,7 +307,7 @@ export default function ProductSecurityScanPage() {
                   View-Only Mode
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  You can view security scans but cannot approve/reject. Only the assigned Security Head or Admin can make final decisions.
+                     {ACCESS_MESSAGES.SECURITY_HEAD_MSG}
                 </Typography>
               </Paper>
             </motion.div>
