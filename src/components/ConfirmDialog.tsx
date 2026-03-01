@@ -37,7 +37,7 @@ export default function ConfirmDialog({
 
         {!hideConfirm && (
           <Button variant="contained" color="error" onClick={onConfirm}>
-            Proceed
+            OK
           </Button>
         )}
       </DialogActions>
