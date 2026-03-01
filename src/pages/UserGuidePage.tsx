@@ -3,14 +3,10 @@ import {
   Button,
   Container,
   Typography,
-  Divider,
+
   Chip,
   Paper,
   Stack,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
   Table,
   TableBody,
   TableCell,
@@ -74,8 +70,8 @@ export default function UserGuidePage() {
             variant="h4"
             fontWeight={800}
             mb={2}
-            sx={{ 
-              lineHeight: 1.1, 
+            sx={{
+              lineHeight: 1.1,
               textAlign: "center",
               background: "linear-gradient(135deg, #7b5cff 0%, #5ce1e6 100%)",
               backgroundClip: "text",
@@ -85,7 +81,7 @@ export default function UserGuidePage() {
           >
             Sherlock Security Suite
           </Typography>
-          
+
           <Typography
             variant="h5"
             fontWeight={700}
@@ -123,7 +119,7 @@ export default function UserGuidePage() {
               ⚠️ License Required
             </Typography>
             <Typography variant="body1" color="warning.dark" mb={3} sx={{ maxWidth: 500 }}>
-              License activation required for proprietary product distribution pipeline. 
+              License activation required for proprietary product distribution pipeline.
               Open source products remain fully accessible.
             </Typography>
             <Stack direction="row" spacing={4} sx={{ maxWidth: 600 }}>
@@ -153,7 +149,7 @@ export default function UserGuidePage() {
           <Typography variant="h6" fontWeight={700} mb={4} color="white">
             Product Distribution Pipeline
           </Typography>
-          
+
           <Box sx={{ maxWidth: 900, mx: "auto" }}>
             <Stepper
               activeStep={-1}
@@ -219,17 +215,12 @@ export default function UserGuidePage() {
                       )}
                     >
                       <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5 }}>
-                        <IconComponent
-                          sx={{
-                            fontSize: 20,
-                            color: step.color,
-                          }}
-                        />
                         <Typography
                           variant="caption"
                           fontWeight={700}
                           sx={{
                             lineHeight: 1.2,
+                            mt: 2,
                             color: step.color,
                             textTransform: "uppercase",
                             letterSpacing: 0.5,
@@ -307,9 +298,9 @@ export default function UserGuidePage() {
               <Box key={phase.step} sx={{ display: "flex", gap: 3, alignItems: "flex-start" }}>
                 <Chip
                   label={`${phase.step}`}
-                  sx={{ 
-                    width: 56, 
-                    height: 56, 
+                  sx={{
+                    width: 56,
+                    height: 56,
                     fontWeight: 700,
                     bgcolor: `${phase.color}20`,
                     color: phase.color,
@@ -350,61 +341,183 @@ export default function UserGuidePage() {
           elevation={0}
           sx={{
             mt: 6,
-            p: 5,
+            p: 4,
             bgcolor: "rgba(255,255,255,0.03)",
             borderRadius: 3,
             border: "1px solid rgba(255,255,255,0.1)",
           }}
         >
           <Typography variant="h6" fontWeight={700} mb={4} color="white">
-            ⏳ Status Flow Diagram
+            ⏳ Action & Status Workflow
           </Typography>
-          
-          <Box sx={{ maxWidth: 800, mx: "auto" }}>
-            <Stack spacing={3} divider={<Divider sx={{ borderColor: "rgba(255,255,255,0.1)" }} />}>
-              {/* PENDING → SCAN */}
-              <Box sx={{ display: "flex", alignItems: "center", gap: 3, p: 3, bgcolor: "rgba(255,233,32,0.1)", borderRadius: 2 }}>
-                <Chip label="PENDING" sx={{ bgcolor: "#ffe920", color: "#000", fontWeight: 700 }} />
-                <Box sx={{ flex: 1, height: 3, bgcolor: "rgba(255,255,255,0.2)", borderRadius: 2 }} />
-                <SecurityIcon sx={{ color: "#ff9800", fontSize: 28 }} />
-                <Typography color="warning.main" fontWeight={600}>Security Scan</Typography>
+
+          <Box sx={{ maxWidth: 1000, mx: "auto", overflowX: "auto", pb: 2 }}>
+            <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5, minWidth: 900 }}>
+              {/* 1. ONBOARD → PENDING */}
+              <Box sx={{ textAlign: "center", flexShrink: 0, width: 80 }}>
+                <Box sx={{ p: 2, bgcolor: "rgba(255,233,32,0.15)", borderRadius: 2, border: "1px solid rgba(255,233,32,0.3)" }}>
+                  <EngineeringIcon sx={{ fontSize: 24, color: "#ffe920" }} />
+                  <Typography variant="caption" fontWeight={700} color="#ffe920" sx={{ display: "block", fontSize: "0.65rem", mt: 0.5 }}>
+                    ONBOARD
+                  </Typography>
+                </Box>
+                <Chip label="PENDING" size="small" sx={{ mt: 1, bgcolor: "#ffe920", color: "#000", fontWeight: 700, height: 24, fontSize: "0.6rem", width: 65 }} />
               </Box>
 
-              {/* SCAN → APPROVED / REJECTED */}
-              <Box sx={{ display: "flex", alignItems: "center", gap: 2, p: 3, bgcolor: "rgba(255,152,0,0.1)", borderRadius: 2 }}>
-                <SecurityIcon sx={{ color: "#ff9800", fontSize: 28 }} />
-                <Typography color="warning.main" fontWeight={600} sx={{ flex: 1 }}>Security Head Decision</Typography>
-                <Box sx={{ display: "flex", gap: 4 }}>
-                  <Box sx={{ textAlign: "center" }}>
-                    <Chip label="✅ APPROVED" sx={{ bgcolor: "#1ca153", color: "white", mb: 1 }} size="small" />
-                    <ArrowRightIcon sx={{ color: "#00e5ff", fontSize: 24 }} />
-                    <Typography variant="caption" color="text.secondary">→ Sign</Typography>
+              {/* DOTTED LINE 1 */}
+              <Box sx={{ flex: 1, height: 2, position: "relative", mt: 6 }}>
+                <Box sx={{
+                  position: "absolute",
+                  top: "50%",
+                  left: 8,
+                  right: 8,
+                  height: 2,
+                  borderBottom: "2px dashed rgba(255,255,255,0.3)",
+                  backgroundImage: "linear-gradient(to right, transparent 50%, rgba(255,255,255,0.4) 50%)",
+                  backgroundSize: "8px 2px",
+                  backgroundRepeat: "repeat-x",
+                }} />
+              </Box>
+
+              {/* 2. SECURITY SCAN */}
+              <Box sx={{ textAlign: "center", flexShrink: 0, width: 80 }}>
+                <Box sx={{ p: 2, bgcolor: "rgba(255,152,0,0.15)", borderRadius: 2, border: "1px solid rgba(255,152,0,0.3)" }}>
+                  <SecurityIcon sx={{ fontSize: 24, color: "#ff9800" }} />
+                  <Typography variant="caption" fontWeight={700} color="#ff9800" sx={{ display: "block", fontSize: "0.65rem", mt: 0.5 }}>
+                    SCAN
+                  </Typography>
+                </Box>
+
+                {/* REJECTED BRANCH - VERTICAL RED DOTS */}
+                <Box sx={{ mt: 1.5, ml: -1 }}>
+                  <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5, mb: 0.4 }}>
+                    <Box sx={{
+                      width: 8, height: 8,
+                      borderRadius: "50%",
+                      bgcolor: "#f44336",
+                      boxShadow: "0 2px 8px rgba(244,67,54,0.4)",
+                    }} />
+                    <Box sx={{
+                      width: 8, height: 8,
+                      borderRadius: "50%",
+                      bgcolor: "#f44336",
+                      boxShadow: "0 2px 8px rgba(244,67,54,0.4)",
+                    }} />
+                    <Box sx={{
+                      width: 8, height: 8,
+                      borderRadius: "50%",
+                      bgcolor: "#f44336",
+                      boxShadow: "0 2px 8px rgba(244,67,54,0.4)",
+                    }} />
                   </Box>
-                  <Box sx={{ textAlign: "center" }}>
-                    <CloseIcon sx={{ color: "#f44336", fontSize: 24 }} />
-                    <Chip label="❌ REJECTED" sx={{ bgcolor: "#f44336", color: "white", mt: 1 }} size="small" />
-                  </Box>
+                  <Typography variant="caption" color="#f44336" sx={{ fontSize: "0.65rem", fontWeight: 600 }}>
+                    REJECTED ❌
+                  </Typography>
                 </Box>
               </Box>
 
-              {/* APPROVED → SIGN → RELEASE → VERIFY */}
-              <Box sx={{ display: "flex", alignItems: "center", gap: 2, p: 3, bgcolor: "rgba(0,229,255,0.1)", borderRadius: 2, flexWrap: "wrap" }}>
-                <Chip label="APPROVED" sx={{ bgcolor: "#1ca153", color: "white", fontWeight: 700 }} />
-                <ArrowRightIcon sx={{ color: "#00e5ff" }} />
-                <FingerprintIcon sx={{ color: "#00e5ff", fontSize: 24 }} />
-                <ArrowRightIcon sx={{ color: "#7b5cff" }} />
-                <RocketLaunchIcon sx={{ color: "#7b5cff", fontSize: 24 }} />
-                <ArrowRightIcon sx={{ color: "#4caf50" }} />
-                <ReceiptLongIcon sx={{ color: "#4caf50", fontSize: 24 }} />
-                <Chip label="RELEASED ✓" sx={{ bgcolor: "#4caf50", color: "white", fontWeight: 700, ml: "auto" }} />
+              {/* APPROVED PATH - SAME STYLE AS OTHERS (dots first) */}
+              <Box sx={{ flex: 1, height: 2, position: "relative", mt: 6 }}>
+                <Box sx={{
+                  position: "absolute",
+                  top: "50%",
+                  left: 8,
+                  right: 8,
+                  height: 2,
+                  borderBottom: "2px dashed #00e5ff40",
+                  backgroundImage: "linear-gradient(to right, transparent 50%, #00e5ff60 50%)",
+                  backgroundSize: "8px 2px",
+                  backgroundRepeat: "repeat-x",
+                }} />
+                <Typography variant="caption" color="#1ca153" sx={{
+                  position: "relative",
+                  top: "1rem",
+                  left: "60%",
+                  transform: "translate(-50%, -50%)",
+                  fontSize: "0.7rem",
+                  fontWeight: 600,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 0.5,
+                  whiteSpace: "nowrap"
+                }}>
+                  APPROVED ✅
+                </Typography>
               </Box>
 
-              <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center", fontStyle: "italic", mt: 2 }}>
-                🔒 Edit/Delete only available for PENDING products
+              {/* 3. SIGN → SIGNED */}
+              <Box sx={{ textAlign: "center", flexShrink: 0, width: 80 }}>
+                <Box sx={{ p: 2, bgcolor: "rgba(0,229,255,0.15)", borderRadius: 2, border: "1px solid rgba(0,229,255,0.3)" }}>
+                  <FingerprintIcon sx={{ fontSize: 24, color: "#00e5ff" }} />
+                  <Typography variant="caption" fontWeight={700} color="#00e5ff" sx={{ display: "block", fontSize: "0.65rem", mt: 0.5 }}>
+                    SIGN
+                  </Typography>
+                </Box>
+                <Chip label="SIGNED" size="small" sx={{ mt: 1, bgcolor: "#00e5ff", color: "#000", fontWeight: 700, height: 24, fontSize: "0.6rem", width: 65 }} />
+              </Box>
+
+              {/* DOTTED LINE 3 */}
+              <Box sx={{ flex: 1, height: 2, position: "relative", mt: 6 }}>
+                <Box sx={{
+                  position: "absolute",
+                  top: "50%",
+                  left: 8,
+                  right: 8,
+                  height: 2,
+                  borderBottom: "2px dashed #7b5cff40",
+                  backgroundImage: "linear-gradient(to right, transparent 50%, #7b5cff60 50%)",
+                  backgroundSize: "8px 2px",
+                  backgroundRepeat: "repeat-x",
+                }} />
+              </Box>
+
+              {/* 4. RELEASE → RELEASED */}
+              <Box sx={{ textAlign: "center", flexShrink: 0, width: 80 }}>
+                <Box sx={{ p: 2, bgcolor: "rgba(123,92,255,0.15)", borderRadius: 2, border: "1px solid rgba(123,92,255,0.3)" }}>
+                  <RocketLaunchIcon sx={{ fontSize: 24, color: "#7b5cff" }} />
+                  <Typography variant="caption" fontWeight={700} color="#7b5cff" sx={{ display: "block", fontSize: "0.65rem", mt: 0.5 }}>
+                    RELEASE
+                  </Typography>
+                </Box>
+                <Chip label="RELEASED" size="small" sx={{ mt: 1, bgcolor: "#7b5cff", color: "white", fontWeight: 700, height: 24, fontSize: "0.6rem", width: 72 }} />
+              </Box>
+
+              {/* DOTTED LINE 4 */}
+              <Box sx={{ flex: 1, height: 2, position: "relative", mt: 6 }}>
+                <Box sx={{
+                  position: "absolute",
+                  top: "50%",
+                  left: 8,
+                  right: 8,
+                  height: 2,
+                  borderBottom: "2px dashed #4caf5040",
+                  backgroundImage: "linear-gradient(to right, transparent 50%, #4caf5060 50%)",
+                  backgroundSize: "8px 2px",
+                  backgroundRepeat: "repeat-x",
+                }} />
+              </Box>
+
+              {/* 5. VERIFY → VERIFIED */}
+              <Box sx={{ textAlign: "center", flexShrink: 0, width: 80 }}>
+                <Box sx={{ p: 2, bgcolor: "rgba(76,175,80,0.15)", borderRadius: 2, border: "1px solid rgba(76,175,80,0.3)" }}>
+                  <ReceiptLongIcon sx={{ fontSize: 24, color: "#4caf50" }} />
+                  <Typography variant="caption" fontWeight={700} color="#4caf50" sx={{ display: "block", fontSize: "0.65rem", mt: 0.5 }}>
+                    VERIFY
+                  </Typography>
+                </Box>
+                <Chip label="VERIFIED ✓" size="small" sx={{ mt: 1, bgcolor: "#4caf50", color: "white", fontWeight: 700, height: 24, fontSize: "0.6rem", width: 72 }} />
+              </Box>
+            </Box>
+
+            {/* Edit/ Delete */}
+            <Box sx={{ mt: 4, textAlign: "center" }}>
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: "block", fontStyle: "italic", fontSize: "0.8rem" }}>
+                🔒 Edit/Delete only for PENDING status
               </Typography>
-            </Stack>
+            </Box>
           </Box>
         </Paper>
+
 
         {/* RBAC TABLE - CHIPS REMOVED */}
         <Paper
@@ -420,7 +533,7 @@ export default function UserGuidePage() {
           <Typography variant="h5" fontWeight={700} mb={4} color="white">
             🔐 Role-Based Permissions
           </Typography>
-          
+
           <TableContainer sx={{ borderRadius: 2, overflow: "hidden" }}>
             <Table sx={{ minWidth: 800 }}>
               <TableHead>
@@ -449,7 +562,7 @@ export default function UserGuidePage() {
                   },
                   {
                     role: "SecurityHead",
-                    onboard: "❌", edit: "❌", delete: "❌", 
+                    onboard: "❌", edit: "❌", delete: "❌",
                     scan: "✅", sign: "❌", release: "❌", verify: "✅"
                   },
                   {
@@ -526,7 +639,7 @@ export default function UserGuidePage() {
               },
             }}
           >
-            Return to Dashboard
+            Return to Home
           </Button>
         </Box>
       </Container>

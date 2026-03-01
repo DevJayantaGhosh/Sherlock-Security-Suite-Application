@@ -464,6 +464,7 @@ export async function getProductStats(): Promise<{ data: ProductStatsResponse; e
         pending: productDB.filter(p => p.status === "Pending").length,
         approved: productDB.filter(p => p.status === "Approved").length,
         rejected: productDB.filter(p => p.status === "Rejected").length,
+        signed: productDB.filter(p => p.status === "Signed").length,
         released: productDB.filter(p => p.status === "Released").length,
         openSource: productDB.filter(p => p.isOpenSource).length
       },
@@ -476,7 +477,7 @@ export async function getProductStats(): Promise<{ data: ProductStatsResponse; e
     return { data, error: null };
   } catch (error) {
     return { 
-      data: { total: 0, pending: 0, approved: 0, rejected: 0, released: 0, openSource: 0 }, 
+      data: { total: 0, pending: 0, approved: 0, rejected: 0, signed:0,released: 0, openSource: 0 }, 
       error: createApiError(error as AxiosError, "Failed to fetch product stats") 
     };
   }
