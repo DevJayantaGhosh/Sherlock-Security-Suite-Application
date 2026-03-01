@@ -14,6 +14,7 @@ import {
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
+import EngineeringIcon from "@mui/icons-material/Engineering"; // Added for Onboarding
 import SecurityIcon from "@mui/icons-material/Security";
 import FingerprintIcon from "@mui/icons-material/Fingerprint";
 import RocketLaunchIcon from "@mui/icons-material/RocketLaunch";
@@ -35,13 +36,14 @@ const STATUS: Record<Product["status"], string> = {
 };
 
 /**
- * PIPELINE STEPS CONFIG - Defines 4-step workflow with icons and colors
+ * PIPELINE STEPS CONFIG - 5-step workflow with Onboarding step added
  */
 const PIPELINE_STEPS = [
-  { label: "Security Scan", icon: SecurityIcon, color: "#ff9800" },
-  { label: "Sign", icon: FingerprintIcon, color: "#00e5ff" },
-  { label: "Release", icon: RocketLaunchIcon, color: "#7b5cff" },
-  { label: "Verify", icon: ReceiptLongIcon, color: "#4caf50" },
+  { label: "Onboard", icon: EngineeringIcon, color: "#ffe920" },      // Step 1
+  { label: "Security Scan", icon: SecurityIcon, color: "#ff9800" },   // Step 2
+  { label: "Sign", icon: FingerprintIcon, color: "#00e5ff" },         // Step 3
+  { label: "Release", icon: RocketLaunchIcon, color: "#7b5cff" },     // Step 4
+  { label: "Verify", icon: ReceiptLongIcon, color: "#4caf50" },       // Step 5
 ];
 
 interface Props {
@@ -73,21 +75,22 @@ export default function ProductCard({
   const user = useUserStore((s) => s.user);
 
   /**
-   * Calculates pipeline progress based on product status
-   * Rejected shows all 4 steps as failed (red X icons)
+   * Calculates pipeline progress based on product status (NOW 5 steps)
+   * Onboarding = step 1 (Pending status)
+   * Rejected shows all 5 steps as failed (red X icons)
    */
   const getPipelineState = () => {
     switch (product.status) {
       case "Released":
-        return { progress: 4, failed: false }; // All steps complete
+        return { progress: 5, failed: false }; // All 5 steps complete
       case "Signed":
-        return { progress: 2, failed: false }; // Sign complete (step 2/4)
+        return { progress: 3, failed: false }; // Sign complete (step 3/5)
       case "Approved":
-        return { progress: 1, failed: false }; // Scan complete (step 1/4)
+        return { progress: 2, failed: false }; // Scan complete (step 2/5)
       case "Pending":
-        return { progress: 0, failed: false }; // No steps started
+        return { progress: 1, failed: false }; // Onboarding complete (step 1/5)
       case "Rejected":
-        return { progress: 4, failed: true };  // All steps failed
+        return { progress: 5, failed: true };  // All 5 steps failed
       default:
         return { progress: 0, failed: false };
     }
@@ -97,13 +100,14 @@ export default function ProductCard({
   const isRejected = product.status === "Rejected";
 
   /**
-   * Visual completion states for button glow effects
+   * Visual completion states for button glow effects (updated indices)
    * No business logic - purely visual feedback
    */
-  const isSecurityScanComplete = pipelineProgress >= 1 && !isRejected;
-  const isSignComplete = pipelineProgress >= 2 && !isRejected;
-  const isReleaseComplete = pipelineProgress >= 3 && !isRejected;
-  const isVerifyComplete = pipelineProgress >= 4 && !isRejected;
+  const isOnboardComplete = pipelineProgress >= 1 && !isRejected;
+  const isSecurityScanComplete = pipelineProgress >= 2 && !isRejected;
+  const isSignComplete = pipelineProgress >= 3 && !isRejected;
+  const isReleaseComplete = pipelineProgress >= 4 && !isRejected;
+  const isVerifyComplete = pipelineProgress >= 5 && !isRejected;
 
   return (
     <motion.div
@@ -197,7 +201,7 @@ export default function ProductCard({
           </Typography>
         </Box>
 
-        {/* PIPELINE STEPPER - Visual progress indicator */}
+        {/* PIPELINE STEPPER - Visual progress indicator (NOW 5 STEPS) */}
         <Paper
           sx={{
             p: 2,
@@ -215,7 +219,7 @@ export default function ProductCard({
             color={isRejected ? "error.main" : "text.secondary"}
             sx={{ textAlign: "center" }}
           >
-            Pipeline Progress ({pipelineProgress}/4) {isRejected && "- FAILED"}
+            Pipeline Progress ({pipelineProgress}/5) {isRejected && "- FAILED"}
           </Typography>
           <Stepper
             activeStep={pipelineProgress > 0 ? pipelineProgress - 1 : -1}

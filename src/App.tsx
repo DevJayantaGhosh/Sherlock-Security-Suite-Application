@@ -21,6 +21,7 @@ import LicenseActivationPage from "./pages/LicenseActivationPage";
 import QuickSecurityScanPage from "./pages/QuickSecurityScanPage";
 import QuickCryptoSigningPage from "./pages/QuickCryptoSigningPage";
 import QuickSignatureVerificationPage from "./pages/QuickSignatureVerificationPage";
+import UserGuidePage from "./pages/UserGuidePage";
 
 export default function App() {
   return (
@@ -37,6 +38,7 @@ export default function App() {
       >
         <Routes>
           {/* Public pages without layout interference */}
+          <Route path="/user-guide" element={<UserGuidePage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
