@@ -22,6 +22,7 @@ import {
   getOpenSourceProductsPaginated,
   deleteProduct,
   authorizeApprove,
+  authorizeToSign,
   authorizeRelease,
   authorizeCreate,
 } from "../services/productService";
@@ -32,13 +33,14 @@ import { useUserStore } from "../store/userStore";
 import AddIcon from "@mui/icons-material/Add";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SearchIcon from '@mui/icons-material/Search';
+import { ACCESS_MESSAGES } from "../constants/accessMessages";
 
 const PAGE_SIZE = 6;
 
 /**
- * ═══════════════════════════════════════════════════════════════════════════════
- * STATE MANAGEMENT
- * ═══════════════════════════════════════════════════════════════════════════════
+ * ProductPage - Main products listing with pagination, search, filters
+ * CENTRAL RBAC LOGIC - All authorization checks + confirmation popups live here
+ * ProductCard handles visuals only. All business logic centralized here.
  */
 export default function ProductPage() {
   const navigate = useNavigate();
@@ -46,7 +48,9 @@ export default function ProductPage() {
   const isLicensedUser = user?.licenseValid;
   const canAddProject = authorizeCreate(user);
 
-  // Backend pagination
+  /**
+   * Backend pagination state from API response
+   */
   const [productsData, setProductsData] = useState({
     items: [] as Product[],
     totalItems: 0,
@@ -57,33 +61,40 @@ export default function ProductPage() {
     hasPrevious: false,
   });
 
-  // Error & Backend states
+  /**
+   * Loading and error states
+   */
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isBackendError, setIsBackendError] = useState(false);
+  const [backendErrorShown, setBackendErrorShown] = useState(false);
 
+  /**
+   * UI Filter/Search states (client-side)
+   */
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"All" | Product["status"]>("All");
   const [backendPage, setBackendPage] = useState(0);
 
-  // Dialog states 
+  /**
+   * Dialog states
+   */
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState<"view" | "edit" | "create">("create");
   const [selected, setSelected] = useState<Product | null>(null);
 
-  // Confirm dialog states 
+  /**
+   * Confirm dialog states for RBAC popups
+   */
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<null | (() => void)>(null);
   const [confirmTitle, setConfirmTitle] = useState("");
   const [confirmDesc, setConfirmDesc] = useState("");
 
   /**
-   * ═══════════════════════════════════════════════════════════════════════════════
-     *  LOAD PRODUCTS 
-   * ═══════════════════════════════════════════════════════════════════════════════
+   * Loads products from backend API (paginated)
+   * Handles licensed vs open-source product access
    */
-  const [backendErrorShown, setBackendErrorShown] = useState(false); // 🔥 NEW STATE
-
   const loadProducts = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -118,7 +129,9 @@ export default function ProductPage() {
     }
   }, [isLicensedUser, backendPage]);
 
-  // Error handler
+  /**
+   * Handles API errors with backend-offline detection
+   */
   const handleApiError = (apiError: any) => {
     const errorMsg = apiError.message || "Unknown error";
 
@@ -132,38 +145,35 @@ export default function ProductPage() {
         setBackendErrorShown(true);
         toast("🔌 Backend offline", {
           duration: 6000,
-          id: "backend-offline", // UNIQUE ID - prevents duplicates
-          style: {
-            background: "#fff3cd",
-            color: "#856404",
-          },
+          id: "backend-offline",
+          style: { background: "#fff3cd", color: "#856404" },
         });
       }
     } else {
       setError(errorMsg);
-      toast.error(errorMsg, { id: "general-error" }); // UNIQUE ID
+      toast.error(errorMsg, { id: "general-error" });
     }
   };
 
-
-  // Initial load - runs ONCE on mount only
+  // Load products on mount
   useEffect(() => {
     loadProducts();
-  }, []); // Empty deps = ONCE only
+  }, []);
 
-  // Pagination + licensed user changes
+  // Reload on pagination change
   useEffect(() => {
     loadProducts();
-  }, [backendPage]); //  Only when these change
+  }, [backendPage]);
 
-  // Refresh WITH toast
+  /**
+   * Refresh handler with toast feedback
+   */
   const handleRefresh = useCallback(() => {
     setBackendPage(0);
-    setBackendErrorShown(false); // Reset toast guard
+    setBackendErrorShown(false);
     loadProducts();
   }, [loadProducts]);
 
-  // Retry
   const handleRetry = () => {
     setError(null);
     setIsBackendError(false);
@@ -171,9 +181,7 @@ export default function ProductPage() {
   };
 
   /**
-   * ═══════════════════════════════════════════════════════════════════════════════
-   *  ALL HANDLERS
-   * ═══════════════════════════════════════════════════════════════════════════════
+   * Dialog handlers
    */
   function openCreate() {
     setDialogMode("create");
@@ -193,6 +201,10 @@ export default function ProductPage() {
     setDialogOpen(true);
   }
 
+  /**
+   * Generic confirmation dialog executor
+   * Used for ALL RBAC popups + delete confirmations
+   */
   function confirmAndExec(title: string, desc: string, fn: () => void) {
     setConfirmTitle(title);
     setConfirmDesc(desc);
@@ -203,7 +215,9 @@ export default function ProductPage() {
     setConfirmOpen(true);
   }
 
-  // Delete with proper toast
+  /**
+   * Delete product handler
+   */
   const handleDelete = async (productId: string) => {
     const result = await deleteProduct(productId);
     if (!result.error) {
@@ -214,6 +228,9 @@ export default function ProductPage() {
     }
   };
 
+  /**
+   * Navigation helper functions
+   */
   function navigateToSecurityScan(productId: string) {
     navigate(`/product/${productId}/security-scan`);
   }
@@ -230,67 +247,105 @@ export default function ProductPage() {
     navigate(`/product/${productId}/signature-verify`);
   }
 
-  function openSecurityScanClick(p: Product) {
-    const canScan = authorizeApprove(user, p);
-    if (!canScan) {
-      confirmAndExec(
-        "Restricted Access",
-        "You can view this page but are not authorized to run security scans or approve/reject.",
-        () => navigateToSecurityScan(p.id)
-      );
-    } else {
-      navigateToSecurityScan(p.id);
-    }
+//========================================== Access Validation =======================================  
+/**
+ * SECURITY SCAN CLICK HANDLER
+ * 1. Role check only assigned Security-Head can scan
+ */
+function openSecurityScanClick(p: Product) {
+  const canScan = authorizeApprove(user, p);
+  if (!canScan) {
+    confirmAndExec(
+      ACCESS_MESSAGES.ROLE_RESTRICTED_TITLE,
+      ACCESS_MESSAGES.SECURITY_HEAD_MSG,
+      ()=>{ navigateToSecurityScan(p.id)}
+
+    );
+    return;
+  } else {
+    navigateToSecurityScan(p.id);
   }
+}
 
-  function openCryptoSignClick(p: Product) {
-    const canSign = authorizeRelease(user, p);
-    if (!canSign) {
-      confirmAndExec(
-        "Restricted Access",
-        "You do not have permission to digitally sign artifacts.",
-        () => navigateToCryptoSign(p.id)
-      );
-    } else {
-      navigateToCryptoSign(p.id);
-    }
-  }
+/**
+ * CRYPTOGRAPHIC SIGN CLICK HANDLER
+ * 1. Status must be "Approved" first -> BLOCK if not
+ * 2. Role check only if status passes
+ */
+function openCryptoSignClick(p: Product) {
+ // Status check FIRST - BLOCK NAVIGATION
+ if (p.status !== "Released" && p.status !== "Approved") {
+   confirmAndExec(
+     ACCESS_MESSAGES.SIGNING_RESTRICTED_TITLE, 
+     ACCESS_MESSAGES.SIGNING_NEEDS_APPROVAL,
+     () => {} // EMPTY - NO NAVIGATION
+   );
+   return;
+ }
+ 
+ // Role check SECOND - only if status OK
+ const canSign = authorizeToSign(user, p);
+ if (!canSign) {
+   confirmAndExec(
+     ACCESS_MESSAGES.ROLE_RESTRICTED_TITLE,
+     ACCESS_MESSAGES.RELEASE_ENGINEER_SIGN_MSG,
+     () => navigateToCryptoSign(p.id)
+   );
+ } else {
+   navigateToCryptoSign(p.id);
+ }
+}
 
-  function openReleaseWorkflowClick(p: Product) {
-    const canRelease = authorizeRelease(user, p);
-    if (p.status !== "Approved") {
-      confirmAndExec(
-        "Release Restricted",
-        "Product is not yet Approved!",
-        () => navigateToRelease(p.id)
-      );
-      return;
-    }
+/**
+ * RELEASE WORKFLOW CLICK HANDLER
+ * 1. Status must be "Signed" first -> BLOCK if not  
+ * 2. Role check only if status passes
+ */
+function openReleaseWorkflowClick(p: Product) {
+ // Status check FIRST - BLOCK NAVIGATION
+ if (p.status !== "Released" && p.status !== "Signed") {
+   confirmAndExec(
+     ACCESS_MESSAGES.RELEASE_RESTRICTED_TITLE,
+     ACCESS_MESSAGES.RELEASE_NEEDS_SIGNING,
+     () => {} // EMPTY - NO NAVIGATION
+   );
+   return;
+ }
 
-    if (!canRelease) {
-      confirmAndExec(
-        "Restricted Access",
-        "You can view this page but are not authorized to make release.",
-        () => navigateToRelease(p.id)
-      );
-    } else {
-      navigateToRelease(p.id);
-    }
-  }
+ // Role check SECOND - only if status OK
+ const canRelease = authorizeRelease(user, p);
+ if (!canRelease) {
+   confirmAndExec(
+     ACCESS_MESSAGES.ROLE_RESTRICTED_TITLE,
+     ACCESS_MESSAGES.RELEASE_ENGINEER_RELEASE_MSG,
+     () => navigateToRelease(p.id)
+   );
+ } else {
+   navigateToRelease(p.id);
+ }
+}
 
-  function openSignatureVerifyClick(p: Product) {
-    if (p.status !== "Released") {
-      confirmAndExec(
-        "Signature Verification Restricted",
-        "Product must be 'Released' before signatures can be verified.",
-        () => navigateToSignatureVerify(p.id)
-      );
-      return;
-    }
-    navigateToSignatureVerify(p.id);
-  }
+/**
+ * SIGNATURE VERIFY CLICK HANDLER
+ * Status must be "Released" first -> BLOCK if not
+ */
+function openSignatureVerifyClick(p: Product) {
+ if (p.status !== "Released") {
+   confirmAndExec(
+     ACCESS_MESSAGES.VERIFY_RESTRICTED_TITLE,
+     ACCESS_MESSAGES.VERIFY_NEEDS_RELEASE,
+     () => {} // EMPTY - NO NAVIGATION
+   );
+   return;
+ }
+ navigateToSignatureVerify(p.id);
+}
 
-  // Pagination 
+//========================================== Access Validation End =======================================
+
+  /**
+   * Pagination handlers
+   */
   const handlePrevPage = () => {
     if (productsData.hasPrevious) {
       setBackendPage(productsData.currentPage - 1);
@@ -303,7 +358,9 @@ export default function ProductPage() {
     }
   };
 
-  // Filter products (client-side)
+  /**
+   * Client-side filtering for search + status filter
+   */
   const filteredProducts = productsData.items.filter(
     (p) =>
       (filter === "All" || p.status === filter) &&
@@ -318,7 +375,7 @@ export default function ProductPage() {
   return (
     <Box sx={{ pt: 8, pb: 6, minHeight: "80vh" }}>
       <Container maxWidth="xl">
-        {/* HEADER */}
+        {/* PAGE HEADER */}
         <Typography variant="h4" textAlign="center" fontWeight={800} mb={3}>
           Product Distribution Pipeline
           {isLicensedUser && (
@@ -333,7 +390,7 @@ export default function ProductPage() {
           )}
         </Typography>
 
-        {/* FILTERS + BUTTONS */}
+        {/* FILTERS + CONTROLS */}
         <Stack direction="row" spacing={2} mb={4} alignItems="center" sx={{ flexWrap: "wrap", gap: 2 }}>
           <TextField
             select
@@ -351,6 +408,7 @@ export default function ProductPage() {
             <MenuItem value="All">All Status</MenuItem>
             <MenuItem value="Pending">Pending</MenuItem>
             <MenuItem value="Approved">Approved</MenuItem>
+            <MenuItem value="Signed">Signed</MenuItem>
             <MenuItem value="Rejected">Rejected</MenuItem>
             <MenuItem value="Released">Released</MenuItem>
           </TextField>
@@ -373,9 +431,7 @@ export default function ProductPage() {
                 "& .MuiInputBase-root": { height: 40 }
               }}
             />
-
           </Box>
-
 
           <Box sx={{ display: "flex", gap: 1 }}>
             {canAddProject && (
@@ -418,12 +474,12 @@ export default function ProductPage() {
               Refresh
             </Button>
           </Box>
-
         </Stack>
 
-        {/* LOADING */}
+        {/* LOADING STATE */}
         {loading && <LoadingSpinner message="Loading products..." />}
 
+        {/* LICENSE WARNING */}
         {!loading && !isLicensedUser && (
           <Box sx={{
             display: "flex",
@@ -443,8 +499,8 @@ export default function ProductPage() {
               ⚠️ License Required
             </Typography>
             <Typography variant="body2" color="text.secondary" mb={2}>
-              License activation is required to access the proprietary product distribution pipeline, although open source products remain fully accessible via our distribution pipeline.
-
+              License activation is required to access the proprietary product distribution pipeline, 
+              although open source products remain fully accessible via our distribution pipeline.
             </Typography>
             <Button
               variant="contained"
@@ -467,8 +523,7 @@ export default function ProductPage() {
           </Box>
         )}
 
-
-        {/* BACKEND ERROR */}
+        {/* BACKEND ERROR STATE */}
         {isBackendError && !loading && (
           <Box textAlign="center" py={6}>
             <Typography variant="h6" color="warning.main" mb={2}>
@@ -493,17 +548,15 @@ export default function ProductPage() {
             minHeight: "300px"
           }}>
             {filteredProducts.length === 0 ? (
-              <Box
-                sx={{
-                  gridColumn: "1 / -1",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  py: 8,
-                  gap: 1,
-                }}
-              >
+              <Box sx={{
+                gridColumn: "1 / -1",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                py: 8,
+                gap: 1,
+              }}>
                 <Typography
                   variant="h6"
                   fontWeight={600}
@@ -525,7 +578,7 @@ export default function ProductPage() {
                   onEdit={() => openEdit(p)}
                   onDelete={() => confirmAndExec(
                     "Delete product",
-                    "Are you sure you want to remove this product?",
+                    "Are you sure you want to delete this product?",
                     () => handleDelete(p.id)
                   )}
                   onSecurityScan={() => openSecurityScanClick(p)}
@@ -555,7 +608,7 @@ export default function ProductPage() {
         )}
       </Container>
 
-      {/* DIALOGS */}
+      {/* PRODUCT DIALOG */}
       <ProductDialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
@@ -564,6 +617,7 @@ export default function ProductPage() {
         refresh={handleRefresh}
       />
 
+      {/* CONFIRMATION DIALOG - Used for ALL RBAC popups */}
       <ConfirmDialog
         open={confirmOpen}
         title={confirmTitle}
