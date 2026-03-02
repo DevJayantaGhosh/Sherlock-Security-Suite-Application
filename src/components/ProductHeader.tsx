@@ -203,7 +203,7 @@ const ProductHeader: React.FC<ProductHeaderProps> = ({
               size="small"
               color={
                 product.status === "Pending" ? "warning" :
-                product.status === "Approved" || product.status === "Released" ? "success" :
+                product.status === "Approved" || product.status === "Signed" || product.status === "Released" ? "success" :
                 "error"
               }
               sx={{ height: 28, fontWeight: 600, fontSize: '0.75rem' }}

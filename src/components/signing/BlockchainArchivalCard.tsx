@@ -24,8 +24,10 @@ import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 interface BlockchainProps {
   variants: Variants;
   product: Product;
-  disabled?: boolean; 
+  disabled: boolean;
+  toolTip: string;  
 }
+
 
 const HEDERA_TESTNET_CONFIG = {
   chainId: "0x128",
@@ -67,7 +69,8 @@ const selectFileUniversal = async (): Promise<string | null> => {
 export default function BlockchainArchivalCard({
   variants,
   product,
-  disabled = false 
+  disabled = false,
+  toolTip = "" 
 }: BlockchainProps) {
   const [walletAddress, setWalletAddress] = useState("");
   const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
@@ -88,10 +91,6 @@ export default function BlockchainArchivalCard({
     setIsElectronApp(isElectron());
   }, []);
 
-  // 🔐 DISABLED TOOLTIP MESSAGE
-  const disabledTooltip = disabled 
-    ? "View-Only Mode: Blockchain operations disabled" 
-    : "";
 
   const updateProductWithSignature = useCallback(async (signatureFilePath: string) => {
     if (!product || disabled) return;
@@ -229,7 +228,7 @@ export default function BlockchainArchivalCard({
 
     setIsProcessing(true);
     try {
-      // 1. Update DB 
+      // 1. Update DB
       if (fileType === 'publickey') {
         await updateProductWithPublicKey(ipfsPath);
       } else {
@@ -258,6 +257,7 @@ export default function BlockchainArchivalCard({
       setIsProcessing(false);
     }
   };
+
 
   return (
     <motion.div variants={variants}>
@@ -291,7 +291,7 @@ export default function BlockchainArchivalCard({
                 )}
               </Box>
             </Box>
-            <Tooltip title={disabled ? disabledTooltip : ""} arrow>
+            <Tooltip title={disabled ? toolTip : ""} arrow placement="top">
               <span>
                 <Button
                   variant="contained"
@@ -326,10 +326,10 @@ export default function BlockchainArchivalCard({
               InputProps={{
                 readOnly: true,
                 endAdornment: (
-                  <Tooltip title={disabled ? disabledTooltip : ""} arrow>
+                  <Tooltip title={disabled ? toolTip : ""} arrow>
                     <span>
-                      <IconButton 
-                        onClick={handleSelectPublicKeyFile} 
+                      <IconButton
+                        onClick={handleSelectPublicKeyFile}
                         disabled={disabled || isProcessing}
                       >
                         <FolderOpenIcon />
@@ -339,7 +339,7 @@ export default function BlockchainArchivalCard({
                 )
               }}
             />
-            <Tooltip title={disabled ? disabledTooltip : ""} arrow>
+            <Tooltip title={disabled ? toolTip : ""} arrow>
               <span>
                 <Button
                   variant="outlined"
@@ -370,7 +370,7 @@ export default function BlockchainArchivalCard({
                 )
               }}
             />
-            <Tooltip title={disabled ? disabledTooltip : ""} arrow>
+            <Tooltip title={disabled ? toolTip : ""} arrow>
               <span>
                 <Button
                   variant="contained"
@@ -404,10 +404,10 @@ export default function BlockchainArchivalCard({
               InputProps={{
                 readOnly: true,
                 endAdornment: (
-                  <Tooltip title={disabled ? disabledTooltip : ""} arrow>
+                  <Tooltip title={disabled ? toolTip : ""} arrow>
                     <span>
-                      <IconButton 
-                        onClick={handleSelectSignatureFile} 
+                      <IconButton
+                        onClick={handleSelectSignatureFile}
                         disabled={disabled || isProcessing}
                       >
                         <FolderOpenIcon />
@@ -417,7 +417,7 @@ export default function BlockchainArchivalCard({
                 )
               }}
             />
-            <Tooltip title={disabled ? disabledTooltip : ""} arrow>
+            <Tooltip title={disabled ? toolTip : ""} arrow>
               <span>
                 <Button
                   variant="outlined"
@@ -448,7 +448,7 @@ export default function BlockchainArchivalCard({
                 )
               }}
             />
-            <Tooltip title={disabled ? disabledTooltip : ""} arrow>
+            <Tooltip title={disabled ? toolTip : ""} arrow>
               <span>
                 <Button
                   variant="contained"
