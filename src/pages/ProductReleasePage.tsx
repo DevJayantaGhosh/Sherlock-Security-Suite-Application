@@ -4,7 +4,7 @@ import { Box, Container, Typography, Button, CircularProgress } from "@mui/mater
 import { motion, Variants } from "framer-motion";
 import { toast } from "react-hot-toast";
 import { useParams, useNavigate } from "react-router-dom";
-import ProductHeader from '../components/ProductHeader';
+import ProductHeader from '../components/products/ProductHeader';
 import { authorizeRelease, getProductById } from "../services/productService";
 import { Product } from "../models/Product";
 import { useUserStore } from "../store/userStore";

@@ -2,7 +2,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { Box, Container, CircularProgress, Paper, Typography, Button } from "@mui/material";
 import { motion } from "framer-motion";
-import ProductHeader from "../components/ProductHeader";
+import ProductHeader from "../components/products/ProductHeader";
 import ProductSignatureVerificationCard from "../components/verification/ProductSignatureVerificationCard";
 import { getProductById } from "../services/productService";
 import { Product } from "../models/Product";

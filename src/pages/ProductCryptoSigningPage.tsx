@@ -4,7 +4,7 @@ import { Box, Container, Stack, Paper, Typography, CircularProgress } from "@mui
 import { motion, Variants } from "framer-motion";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
-import ProductHeader from '../components/ProductHeader';
+import ProductHeader from '../components/products/ProductHeader';
 import BlockchainArchivalCard from "../components/signing/BlockchainArchivalCard";
 import KeyGenerationCard from "../components/signing/KeyGenerationCard";
 import DigitalSigningCard from "../components/signing/DigitalSigningCard";

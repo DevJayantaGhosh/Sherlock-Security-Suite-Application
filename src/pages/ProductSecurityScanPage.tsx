@@ -13,7 +13,7 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
 import RefreshIcon from "@mui/icons-material/Refresh";
 
-import ProductHeader from '../components/ProductHeader';
+import ProductHeader from '../components/products/ProductHeader';
 import { useUserStore } from "../store/userStore";
 import { authorizeApprove, getProductById, updateProduct } from "../services/productService";
 import RepoScanAccordion from "../components/security/RepoScanAccordion";
