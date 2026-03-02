@@ -3,8 +3,7 @@ import {
   Box, Button, Container, Paper, Stack,
   Typography, Dialog, DialogTitle,
   DialogContent, DialogActions,
-  Tooltip, Divider, CircularProgress,
-  Chip, Alert,
+  Tooltip, Divider, CircularProgress, Alert,
 } from "@mui/material";
 import { toast } from "react-hot-toast";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
@@ -178,7 +177,7 @@ export default function ProductSecurityScanPage() {
     }
   };
 
-  // Wallet connection (keeping your exact UX)
+  // Wallet connection
   async function connectWallet() {
     if (!(window as any).ethereum) {
       toast.error("MetaMask not installed");
@@ -204,11 +203,11 @@ export default function ProductSecurityScanPage() {
   const isAuthorized = product ? authorizeApprove(user, product) : false;
   const isViewOnlyMode = product?.status !== "Pending" || !isAuthorized;
 
-const tooltip = isViewOnlyMode 
-  ? (product?.status !== "Pending" 
-      ? `Product status is "${product?.status}". No actions allowed.`
-      : ACCESS_MESSAGES.SECURITY_HEAD_MSG)
-  : "";
+  const tooltip = isViewOnlyMode 
+    ? (product?.status !== "Pending" 
+        ? `Product status is "${product?.status}". No actions allowed.`
+        : ACCESS_MESSAGES.SECURITY_HEAD_MSG)
+    : "";
 
   // Decision handlers
   function handleDecision(type: "approve" | "reject") {
@@ -229,7 +228,7 @@ const tooltip = isViewOnlyMode
     if (!product || !decision || !wallet) return;
 
     setSaving(true);
-    // TODO: Implement blockchain transaction
+    // JG: Implement blockchain transaction
     
     try {
       const status: ProductStatus = decision === "approve" ? "Approved" : "Rejected";
@@ -281,6 +280,9 @@ const tooltip = isViewOnlyMode
     return (
       <Box sx={{ pt: 10, display: "flex", justifyContent: "center" }}>
         <Typography color="error">Product not found</Typography>
+        <Button onClick={loadProduct} startIcon={<RefreshIcon />} sx={{ mt: 2 }} variant="outlined">
+          Retry
+        </Button>
       </Box>
     );
   }
