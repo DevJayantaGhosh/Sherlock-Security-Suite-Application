@@ -199,15 +199,26 @@ export default function ProductSecurityScanPage() {
     }
   }
 
-  // Authorization check and View-OnlyMode
-  const isAuthorized = product ? authorizeApprove(user, product) : false;
-  const isViewOnlyMode = product?.status !== "Pending" || !isAuthorized;
+// Authorization and view‑only mode
+const isAuthorized = product ? authorizeApprove(user, product) : false;
+const isPending = product?.status === "Pending";
+const isRejected = product?.status === "Rejected";
 
-  const tooltip = isViewOnlyMode 
-    ? (product?.status !== "Pending" 
-        ? `Product status is "${product?.status}". No actions allowed.`
-        : ACCESS_MESSAGES.SECURITY_HEAD_MSG)
-    : "";
+const canScan = isAuthorized && isPending;
+const isViewOnlyMode =
+  !isAuthorized || !isPending || isRejected;
+
+let tooltip = "";
+if (isViewOnlyMode) {
+  if (!isAuthorized) {
+    tooltip = ACCESS_MESSAGES.RELEASE_ENGINEER_SIGN_MSG;
+  } else if (isRejected) {
+    tooltip = `Product is "${product?.status}". No further actions allowed.`;
+  } else {
+    // !isPending (Approved, Signed, Released, etc.)
+    tooltip = `Product is "${product?.status}". Security scan has already been completed.`;
+  }
+}
 
   // Decision handlers
   function handleDecision(type: "approve" | "reject") {
@@ -309,7 +320,7 @@ export default function ProductSecurityScanPage() {
                   View-Only Mode
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                     {ACCESS_MESSAGES.SECURITY_HEAD_MSG}
+                     {tooltip}
                 </Typography>
               </Paper>
             </motion.div>
@@ -336,7 +347,7 @@ export default function ProductSecurityScanPage() {
                   repoDetails={repo}
                   // Pass the update handler to bubble up changes
                   onRepoUpdate={(updatedRepo) => handleRepoUpdate(idx, updatedRepo)}
-                  disabled={!isAuthorized || saving || product.status !== "Pending"} 
+                  disabled={!canScan ||saving} 
                   isQuickScan={false} 
                   githubToken={""}                />
                 {idx < product.repos.length - 1 && (
@@ -379,7 +390,7 @@ export default function ProductSecurityScanPage() {
                       <Button
                         startIcon={<AccountBalanceWalletIcon />}
                         onClick={connectWallet}
-                        disabled={!isAuthorized || saving}
+                        disabled={!canScan || saving}
                         variant="outlined"
                         size="large"
                         sx={{
@@ -405,7 +416,7 @@ export default function ProductSecurityScanPage() {
                           color="success"
                           startIcon={<CheckCircleIcon />}
                           variant="contained"
-                          disabled={!wallet || !isAuthorized || saving}
+                          disabled={!wallet || !canScan ||saving}
                           onClick={() => handleDecision("approve")}
                           size="large"
                           sx={{
@@ -426,7 +437,7 @@ export default function ProductSecurityScanPage() {
                           color="error"
                           startIcon={<CancelIcon />}
                           variant="contained"
-                          disabled={!wallet || !isAuthorized || saving}
+                          disabled={!wallet || !canScan ||saving}
                           onClick={() => handleDecision("reject")}
                           size="large"
                           sx={{
@@ -510,7 +521,7 @@ export default function ProductSecurityScanPage() {
           <DialogActions sx={{ p: 2, bgcolor: "#2d2d2d", borderTop: "1px solid #404040" }}>
             <Button onClick={() => setConfirmOpen(false)} disabled={saving}>Cancel</Button>
             <Button
-              disabled={!wallet || saving}
+              disabled={!wallet || !canScan || saving}
               variant="contained"
               onClick={confirmDecision}
               color={decision === "approve" ? "success" : "error"}
