@@ -308,7 +308,7 @@ if (isViewOnlyMode) {
           </motion.div>
 
           {/* Authorization Warning */}
-          {!isAuthorized && (
+          {!isViewOnlyMode && (
             <motion.div variants={itemVariants}>
               <Paper sx={{
                 p: 2,
