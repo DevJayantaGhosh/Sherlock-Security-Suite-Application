@@ -15,6 +15,8 @@ import {
   FormControlLabel,
   Switch,
   CircularProgress,
+  Select,
+  MenuItem as MuiMenuItem
 } from "@mui/material";
 
 import AddIcon from "@mui/icons-material/Add";
@@ -28,19 +30,15 @@ import {
   ProductStatus,
 } from "../../models/Product";
 import { createProduct, updateProduct } from "../../services/productService";
+import { 
+  getReposPaginated, 
+  getOpenSourceReposPaginated 
+} from "../../services/repoService";
 import { useUserStore } from "../../store/userStore";
 import { getInternalUsers } from "../../services/userService";
 import { AppUser } from "../../models/User";
 import toast from "react-hot-toast";
-
-const REPOSITORIES = [
-  "https://github.com/projectcs23m513/bad-project",
-  "https://github.com/org/web-ui",
-  "https://github.com/org/backend-api",
-  "https://github.com/org/mobile-app",
-  "https://github.com/DevJayantaGhosh/Sherlock-Security-Suite-Services.git",
-  "https://github.com/DevJayantaGhosh/large-fileupload-poc.git",
-];
+import { Repo } from "../../models/Repo";
 
 const DEPENDENCIES = [
   "React",
@@ -78,6 +76,11 @@ export default function ProductDialog({
   const [users, setUsers] = useState<AppUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
 
+  const [allRepos, setAllRepos] = useState<Repo[]>([]);
+  const [openSourceRepos, setOpenSourceRepos] = useState<Repo[]>([]);
+  const [reposLoading, setReposLoading] = useState(true);
+  const [isOpenSourceProduct, setIsOpenSourceProduct] = useState(false);
+
   const emptyForm: ProductForm = {
     name: "",
     version: "",
@@ -106,7 +109,26 @@ export default function ProductDialog({
   const [form, setForm] = useState<ProductForm>(emptyForm);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  //  Load internal users
+  const loadRepos = useCallback(async () => {
+    try {
+      setReposLoading(true);
+      
+      const allReposResult = await getReposPaginated(0, 100);
+      const openSourceResult = await getOpenSourceReposPaginated(0, 100);
+
+      if (!allReposResult.error) {
+        setAllRepos(allReposResult.data?.items || []);
+      }
+      if (!openSourceResult.error) {
+        setOpenSourceRepos(openSourceResult.data?.items || []);
+      }
+    } catch (error) {
+      toast.error("Failed to load repositories");
+    } finally {
+      setReposLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     let mounted = true;
 
@@ -139,7 +161,12 @@ export default function ProductDialog({
     };
   }, []);
 
-  // Reset form on open
+  useEffect(() => {
+    if (open) {
+      loadRepos();
+    }
+  }, [open, loadRepos]);
+
   useEffect(() => {
     if (open) {
       if (product && (mode === "view" || mode === "edit")) {
@@ -148,21 +175,41 @@ export default function ProductDialog({
           ...rest,
           repos: rest.repos?.length > 0
             ? rest.repos.map((r: RepoDetails) => ({
-              ...r,
-            }))
+                ...r,
+              }))
             : [
-              {
-                repoUrl: "",
-                branch: "",
-              },
-            ],
+                {
+                  repoUrl: "",
+                  branch: "",
+                },
+              ],
         });
+        setIsOpenSourceProduct(rest.isOpenSource || false);
       } else {
         setForm(emptyForm);
+        setIsOpenSourceProduct(false);
       }
       setErrors({});
     }
   }, [product, open, mode]);
+
+  const handleOpenSourceToggle = useCallback((checked: boolean) => {
+    setIsOpenSourceProduct(checked);
+    
+    if (checked) {
+      setForm(prev => ({
+        ...prev,
+        repos: [{ repoUrl: "", branch: "" }],
+        isOpenSource: true
+      }));
+      toast.success("Repos reset. Only open source repositories allowed.");
+    } else {
+      setForm(prev => ({
+        ...prev,
+        isOpenSource: false
+      }));
+    }
+  }, []);
 
   const validate = useCallback((): boolean => {
     const e: Record<string, string> = {};
@@ -188,13 +235,19 @@ export default function ProductDialog({
     form.repos.forEach((repo, repoIdx) => {
       if (!repo.repoUrl) e[`repo-${repoIdx}-url`] = "Repo URL required";
       if (!repo.branch) e[`repo-${repoIdx}-branch`] = "Branch required";
+      
+      if (isOpenSourceProduct) {
+        const repoUrl = allRepos.find(r => r.repoUrl === repo.repoUrl);
+        if (repoUrl && !repoUrl.isOpenSource) {
+          e[`repo-${repoIdx}-url`] = "Open source product can only use open source repositories";
+        }
+      }
     });
 
     setErrors(e);
     return Object.keys(e).length === 0;
-  }, [form]);
+  }, [form, isOpenSourceProduct, allRepos]);
 
-  //  Form helpers
   const updateField = useCallback((
     key: keyof ProductForm,
     value: any
@@ -256,7 +309,6 @@ export default function ProductDialog({
           publicKeyFilePath?: string;
         }> = {};
 
-        // Only include changed fields
         if (form.name !== product.name) updatePayload.name = form.name;
         if (form.version !== product.version) updatePayload.version = form.version;
         if (form.isOpenSource !== product.isOpenSource) updatePayload.isOpenSource = form.isOpenSource;
@@ -291,7 +343,6 @@ export default function ProductDialog({
           onClose();
         }
       } else {
-        //  CREATE - Backend ignores extra fields, uses only what's needed
         const payload: Product = {
           name: form.name,
           version: form.version,
@@ -331,12 +382,13 @@ export default function ProductDialog({
     }
   };
 
-
-  if (usersLoading) {
+  if (usersLoading || reposLoading) {
     return (
       <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
-        <DialogTitle>Loading users...</DialogTitle>
-        <DialogContent>Loading team members...</DialogContent>
+      <Box sx={{ pt: 12, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
+        <CircularProgress size={40} />
+        <Typography sx={{ mt: 2, color: "text.secondary" }}>Loading ...</Typography>
+      </Box>
       </Dialog>
     );
   }
@@ -359,7 +411,6 @@ export default function ProductDialog({
           </Box>
         ) : (
           <>
-            {/* YOUR EXISTING UI - PERFECT */}
             <Typography variant="subtitle2" fontWeight={700} mb={2}>
               Basic Information
             </Typography>
@@ -395,7 +446,7 @@ export default function ProductDialog({
                   control={
                     <Switch
                       checked={form.isOpenSource || false}
-                      onChange={(e) => updateField("isOpenSource", e.target.checked)}
+                      onChange={(e) => handleOpenSourceToggle(e.target.checked)}
                       disabled={isView}
                       color="secondary"
                     />
@@ -428,7 +479,6 @@ export default function ProductDialog({
               sx={{ mb: 3 }}
               onChange={(e) => updateField("description", e.target.value)}
             />
-
 
             <Typography variant="subtitle2" fontWeight={700} mb={2}>
               Stakeholders
@@ -523,11 +573,13 @@ export default function ProductDialog({
                     error={!!errors[`repo-${repoIdx}-url`]}
                     helperText={errors[`repo-${repoIdx}-url`]}
                     disabled={isView}
-                    sx={{ minWidth: 550 }} 
+                    fullWidth
                     onChange={(e) => setRepoField(repoIdx, "repoUrl" as keyof RepoDetails, e.target.value)}
                   >
-                    {REPOSITORIES.map((url) => (
-                      <MenuItem key={url} value={url}>{url}</MenuItem>
+                    {(isOpenSourceProduct ? openSourceRepos : allRepos).map((repoItem) => (
+                      <MenuItem key={repoItem.id} value={repoItem.repoUrl}>
+                        {repoItem.name} {repoItem.isOpenSource ? "(Open Source)" : "(Private)"} - {repoItem.repoUrl}
+                      </MenuItem>
                     ))}
                   </TextField>
                   <TextField
@@ -536,7 +588,7 @@ export default function ProductDialog({
                     error={!!errors[`repo-${repoIdx}-branch`]}
                     helperText={errors[`repo-${repoIdx}-branch`]}
                     disabled={isView}
-                    sx={{ maxWidth: 150 }}  
+                    sx={{ maxWidth: 150 }}
                     onChange={(e) => setRepoField(repoIdx, "branch" as keyof RepoDetails, e.target.value)}
                   />
                 </Box>
