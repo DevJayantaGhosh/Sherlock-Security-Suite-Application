@@ -115,6 +115,8 @@ export interface Product {
   status: ProductStatus;
   remark?: string;
   securityScanReportPath?:string;
+  signingReportPath?:string;
+  releaseReportPath?:string;
   signatureFilePath?:string;
   publicKeyFilePath?:string;
 }

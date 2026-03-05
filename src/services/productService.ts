@@ -70,6 +70,11 @@ let productDB: Product[] = [
     createdBy: "u1",
     createdAt: new Date().toISOString(),
     status: "Pending",
+    securityScanReportPath: "https://hashgraph.scan.io",
+    signatureFilePath: "/signatures/auth-service-v3.1.2-beta.sig",
+    publicKeyFilePath: "/keys/auth-service-public.asc",
+    signingReportPath: "/reports/prod_example_02-signing-v3.1.2-beta.json",
+    releaseReportPath: "/reports/prod_example_02-release-v3.1.2-beta.json"
   },
   {
     id: "sherlock-001",
@@ -90,6 +95,11 @@ let productDB: Product[] = [
     createdBy: "u1",
     createdAt: new Date("2024-12-15").toISOString(),
     status: "Pending",
+    securityScanReportPath: "https://hashgraph.scan.io",
+    signatureFilePath: "/signatures/auth-service-v3.1.2-beta.sig",
+    publicKeyFilePath: "/keys/auth-service-public.asc",
+    signingReportPath: "/reports/prod_example_02-signing-v3.1.2-beta.json",
+    releaseReportPath: "/reports/prod_example_02-release-v3.1.2-beta.json"
   },
   {
     id: "sherlock-002",
@@ -110,6 +120,11 @@ let productDB: Product[] = [
     createdBy: "u1",
     createdAt: new Date("2024-12-15").toISOString(),
     status: "Approved",
+    securityScanReportPath: "https://hashgraph.scan.io",
+    signatureFilePath: "/signatures/auth-service-v3.1.2-beta.sig",
+    publicKeyFilePath: "/keys/auth-service-public.asc",
+    signingReportPath: "/reports/prod_example_02-signing-v3.1.2-beta.json",
+    releaseReportPath: "/reports/prod_example_02-release-v3.1.2-beta.json"
   },
   {
     id: "prod_example_01",
@@ -207,8 +222,10 @@ let productDB: Product[] = [
     status: "Pending",
     remark: "Waiting for Secret Leak remediation before final approval.",
     securityScanReportPath: "https://hashgraph.scan.io",
-    signatureFilePath: "/signatures/payment-gateway-v2.4.1.sig",
-    publicKeyFilePath: "/keys/payment-gateway-public.asc"
+    signatureFilePath: "/signatures/auth-service-v3.1.2-beta.sig",
+    publicKeyFilePath: "/keys/auth-service-public.asc",
+    signingReportPath: "/reports/prod_example_02-signing-v3.1.2-beta.json",
+    releaseReportPath: "/reports/prod_example_02-release-v3.1.2-beta.json"
   },
   {
     id: "prod_example_02",
@@ -231,7 +248,9 @@ let productDB: Product[] = [
     status: "Approved",
     securityScanReportPath: "https://hashgraph.scan.io",
     signatureFilePath: "/signatures/auth-service-v3.1.2-beta.sig",
-    publicKeyFilePath: "/keys/auth-service-public.asc"
+    publicKeyFilePath: "/keys/auth-service-public.asc",
+    signingReportPath: "/reports/prod_example_02-signing-v3.1.2-beta.json",
+    releaseReportPath: "/reports/prod_example_02-release-v3.1.2-beta.json"
   }
 ];
 

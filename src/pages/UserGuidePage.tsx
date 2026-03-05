@@ -122,16 +122,27 @@ export default function UserGuidePage() {
               License activation required for proprietary product distribution pipeline.
               Open source products remain fully accessible.
             </Typography>
-            <Stack direction="row" spacing={4} sx={{ maxWidth: 600 }}>
+            <Stack direction="row" spacing={4}>
               <Box sx={{ flex: 1 }}>
-                <Chip label="Open Source" color="success" sx={{ mb: 2, fontSize: "0.875rem" }} />
-                <Typography color="success.main">MIT/Apache - Fully accessible</Typography>
+                <Chip
+                  label="Open Source • Fully accessible"
+                  color="success"
+                  sx={{ fontSize: "0.875rem", height: 32 }}
+                />
               </Box>
               <Box sx={{ flex: 1 }}>
-                <Chip label="Proprietary" color="warning" sx={{ mb: 2, fontSize: "0.875rem" }} />
-                <Typography color="warning.main">License required</Typography>
+                <Chip
+                  label="Proprietary • License required"
+                  color="warning"
+                  sx={{
+                    fontSize: "0.875rem",
+                    height: 32,
+                    whiteSpace: 'nowrap'
+                  }}
+                />
               </Box>
             </Stack>
+
           </Box>
         </Paper>
 

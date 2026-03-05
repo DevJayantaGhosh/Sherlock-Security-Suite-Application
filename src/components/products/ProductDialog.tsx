@@ -97,6 +97,8 @@ export default function ProductDialog({
     status: "Pending" as ProductStatus,
     remark: "",
     securityScanReportPath: "",
+    signingReportPath:"",
+    releaseReportPath :"",
     signatureFilePath: "",
     publicKeyFilePath: "",
   };
@@ -271,6 +273,10 @@ const submit = async () => {
       if (form.remark !== product.remark) updatePayload.remark = form.remark;
       if (form.securityScanReportPath !== product.securityScanReportPath) 
         updatePayload.securityScanReportPath = form.securityScanReportPath;
+      if (form.signingReportPath !== product.signingReportPath) 
+        updatePayload.signingReportPath = form.signingReportPath;
+      if (form.releaseReportPath !== product.releaseReportPath) 
+        updatePayload.releaseReportPath = form.releaseReportPath;
       if (form.signatureFilePath !== product.signatureFilePath) 
         updatePayload.signatureFilePath = form.signatureFilePath;
       if (form.publicKeyFilePath !== product.publicKeyFilePath) 
@@ -299,6 +305,8 @@ const submit = async () => {
         status: "Pending" as ProductStatus,
         remark: form.remark || "",
         securityScanReportPath: form.securityScanReportPath || "",
+        signingReportPath: form.signingReportPath || "",
+        releaseReportPath: form.releaseReportPath || "",
         signatureFilePath: form.signatureFilePath || "",
         publicKeyFilePath: form.publicKeyFilePath || "",
         createdBy: user.id,
@@ -408,7 +416,6 @@ const submit = async () => {
               </Box>
             </Box>
 
-            {/* YOUR EXISTING JSX FOR ALL FIELDS - UNCHANGED */}
             <TextField
               label="Description *"
               value={form.description || ""}
@@ -422,8 +429,6 @@ const submit = async () => {
               onChange={(e) => updateField("description", e.target.value)}
             />
 
-            {/* STAKEHOLDERS, REPOS, DEPENDENCIES - YOUR EXACT UI */}
-            {/* ... rest of your JSX unchanged ... */}
             
             <Typography variant="subtitle2" fontWeight={700} mb={2}>
               Stakeholders
@@ -487,7 +492,7 @@ const submit = async () => {
               </TextField>
             </Box>
 
-            {/* REPOSITORIES - YOUR EXACT UI */}
+            {/* REPOSITORIES  */}
             <Divider sx={{ my: 3 }} />
             <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
               <Typography variant="subtitle2" fontWeight={700}>
@@ -536,7 +541,7 @@ const submit = async () => {
               </Paper>
             ))}
 
-            {/* DEPENDENCIES - YOUR EXACT UI */}
+            {/* DEPENDENCIES  */}
             <Divider sx={{ my: 3 }} />
             <Typography variant="subtitle2" fontWeight={700} mb={2}>
               Dependencies *
