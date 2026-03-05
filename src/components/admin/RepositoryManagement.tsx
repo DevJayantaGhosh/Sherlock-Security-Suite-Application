@@ -1,5 +1,4 @@
 // src/components/admin/RepositoryManagement.tsx
-
 import {
     Box,
     Typography,
@@ -12,270 +11,458 @@ import {
     TextField,
     Button,
     Paper,
-    Chip
+    Chip,
+    CircularProgress,
+    Select,
+    MenuItem,
+    FormControl,
+    InputLabel,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+    Switch,
+    FormControlLabel,
+    Divider,
+    TableContainer,
+    Alert,
+    Pagination
 } from "@mui/material";
 
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
-import SaveIcon from "@mui/icons-material/Save";
+import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import toast from "react-hot-toast";
+import { useUserStore } from "../../store/userStore";
 import {
-    Repo,
-    getRepos,
+    getReposPaginated,
+    getOpenSourceReposPaginated,
     createRepo,
+    updateRepo,
     deleteRepo
 } from "../../services/repoService";
+import { Repo } from "../../models/Repo";
+import { AppUser } from "../../models/User";
 
-export default function RepositoryManagement() {
-
+export default function RepositoryManagement({ user }: { user: AppUser | null }) {
     const [repos, setRepos] = useState<Repo[]>([]);
+    const [totalItems, setTotalItems] = useState(0);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [loading, setLoading] = useState(false);
     const [search, setSearch] = useState("");
+    const [viewMode, setViewMode] = useState<"all" | "opensource">("all");
 
-    const [newName, setNewName] = useState("");
-    const [newUrl, setNewUrl] = useState("");
+    // Modal states
+    const [modalOpen, setModalOpen] = useState(false);
+    const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+    const [deleteRepoId, setDeleteRepoId] = useState<string | null>(null);
+    const [modalMode, setModalMode] = useState<"create" | "edit">("create");
+    const [editingRepo, setEditingRepo] = useState<Repo | null>(null);
 
-    const [editId, setEditId] = useState<string | null>(null);
-    const [editName, setEditName] = useState("");
-    const [editUrl, setEditUrl] = useState("");
+    // Form states
+    const [formData, setFormData] = useState({
+        name: "",
+        repoUrl: "",
+        isOpenSource: false
+    });
 
-    // -----------------------
-    // LOAD
-    // -----------------------
+    const isAdmin = user?.role === 'Admin';
+    const pageSize = 10;
 
-    const load = () => setRepos(getRepos());
+    const loadRepos = useCallback(async (page: number = 1, mode: "all" | "opensource" = "all") => {
+        setLoading(true);
+        try {
+            const result = mode === "opensource" 
+                ? await getOpenSourceReposPaginated(page - 1, pageSize)
+                : await getReposPaginated(page - 1, pageSize);
+            
+            if (result?.error) {
+                toast.error(result.error.message);
+                setRepos([]);
+                return;
+            }
 
+            setRepos(result?.data?.items || []);
+            setTotalItems(result?.data?.totalItems || 0);
+            setTotalPages(result?.data?.totalPages || 1);
+            setCurrentPage((result?.data?.currentPage || 0) + 1);
+        } catch (err: any) {
+            toast.error("Failed to load repositories");
+            setRepos([]);
+        } finally {
+            setLoading(false);
+        }
+    }, [pageSize]);
+
+    // Load all repos by default on mount
     useEffect(() => {
-        load();
-    }, []);
+        loadRepos(1, "all");
+    }, [loadRepos]);
 
-    // -----------------------
-    // ADD
-    // -----------------------
+    const handleViewModeChange = (event: any) => {
+        const newMode = event.target.value as "all" | "opensource";
+        setViewMode(newMode);
+        loadRepos(1, newMode);
+    };
 
-    function addRepo() {
-        if (!newName.trim() || !newUrl.trim()) return;
+    const openModal = (repo?: Repo) => {
+        if (repo) {
+            setModalMode("edit");
+            setEditingRepo(repo);
+            setFormData({
+                name: repo.name,
+                repoUrl: repo.repoUrl,
+                isOpenSource: repo.isOpenSource
+            });
+        } else {
+            setModalMode("create");
+            setEditingRepo(null);
+            setFormData({ name: "", repoUrl: "", isOpenSource: false });
+        }
+        setModalOpen(true);
+    };
 
-        createRepo(newName, newUrl);
+    const closeModal = () => {
+        setModalOpen(false);
+        setEditingRepo(null);
+        setFormData({ name: "", repoUrl: "", isOpenSource: false });
+    };
 
-        setNewName("");
-        setNewUrl("");
-
-        load();
-    }
-
-    // -----------------------
-    // DELETE
-    // -----------------------
-
-    function remove(id: string) {
-        deleteRepo(id);
-        load();
-    }
-
-    // -----------------------
-    // EDIT
-    // -----------------------
-
-    function startEdit(repo: Repo) {
-        setEditId(repo.id);
-        setEditName(repo.name);
-        setEditUrl(repo.url);
-    }
-
-    function cancelEdit() {
-        setEditId(null);
-    }
-
-    function saveEdit(id: string) {
-        // temporary until API editing exists
-        const copy = getRepos();
-        const index = copy.findIndex(r => r.id === id);
-
-        if (index !== -1) {
-            copy[index].name = editName;
-            copy[index].url = editUrl;
+    const handleSubmit = async () => {
+        if (!formData.name.trim() || !formData.repoUrl.trim() || !isAdmin) {
+            toast.error("Name, URL required and Admin access needed");
+            return;
         }
 
-        // REPLACE IN-MEMORY DB (simulate API update)
-        // ⚠️ remove once backend exists
-        (window as any).__repos = copy;
+        setLoading(true);
+        try {
+            let result;
+            if (modalMode === "create") {
+                result = await createRepo({
+                    name: formData.name.trim(),
+                    repoUrl: formData.repoUrl.trim(),
+                    isOpenSource: formData.isOpenSource
+                });
+                toast.success("Repository created successfully!");
+            } else {
+                if (!editingRepo?.id) return;
+                result = await updateRepo(editingRepo.id, {
+                    name: formData.name.trim(),
+                    repoUrl: formData.repoUrl.trim(),
+                    isOpenSource: formData.isOpenSource
+                });
+                toast.success("Repository updated successfully!");
+            }
 
-        setEditId(null);
-        load();
-    }
+            if (result?.error) {
+                toast.error(result.error.message);
+                return;
+            }
 
-    // -----------------------
-    // FILTER
-    // -----------------------
+            closeModal();
+            loadRepos(1, viewMode);
+        } catch (err: any) {
+            toast.error(modalMode === "create" ? "Failed to create repository" : "Failed to update repository");
+        } finally {
+            setLoading(false);
+        }
+    };
 
-    const filtered = repos.filter(r =>
-        r.name.toLowerCase().includes(search.toLowerCase()) ||
-        r.url.toLowerCase().includes(search.toLowerCase())
+    const confirmDelete = (repoId: string) => {
+        setDeleteRepoId(repoId);
+        setDeleteModalOpen(true);
+    };
+
+    const handleDelete = async () => {
+        if (!deleteRepoId || !isAdmin) return;
+
+        setLoading(true);
+        try {
+            const result = await deleteRepo(deleteRepoId);
+            if (result?.error) {
+                toast.error(result.error.message);
+                return;
+            }
+            toast.success("Repository deleted successfully!");
+            setDeleteModalOpen(false);
+            setDeleteRepoId(null);
+            loadRepos(currentPage > 1 && repos.length === 1 ? currentPage - 1 : currentPage, viewMode);
+        } catch (err: any) {
+            toast.error("Failed to delete repository");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const filteredRepos = (repos || []).filter(repo =>
+        repo.name.toLowerCase().includes(search.toLowerCase()) ||
+        repo.repoUrl.toLowerCase().includes(search.toLowerCase())
     );
 
-    // -----------------------
-    // UI
-    // -----------------------
-
     return (
-        <Paper sx={{ p: 3, flex: 1, bgcolor: "#0c1023" }}>
-
-            {/* HEADER */}
-            <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
-                <Typography variant="h6">
-                    Repository Management
-                </Typography>
-
-                <Chip color="primary" label={`Active Repos: ${repos.length}`} />
-            </Box>
-
-            {/* SEARCH */}
-            <TextField
-                size="small"
-                fullWidth
-                label="Search repositories"
-                value={search}
-                sx={{ mb: 2 }}
-                onChange={e => setSearch(e.target.value)}
-            />
-
-            {/* ADD */}
-            <Box sx={{ display: "flex", gap: 1, mb: 2 }}>
-                <TextField
-                    size="small"
-                    label="Repo Name"
-                    fullWidth
-                    value={newName}
-                    onChange={e => setNewName(e.target.value)}
-                />
+        <Paper sx={{ p: 3, flex: 1, bgcolor: "#0c1023", minHeight: "100%" }}>
+            {/* TOP CONTROLS: dropdown <search box> <add button> */}
+            <Box sx={{ display: "flex", gap: 2, alignItems: "center", mb: 3, flexWrap: "wrap" }}>
+                <FormControl size="small" sx={{ minWidth: 140 }}>
+                    <InputLabel sx={{ color: "white" }}>View</InputLabel>
+                    <Select
+                        value={viewMode}
+                        label="View"
+                        onChange={handleViewModeChange}
+                        sx={{
+                            color: "white",
+                            ".MuiOutlinedInput-notchedOutline": { borderColor: "#4b5563" },
+                            "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "#7b5cff" }
+                        }}
+                    >
+                        <MenuItem value="all">All Repositories</MenuItem>
+                        <MenuItem value="opensource">Open Source</MenuItem>
+                    </Select>
+                </FormControl>
 
                 <TextField
                     size="small"
-                    label="Repo URL"
-                    fullWidth
-                    value={newUrl}
-                    onChange={e => setNewUrl(e.target.value)}
+                    label="Search repositories"
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    sx={{ flex: 1, minWidth: 300 }}
                 />
 
-                <Button
-                    variant="contained"
-                    onClick={addRepo}
-                    sx={{
-                        background: "linear-gradient(135deg,#7b5cff,#5ce1e6)"
-                    }}
-                >
-                    Add
-                </Button>
-
-
-
-
+                {isAdmin && (
+                    <Button
+                        variant="contained"
+                        startIcon={<AddIcon />}
+                        onClick={() => openModal()}
+                        sx={{
+                            background: "linear-gradient(135deg,#7b5cff,#5ce1e6)",
+                            textTransform: 'none',
+                            px: 3,
+                            minWidth: 120
+                        }}
+                    >
+                        Add Repo
+                    </Button>
+                )}
             </Box>
 
             {/* TABLE */}
-            <Table size="small">
+            <Paper sx={{ overflow: "hidden", bgcolor: "#0c1023" }}>
+                {loading ? (
+                    <Box sx={{ p: 8, display: "flex", justifyContent: "center", alignItems: "center", flexDirection: "column" }}>
+                        <CircularProgress size={32} sx={{ color: "#7b5cff" }} />
+                        <Typography sx={{ ml: 2, color: "#9ca3af", mt: 1 }}>Loading repositories...</Typography>
+                    </Box>
+                ) : filteredRepos.length === 0 ? (
+                    <Box sx={{ p: 8, textAlign: "center" }}>
+                        <Typography sx={{ color: "#9ca3af", mb: 1 }}>
+                            {search ? 'No matching repositories' : 'No repositories found'}
+                        </Typography>
+                    </Box>
+                ) : (
+                    <>
+                        <TableContainer sx={{ bgcolor: "#0c1023" }}>
+                            <Table size="small" sx={{ minWidth: 650 }}>
+                                <TableHead>
+                                    <TableRow sx={{ bgcolor: "#1e1e2e" }}>
+                                        <TableCell sx={{ color: "white", fontWeight: 600 }}>Name</TableCell>
+                                        <TableCell sx={{ color: "white", fontWeight: 600 }}>Repository URL</TableCell>
+                                        <TableCell sx={{ color: "white", fontWeight: 600, minWidth: 120 }}>Open Source</TableCell>
+                                        <TableCell sx={{ color: "white", fontWeight: 600, minWidth: 120 }}>Created</TableCell>
+                                        {isAdmin && <TableCell align="right" sx={{ color: "white", fontWeight: 600, minWidth: 100 }}>Actions</TableCell>}
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {filteredRepos.map((repo) => (
+                                        <TableRow key={repo.id} hover sx={{ '&:hover': { bgcolor: "#1e1e2e" } }}>
+                                            <TableCell sx={{ color: "white", fontWeight: 500 }}>
+                                                {repo.name}
+                                            </TableCell>
+                                            <TableCell sx={{ maxWidth: 300 }}>
+                                                <a
+                                                    href={repo.repoUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    style={{
+                                                        color: "#7b5cff",
+                                                        textDecoration: "none",
+                                                        fontFamily: 'monospace',
+                                                        fontSize: '0.875rem',
+                                                        wordBreak: "break-all",
+                                                        display: 'block'
+                                                    }}
+                                                >
+                                                    {repo.repoUrl}
+                                                </a>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Chip
+                                                    label={repo.isOpenSource ? "Yes" : "No"}
+                                                    color={repo.isOpenSource ? "success" : "error"}
+                                                    size="small"
+                                                    sx={{ fontWeight: 600 }}
+                                                />
+                                            </TableCell>
+                                            <TableCell sx={{ color: "#9ca3af" }}>
+                                                {new Date(repo.createdAt).toLocaleDateString()}
+                                            </TableCell>
+                                            {isAdmin && (
+                                                <TableCell align="right">
+                                                    <IconButton 
+                                                        size="small" 
+                                                        onClick={() => openModal(repo)}
+                                                        sx={{ color: "#f59e0b", mr: 0.5 }}
+                                                    >
+                                                        <EditIcon fontSize="small" />
+                                                    </IconButton>
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={() => confirmDelete(repo.id)}
+                                                        sx={{ color: "#ef4444" }}
+                                                    >
+                                                        <DeleteIcon fontSize="small" />
+                                                    </IconButton>
+                                                </TableCell>
+                                            )}
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </TableContainer>
 
-                <TableHead>
-                    <TableRow>
-                        <TableCell>Name</TableCell>
-                        <TableCell>URL</TableCell>
-                        <TableCell width={120} align="right">Actions</TableCell>
-                    </TableRow>
-                </TableHead>
+                        {totalPages > 1 && (
+                            <Box sx={{ p: 2, display: "flex", justifyContent: "center", bgcolor: "#111827" }}>
+                                <Pagination
+                                    count={totalPages}
+                                    page={currentPage}
+                                    onChange={(_, page) => loadRepos(page, viewMode)}
+                                    color="primary"
+                                    size="small"
+                                    sx={{
+                                        '& .MuiPaginationItem-root': {
+                                            color: 'white'
+                                        }
+                                    }}
+                                />
+                            </Box>
+                        )}
+                    </>
+                )}
+            </Paper>
 
-                <TableBody>
+            {/* CREATE/EDIT MODAL - Product Dialog Style */}
+<Dialog open={modalOpen} onClose={closeModal} fullWidth maxWidth="sm">
+    <DialogTitle sx={{ bgcolor: "#1e1e2e", color: "white" }}>
+        {modalMode === "create" ? "Add New Repository" : "Edit Repository"}
+    </DialogTitle>
+    <DialogContent sx={{ bgcolor: "#0c1023", maxHeight: "60vh", overflow: "auto" }}>
+        <Box sx={{ pt: 2 }}>
+            <Typography variant="subtitle2" fontWeight={700} mb={3} sx={{ color: "white" }}>
+                Repository Information
+            </Typography>
 
-                    {filtered.map(repo => {
+            {/* LINE 1: Repository Name */}
+            <TextField
+                label="Repository Name *"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                fullWidth
+                size="small"
+                sx={{ mb: 3 }}
+            />
 
-                        const editing = editId === repo.id;
+            {/* LINE 2: Repository URL */}
+            <TextField
+                label="Repository URL *"
+                value={formData.repoUrl}
+                onChange={(e) => setFormData({ ...formData, repoUrl: e.target.value })}
+                fullWidth
+                size="small"
+                sx={{ mb: 3 }}
+            />
 
-                        return (
-                            <TableRow key={repo.id}>
+            {/* LINE 3: Open Source Switch */}
+            <Box sx={{ mb: 2 }}>
+                <FormControlLabel
+                    control={
+                        <Switch
+                            checked={formData.isOpenSource}
+                            onChange={(e) => setFormData({ ...formData, isOpenSource: e.target.checked })}
+                            sx={{ color: "#7b5cff" }}
+                        />
+                    }
+                    label={
+                        <Box>
+                            <Typography variant="body2" fontWeight={600} sx={{ color: "white" }}>
+                                Open Source Repository
+                            </Typography>
+                            <Typography variant="caption" sx={{ color: "#9ca3af" }}>
+                                Public repository access
+                            </Typography>
+                        </Box>
+                    }
+                    labelPlacement="end"
+                    sx={{ m: 0, width: "100%" }}
+                />
+            </Box>
+        </Box>
+    </DialogContent>
+    <DialogActions sx={{ bgcolor: "#1e1e2e", p: 3 }}>
+        <Button onClick={closeModal} startIcon={<CloseIcon />}>
+            Cancel
+        </Button>
+        <Button
+            variant="contained"
+            onClick={handleSubmit}
+            disabled={!formData.name.trim() || !formData.repoUrl.trim() || loading}
+            sx={{
+                background: "linear-gradient(135deg,#7b5cff,#5ce1e6)",
+                textTransform: 'none',
+                px: 4
+            }}
+        >
+            {loading ? (
+                <>
+                    <CircularProgress size={20} sx={{ mr: 1 }} />
+                    Saving...
+                </>
+            ) : modalMode === "create" ? "Create Repository" : "Update Repository"}
+        </Button>
+    </DialogActions>
+</Dialog>
 
-                                {/* NAME */}
-                                <TableCell>
-                                    {editing ? (
-                                        <TextField
-                                            size="small"
-                                            value={editName}
-                                            onChange={e => setEditName(e.target.value)}
-                                        />
-                                    ) : (
-                                        repo.name
-                                    )}
-                                </TableCell>
 
-                                {/* URL */}
-                                <TableCell>
-                                    {editing ? (
-                                        <TextField
-                                            size="small"
-                                            fullWidth
-                                            value={editUrl}
-                                            onChange={e => setEditUrl(e.target.value)}
-                                        />
-                                    ) : (
-                                        repo.url
-                                    )}
-                                </TableCell>
-
-                                {/* ACTIONS */}
-                                <TableCell align="right">
-
-                                    {editing ? (
-                                        <>
-                                            <IconButton
-                                                size="small"
-                                                onClick={() => saveEdit(repo.id)}
-                                            >
-                                                <SaveIcon fontSize="small" />
-                                            </IconButton>
-
-                                            <IconButton
-                                                size="small"
-                                                onClick={cancelEdit}
-                                            >
-                                                <CloseIcon fontSize="small" />
-                                            </IconButton>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <IconButton
-                                                size="small"
-                                                onClick={() => startEdit(repo)}
-                                            >
-                                                <EditIcon fontSize="small" />
-                                            </IconButton>
-
-                                            <IconButton
-                                                size="small"
-                                                onClick={() => remove(repo.id)}
-                                            >
-                                                <DeleteIcon fontSize="small" />
-                                            </IconButton>
-                                        </>
-                                    )}
-
-                                </TableCell>
-
-                            </TableRow>
-                        );
-                    })}
-
-                    {!filtered.length && (
-                        <TableRow>
-                            <TableCell colSpan={3} align="center">
-                                No results found
-                            </TableCell>
-                        </TableRow>
-                    )}
-
-                </TableBody>
-
-            </Table>
-
+            {/* DELETE CONFIRMATION MODAL */}
+            <Dialog open={deleteModalOpen} onClose={() => setDeleteModalOpen(false)}>
+                <DialogTitle sx={{ bgcolor: "#1e1e2e", color: "white" }}>
+                    Delete Repository
+                </DialogTitle>
+                <DialogContent sx={{ bgcolor: "#0c1023", p: 3 }}>
+                    <Typography sx={{ color: "white" , mt:1}}>
+                        Are you sure you want to delete this repository? 
+                    </Typography>
+                </DialogContent>
+                <DialogActions sx={{ bgcolor: "#1e1e2e", p: 3 }}>
+                    <Button onClick={() => setDeleteModalOpen(false)}>
+                        Cancel
+                    </Button>
+                    <Button
+                        variant="contained"
+                        onClick={handleDelete}
+                        color="error"
+                        disabled={loading}
+                        sx={{
+                            background: "linear-gradient(135deg,#ef4444,#dc2626)",
+                            textTransform: 'none'
+                        }}
+                    >
+                        {loading ? <CircularProgress size={20} color="inherit" /> : "Delete"}
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Paper>
     );
 }
