@@ -16,7 +16,8 @@ import {
   Switch,
   CircularProgress,
   Select,
-  MenuItem as MuiMenuItem
+  SelectProps,
+  useTheme
 } from "@mui/material";
 
 import AddIcon from "@mui/icons-material/Add";
@@ -30,27 +31,16 @@ import {
   ProductStatus,
 } from "../../models/Product";
 import { createProduct, updateProduct } from "../../services/productService";
-import { 
-  getReposPaginated, 
-  getOpenSourceReposPaginated 
+import {
+  getReposPaginated,
+  getOpenSourceReposPaginated,
 } from "../../services/repoService";
 import { useUserStore } from "../../store/userStore";
 import { getInternalUsers } from "../../services/userService";
 import { AppUser } from "../../models/User";
 import toast from "react-hot-toast";
 import { Repo } from "../../models/Repo";
-
-const DEPENDENCIES = [
-  "React",
-  "Node",
-  "Express",
-  "Docker",
-  "MongoDB",
-  "Redis",
-  "Kubernetes",
-  "Spring Boot",
-  "PostgreSQL",
-];
+import { getDependenciesPaginated } from "../../services/dependencyService";  // ← new
 
 const SEMVER_REGEX = /^(\d+)\.(\d+)\.(\d+)(-(alpha|beta|rc))?$/;
 
@@ -80,6 +70,9 @@ export default function ProductDialog({
   const [openSourceRepos, setOpenSourceRepos] = useState<Repo[]>([]);
   const [reposLoading, setReposLoading] = useState(true);
   const [isOpenSourceProduct, setIsOpenSourceProduct] = useState(false);
+
+  const [dependencies, setDependencies] = useState<string[]>([]);   // ← from backend
+  const [depsLoading, setDepsLoading] = useState(true);            // ← new
 
   const emptyForm: ProductForm = {
     name: "",
@@ -112,7 +105,7 @@ export default function ProductDialog({
   const loadRepos = useCallback(async () => {
     try {
       setReposLoading(true);
-      
+
       const allReposResult = await getReposPaginated(0, 100);
       const openSourceResult = await getOpenSourceReposPaginated(0, 100);
 
@@ -124,10 +117,30 @@ export default function ProductDialog({
       }
     } catch (error) {
       toast.error("Failed to load repositories");
+    } finally {
+      setReposLoading(false);
+    }
+  }, []);
+
+
+  const loadDependencies = useCallback(async () => {
+    try {
+      setDepsLoading(true);
+      const result = await getDependenciesPaginated(0, 100);
+      if (result.error) {
+        toast.error(result.error.message);
+        setDependencies([]);
+      } else {
+        setDependencies(result.data.items.map((dep) => dep.name));
+      }
+    } catch (error) {
+      toast.error("Failed to load dependencies");
+      setDependencies([]);
     } finally {
-      setReposLoading(false);
+      setDepsLoading(false);
     }
   }, []);
+
 
   useEffect(() => {
     let mounted = true;
@@ -164,8 +177,9 @@ export default function ProductDialog({
   useEffect(() => {
     if (open) {
       loadRepos();
+      loadDependencies();
     }
-  }, [open, loadRepos]);
+  }, [open, loadRepos, loadDependencies]);
 
   useEffect(() => {
     if (open) {
@@ -195,18 +209,18 @@ export default function ProductDialog({
 
   const handleOpenSourceToggle = useCallback((checked: boolean) => {
     setIsOpenSourceProduct(checked);
-    
+
     if (checked) {
-      setForm(prev => ({
+      setForm((prev) => ({
         ...prev,
         repos: [{ repoUrl: "", branch: "" }],
-        isOpenSource: true
+        isOpenSource: true,
       }));
       toast.success("Repos reset. Only open source repositories allowed.");
     } else {
-      setForm(prev => ({
+      setForm((prev) => ({
         ...prev,
-        isOpenSource: false
+        isOpenSource: false,
       }));
     }
   }, []);
@@ -214,49 +228,66 @@ export default function ProductDialog({
   const validate = useCallback((): boolean => {
     const e: Record<string, string> = {};
 
-    if (!form.name.trim()) e.name = "Product name required";
+    if (!form.name.trim()) {
+      e.name = "Product name required";
+    }
 
-    if (!form.version.trim()) e.version = "Version required";
-    else if (!SEMVER_REGEX.test(form.version))
+    if (!form.version.trim()) {
+      e.version = "Version required";
+    } else if (!SEMVER_REGEX.test(form.version)) {
       e.version = "Use format: 1.2.0 / 1.2.0-beta / 1.2.0-rc";
+    }
 
-    if (!form.description?.trim()) e.description = "Description required";
+    if (!form.description?.trim()) {
+      e.description = "Description required";
+    }
 
-    if (!form.productDirector) e.productDirector = "Select product director";
+    if (!form.productDirector) {
+      e.productDirector = "Select product director";
+    }
 
-    if (!form.securityHead) e.securityHead = "Select security head";
+    if (!form.securityHead) {
+      e.securityHead = "Select security head";
+    }
 
-    if (!form.releaseEngineers.length)
+    if (!form.releaseEngineers.length) {
       e.releaseEngineers = "Select at least 1 release engineer";
+    }
 
-    if (!form.dependencies?.length)
+    if (!form.dependencies?.length) {
       e.dependencies = "Select at least one dependency";
+    }
 
     form.repos.forEach((repo, repoIdx) => {
-      if (!repo.repoUrl) e[`repo-${repoIdx}-url`] = "Repo URL required";
-      if (!repo.branch) e[`repo-${repoIdx}-branch`] = "Branch required";
-      
+      if (!repo.repoUrl) {
+        e[`repo-${repoIdx}-url`] = "Repo URL required";
+      }
+      if (!repo.branch) {
+        e[`repo-${repoIdx}-branch`] = "Branch required";
+      }
+
       if (isOpenSourceProduct) {
-        const repoUrl = allRepos.find(r => r.repoUrl === repo.repoUrl);
+        const repoUrl = allRepos.find((r) => r.repoUrl === repo.repoUrl);
         if (repoUrl && !repoUrl.isOpenSource) {
-          e[`repo-${repoIdx}-url`] = "Open source product can only use open source repositories";
+          e[`repo-${repoIdx}-url`] =
+            "Open source product can only use open source repositories";
         }
       }
     });
 
     setErrors(e);
     return Object.keys(e).length === 0;
-  }, [form, isOpenSourceProduct, allRepos]);
+  }, [form, isOpenSourceProduct, allRepos, dependencies]);
 
-  const updateField = useCallback((
-    key: keyof ProductForm,
-    value: any
-  ) => {
-    setForm(prev => ({ ...prev, [key]: value }));
-    if (errors[key as string]) {
-      setErrors(prev => ({ ...prev, [key as string]: "" }));
-    }
-  }, [errors]);
+  const updateField = useCallback(
+    (key: keyof ProductForm, value: any) => {
+      setForm((prev) => ({ ...prev, [key]: value }));
+      if (errors[key as string]) {
+        setErrors((prev) => ({ ...prev, [key as string]: "" }));
+      }
+    },
+    [errors]
+  );
 
   function setRepoField<K extends keyof RepoDetails>(
     repoIdx: number,
@@ -311,9 +342,11 @@ export default function ProductDialog({
 
         if (form.name !== product.name) updatePayload.name = form.name;
         if (form.version !== product.version) updatePayload.version = form.version;
-        if (form.isOpenSource !== product.isOpenSource) updatePayload.isOpenSource = form.isOpenSource;
+        if (form.isOpenSource !== product.isOpenSource)
+          updatePayload.isOpenSource = form.isOpenSource;
         if (form.description !== product.description) updatePayload.description = form.description;
-        if (form.productDirector !== product.productDirector) updatePayload.productDirector = form.productDirector;
+        if (form.productDirector !== product.productDirector)
+          updatePayload.productDirector = form.productDirector;
         if (form.securityHead !== product.securityHead) updatePayload.securityHead = form.securityHead;
         if (JSON.stringify(form.releaseEngineers) !== JSON.stringify(product.releaseEngineers))
           updatePayload.releaseEngineers = form.releaseEngineers;
@@ -362,7 +395,7 @@ export default function ProductDialog({
           publicKeyFilePath: form.publicKeyFilePath || "",
           createdBy: user.id,
           id: "",
-          createdAt: ""
+          createdAt: "",
         };
 
         const result = await createProduct(payload);
@@ -382,30 +415,51 @@ export default function ProductDialog({
     }
   };
 
-  if (usersLoading || reposLoading) {
+  if (usersLoading || reposLoading || depsLoading) {
     return (
       <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
-      <Box sx={{ pt: 12, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
-        <CircularProgress size={40} />
-        <Typography sx={{ mt: 2, color: "text.secondary" }}>Loading ...</Typography>
-      </Box>
+        <Box
+          sx={{
+            pt: 12,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            minHeight: "60vh",
+          }}
+        >
+          <CircularProgress size={40} />
+          <Typography sx={{ mt: 2, color: "text.secondary" }}>
+            Loading ...
+          </Typography>
+        </Box>
       </Dialog>
     );
   }
 
   return (
-    <Dialog open={open} onClose={loading ? undefined : onClose} fullWidth maxWidth="md">
+    <Dialog
+      open={open}
+      onClose={loading ? undefined : onClose}
+      fullWidth
+      maxWidth="md"
+    >
       <DialogTitle>
         {mode === "view"
           ? "Product Details"
           : product
-            ? "Edit Product"
-            : "Create Product"}
+          ? "Edit Product"
+          : "Create Product"}
       </DialogTitle>
 
       <DialogContent dividers sx={{ maxHeight: "60vh", overflow: "auto" }}>
         {loading ? (
-          <Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
+          <Box
+            display="flex"
+            justifyContent="center"
+            alignItems="center"
+            minHeight={200}
+          >
             <CircularProgress />
             <Typography ml={2}>Saving...</Typography>
           </Box>
@@ -446,17 +500,25 @@ export default function ProductDialog({
                   control={
                     <Switch
                       checked={form.isOpenSource || false}
-                      onChange={(e) => handleOpenSourceToggle(e.target.checked)}
+                      onChange={(e) =>
+                        handleOpenSourceToggle(e.target.checked)
+                      }
                       disabled={isView}
                       color="secondary"
                     />
                   }
                   label={
                     <Box>
-                      <Typography variant="body2" fontWeight={600}>
+                      <Typography
+                        variant="body2"
+                        fontWeight={600}
+                      >
                         Open Source Project
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                      >
                         Public repository access
                       </Typography>
                     </Box>
@@ -499,13 +561,17 @@ export default function ProductDialog({
                 error={!!errors.productDirector}
                 helperText={errors.productDirector}
                 disabled={isView}
-                onChange={(e) => updateField("productDirector", e.target.value || null)}
+                onChange={(e) =>
+                  updateField("productDirector", e.target.value || null)
+                }
               >
-                {users.filter(u => u.role == 'ProjectDirector').map((u) => (
-                  <MenuItem key={u.id} value={u.email}>
-                    {u.name} ({u.role})
-                  </MenuItem>
-                ))}
+                {users
+                  .filter((u) => u.role === "ProjectDirector")
+                  .map((u) => (
+                    <MenuItem key={u.id} value={u.email}>
+                      {u.name} ({u.role})
+                    </MenuItem>
+                  ))}
               </TextField>
 
               <TextField
@@ -515,57 +581,112 @@ export default function ProductDialog({
                 error={!!errors.securityHead}
                 helperText={errors.securityHead}
                 disabled={isView}
-                onChange={(e) => updateField("securityHead", e.target.value || null)}
+                onChange={(e) =>
+                  updateField("securityHead", e.target.value || null)
+                }
               >
-                {users.filter(u => u.role == 'SecurityHead').map((u) => (
-                  <MenuItem key={u.id} value={u.email}>
-                    {u.name} ({u.role})
-                  </MenuItem>
-                ))}
+                {users
+                  .filter((u) => u.role === "SecurityHead")
+                  .map((u) => (
+                    <MenuItem key={u.id} value={u.email}>
+                      {u.name} ({u.role})
+                    </MenuItem>
+                  ))}
               </TextField>
 
               <TextField
                 select
                 label="Release Engineers *"
-                SelectProps={{ multiple: true }}
+                slotProps={
+                  {
+                    multiple: true,
+                  } as SelectProps<string[]>
+                }
                 value={form.releaseEngineers || []}
                 error={!!errors.releaseEngineers}
                 helperText={errors.releaseEngineers}
                 disabled={isView}
-                onChange={(e) => updateField("releaseEngineers", e.target.value as unknown as string[])}
+                onChange={(e) =>
+                  updateField(
+                    "releaseEngineers",
+                    e.target.value as unknown as string[]
+                  )
+                }
               >
-                {users.filter(u => u.role == 'ReleaseEngineer').map((u) => (
-                  <MenuItem key={u.id} value={u.email}>
-                    <Chip label={u.name} size="small" />
-                  </MenuItem>
-                ))}
+                {users
+                  .filter((u) => u.role === "ReleaseEngineer")
+                  .map((u) => (
+                    <MenuItem key={u.id} value={u.email}>
+                      <Chip label={u.name} size="small" />
+                    </MenuItem>
+                  ))}
               </TextField>
             </Box>
 
-            {/* REPOSITORIES  */}
+            {/* REPOSITORIES */}
             <Divider sx={{ my: 3 }} />
-            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                mb: 2,
+              }}
+            >
               <Typography variant="subtitle2" fontWeight={700}>
                 Repositories & Components
               </Typography>
               {!isView && (
-                <Button startIcon={<AddIcon />} onClick={addRepo} variant="outlined" size="small">
+                <Button
+                  startIcon={<AddIcon />}
+                  onClick={addRepo}
+                  variant="outlined"
+                  size="small"
+                >
                   Add Repository
                 </Button>
               )}
             </Box>
 
             {form.repos.map((repo, repoIdx) => (
-              <Paper key={repoIdx} elevation={2} sx={{ p: 2, mb: 3, border: "1px solid rgba(123,92,255,0.3)", background: "rgba(123,92,255,0.05)" }}>
-                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
-                  <Typography variant="body2" fontWeight={700}>Repository {repoIdx + 1}</Typography>
+              <Paper
+                key={repoIdx}
+                elevation={2}
+                sx={{
+                  p: 2,
+                  mb: 3,
+                  border: "1px solid rgba(123,92,255,0.3)",
+                  background: "rgba(123,92,255,0.05)",
+                }}
+              >
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    mb: 2,
+                  }}
+                >
+                  <Typography variant="body2" fontWeight={700}>
+                    Repository {repoIdx + 1}
+                  </Typography>
                   {!isView && form.repos.length > 1 && (
-                    <IconButton size="small" color="error" onClick={() => removeRepo(repoIdx)}>
+                    <IconButton
+                      size="small"
+                      color="error"
+                      onClick={() => removeRepo(repoIdx)}
+                    >
                       <DeleteOutlineIcon fontSize="small" />
                     </IconButton>
                   )}
                 </Box>
-                <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "3fr 0.7fr" }, gap: 2 }}>
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: { xs: "1fr", md: "3fr 0.7fr" },
+                    gap: 2,
+                  }}
+                >
                   <TextField
                     select
                     label="Repository URL *"
@@ -574,7 +695,13 @@ export default function ProductDialog({
                     helperText={errors[`repo-${repoIdx}-url`]}
                     disabled={isView}
                     fullWidth
-                    onChange={(e) => setRepoField(repoIdx, "repoUrl" as keyof RepoDetails, e.target.value)}
+                    onChange={(e) =>
+                      setRepoField(
+                        repoIdx,
+                        "repoUrl" as keyof RepoDetails,
+                        e.target.value
+                      )
+                    }
                   >
                     {(isOpenSourceProduct ? openSourceRepos : allRepos).map((repoItem) => (
                       <MenuItem key={repoItem.id} value={repoItem.repoUrl}>
@@ -589,13 +716,19 @@ export default function ProductDialog({
                     helperText={errors[`repo-${repoIdx}-branch`]}
                     disabled={isView}
                     sx={{ maxWidth: 150 }}
-                    onChange={(e) => setRepoField(repoIdx, "branch" as keyof RepoDetails, e.target.value)}
+                    onChange={(e) =>
+                      setRepoField(
+                        repoIdx,
+                        "branch" as keyof RepoDetails,
+                        e.target.value
+                      )
+                    }
                   />
                 </Box>
               </Paper>
             ))}
 
-            {/* DEPENDENCIES  */}
+            {/* DEPENDENCIES */}
             <Divider sx={{ my: 3 }} />
             <Typography variant="subtitle2" fontWeight={700} mb={2}>
               Dependencies *
@@ -604,16 +737,25 @@ export default function ProductDialog({
               select
               label="Dependencies"
               fullWidth
-              SelectProps={{ multiple: true }}
+              slotProps={
+                {
+                  multiple: true,
+                } as SelectProps<string[]>
+              }
               value={form.dependencies || []}
               error={!!errors.dependencies}
               helperText={errors.dependencies}
               disabled={isView}
-              onChange={(e) => updateField("dependencies", e.target.value as unknown as string[])}
+              onChange={(e) =>
+                updateField(
+                  "dependencies",
+                  e.target.value as unknown as string[]
+                )
+              }
             >
-              {DEPENDENCIES.map((d) => (
-                <MenuItem key={d} value={d}>
-                  <Chip label={d} size="small" />
+              {dependencies.map((dep) => (
+                <MenuItem key={dep} value={dep}>
+                  <Chip label={dep} size="small" />
                 </MenuItem>
               ))}
             </TextField>
@@ -622,25 +764,28 @@ export default function ProductDialog({
       </DialogContent>
 
       <DialogActions>
-        <Button onClick={onClose} disabled={loading}>Close</Button>
+        <Button onClick={onClose} disabled={loading}>
+          Close
+        </Button>
         {!isView && (
           <Button
             variant="contained"
             onClick={submit}
             disabled={loading}
-            sx={{ background: "linear-gradient(135deg,#7b5cff,#5ce1e6)" }}
+            sx={{
+              background: "linear-gradient(135deg,#7b5cff,#5ce1e6)",
+            }}
           >
             {loading ? (
               <>
                 <CircularProgress size={20} sx={{ mr: 1 }} />
                 Saving...
               </>
-            ) : (
-              product ? "Save" : "Create"
-            )}
+            ) : product ? "Save" : "Create"}
           </Button>
         )}
       </DialogActions>
     </Dialog>
   );
 }
+

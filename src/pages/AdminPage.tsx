@@ -184,7 +184,7 @@ export default function AdminPage() {
           <Box>
             <Typography variant="h5" sx={{ mb: 3, mt:3, fontWeight: 800, color: "#ffffff" }}>Dependency Management</Typography>
             <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(1, 1fr)" }, gap: 4, alignItems: "start" }}>
-              <DependencyManagement />
+              <DependencyManagement user={user}/>
             </Box>
           </Box>
         </motion.div>
