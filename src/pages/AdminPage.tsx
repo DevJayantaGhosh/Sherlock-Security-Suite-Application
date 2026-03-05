@@ -116,7 +116,7 @@ export default function AdminPage() {
                 Admin Dashboard
               </Typography>
               <Button
-                onClick={handleRefresh}  // ✅ Fixed: Separate handler
+                onClick={handleRefresh}  
                 variant="contained"
                 startIcon={<RefreshIcon />}
                 sx={{

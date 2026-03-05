@@ -40,7 +40,8 @@ import { getInternalUsers } from "../../services/userService";
 import { AppUser } from "../../models/User";
 import toast from "react-hot-toast";
 import { Repo } from "../../models/Repo";
-import { getDependenciesPaginated } from "../../services/dependencyService";  // ← new
+import { getDependenciesPaginated } from "../../services/dependencyService"; // ← new
+
 
 const SEMVER_REGEX = /^(\d+)\.(\d+)\.(\d+)(-(alpha|beta|rc))?$/;
 
@@ -71,8 +72,8 @@ export default function ProductDialog({
   const [reposLoading, setReposLoading] = useState(true);
   const [isOpenSourceProduct, setIsOpenSourceProduct] = useState(false);
 
-  const [dependencies, setDependencies] = useState<string[]>([]);   // ← from backend
-  const [depsLoading, setDepsLoading] = useState(true);            // ← new
+  const [dependencies, setDependencies] = useState<string[]>([]);
+  const [depsLoading, setDepsLoading] = useState(true);
 
   const emptyForm: ProductForm = {
     name: "",
@@ -117,10 +118,10 @@ export default function ProductDialog({
       }
     } catch (error) {
       toast.error("Failed to load repositories");
-    } finally {
-      setReposLoading(false);
-    }
-  }, []);
+    } finally {
+      setReposLoading(false);
+    }
+  }, []);
 
 
   const loadDependencies = useCallback(async () => {
@@ -599,7 +600,9 @@ export default function ProductDialog({
                 label="Release Engineers *"
                 slotProps={
                   {
-                    multiple: true,
+                    select: {
+                      multiple: true,
+                    },
                   } as SelectProps<string[]>
                 }
                 value={form.releaseEngineers || []}
@@ -704,9 +707,9 @@ export default function ProductDialog({
                     }
                   >
                     {(isOpenSourceProduct ? openSourceRepos : allRepos).map((repoItem) => (
-                      <MenuItem key={repoItem.id} value={repoItem.repoUrl}>
+                        <MenuItem key={repoItem.id} value={repoItem.repoUrl}>
                         {repoItem.name} {repoItem.isOpenSource ? "(Open Source)" : "(Private)"} - {repoItem.repoUrl}
-                      </MenuItem>
+                        </MenuItem>
                     ))}
                   </TextField>
                   <TextField
@@ -737,11 +740,13 @@ export default function ProductDialog({
               select
               label="Dependencies"
               fullWidth
-              slotProps={
-                {
-                  multiple: true,
-                } as SelectProps<string[]>
-              }
+                slotProps={
+                  {
+                    select: {
+                      multiple: true,
+                    },
+                  } as SelectProps<string[]>
+                }
               value={form.dependencies || []}
               error={!!errors.dependencies}
               helperText={errors.dependencies}
