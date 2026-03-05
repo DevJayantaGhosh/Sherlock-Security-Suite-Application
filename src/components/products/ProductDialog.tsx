@@ -29,7 +29,7 @@ import {
 } from "../../models/Product";
 import { createProduct, updateProduct } from "../../services/productService";
 import { useUserStore } from "../../store/userStore";
-import { getInternalUsers } from "../../services/userService"; 
+import { getInternalUsers } from "../../services/userService";
 import { AppUser } from "../../models/User";
 import toast from "react-hot-toast";
 
@@ -97,8 +97,8 @@ export default function ProductDialog({
     status: "Pending" as ProductStatus,
     remark: "",
     securityScanReportPath: "",
-    signingReportPath:"",
-    releaseReportPath :"",
+    signingReportPath: "",
+    releaseReportPath: "",
     signatureFilePath: "",
     publicKeyFilePath: "",
   };
@@ -109,19 +109,19 @@ export default function ProductDialog({
   //  Load internal users
   useEffect(() => {
     let mounted = true;
-    
+
     const loadInternalUsers = async () => {
       try {
         setUsersLoading(true);
-        const internalUsersResult = await getInternalUsers(); 
-        
+        const internalUsersResult = await getInternalUsers();
+
         if (mounted) {
           if (internalUsersResult.error) {
             console.error("Failed to load internal users:", internalUsersResult.error.message);
             toast.error(internalUsersResult.error.message);
-            setUsers([]); 
+            setUsers([]);
           } else {
-            setUsers(internalUsersResult.data); 
+            setUsers(internalUsersResult.data);
           }
         }
       } catch (error) {
@@ -148,14 +148,14 @@ export default function ProductDialog({
           ...rest,
           repos: rest.repos?.length > 0
             ? rest.repos.map((r: RepoDetails) => ({
-                ...r,
-              }))
+              ...r,
+            }))
             : [
-                {
-                  repoUrl: "",
-                  branch: "",
-                },
-              ],
+              {
+                repoUrl: "",
+                branch: "",
+              },
+            ],
         });
       } else {
         setForm(emptyForm);
@@ -196,7 +196,7 @@ export default function ProductDialog({
 
   //  Form helpers
   const updateField = useCallback((
-    key: keyof ProductForm, 
+    key: keyof ProductForm,
     value: any
   ) => {
     setForm(prev => ({ ...prev, [key]: value }));
@@ -236,100 +236,100 @@ export default function ProductDialog({
   }
 
 
-const submit = async () => {
-  if (!validate()) {
-    toast.error("Please fix form errors");
-    return;
-  }
-  if (!user?.id) {
-    toast.error("User not authenticated");
-    return;
-  }
-
-  setLoading(true);
-  try {
-    if (mode === "edit" && product?.id) {
-      const updatePayload: Partial<ProductForm & { 
-        remark?: string; 
-        securityScanReportPath?: string; 
-        signatureFilePath?: string; 
-        publicKeyFilePath?: string; 
-      }> = {};
-
-      // Only include changed fields
-      if (form.name !== product.name) updatePayload.name = form.name;
-      if (form.version !== product.version) updatePayload.version = form.version;
-      if (form.isOpenSource !== product.isOpenSource) updatePayload.isOpenSource = form.isOpenSource;
-      if (form.description !== product.description) updatePayload.description = form.description;
-      if (form.productDirector !== product.productDirector) updatePayload.productDirector = form.productDirector;
-      if (form.securityHead !== product.securityHead) updatePayload.securityHead = form.securityHead;
-      if (JSON.stringify(form.releaseEngineers) !== JSON.stringify(product.releaseEngineers)) 
-        updatePayload.releaseEngineers = form.releaseEngineers;
-      if (JSON.stringify(form.repos) !== JSON.stringify(product.repos)) 
-        updatePayload.repos = form.repos;
-      if (JSON.stringify(form.dependencies) !== JSON.stringify(product.dependencies)) 
-        updatePayload.dependencies = form.dependencies;
-      if (form.status !== product.status) updatePayload.status = form.status;
-      if (form.remark !== product.remark) updatePayload.remark = form.remark;
-      if (form.securityScanReportPath !== product.securityScanReportPath) 
-        updatePayload.securityScanReportPath = form.securityScanReportPath;
-      if (form.signingReportPath !== product.signingReportPath) 
-        updatePayload.signingReportPath = form.signingReportPath;
-      if (form.releaseReportPath !== product.releaseReportPath) 
-        updatePayload.releaseReportPath = form.releaseReportPath;
-      if (form.signatureFilePath !== product.signatureFilePath) 
-        updatePayload.signatureFilePath = form.signatureFilePath;
-      if (form.publicKeyFilePath !== product.publicKeyFilePath) 
-        updatePayload.publicKeyFilePath = form.publicKeyFilePath;
-
-      const result = await updateProduct(product.id, updatePayload);
-      if (result.error) {
-        toast.error(result.error.message);
-      } else {
-        toast.success("Product updated successfully!");
-        refresh();
-        onClose();
-      }
-    } else {
-      //  CREATE - Backend ignores extra fields, uses only what's needed
-      const payload: Product = {
-        name: form.name,
-        version: form.version,
-        isOpenSource: form.isOpenSource,
-        description: form.description || "",
-        productDirector: form.productDirector || null,
-        securityHead: form.securityHead || null,
-        releaseEngineers: form.releaseEngineers || [],
-        repos: form.repos || [],
-        dependencies: form.dependencies || [],
-        status: "Pending" as ProductStatus,
-        remark: form.remark || "",
-        securityScanReportPath: form.securityScanReportPath || "",
-        signingReportPath: form.signingReportPath || "",
-        releaseReportPath: form.releaseReportPath || "",
-        signatureFilePath: form.signatureFilePath || "",
-        publicKeyFilePath: form.publicKeyFilePath || "",
-        createdBy: user.id,
-        id: "",
-        createdAt: ""
-      };
-
-      const result = await createProduct(payload);
-      if (result.error) {
-        toast.error(result.error.message);
-      } else {
-        toast.success("Product created successfully!");
-        refresh();
-        onClose();
-      }
+  const submit = async () => {
+    if (!validate()) {
+      toast.error("Please fix form errors");
+      return;
     }
-  } catch (error) {
-    console.error("Submit error:", error);
-    toast.error("Operation failed");
-  } finally {
-    setLoading(false);
-  }
-};
+    if (!user?.id) {
+      toast.error("User not authenticated");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      if (mode === "edit" && product?.id) {
+        const updatePayload: Partial<ProductForm & {
+          remark?: string;
+          securityScanReportPath?: string;
+          signatureFilePath?: string;
+          publicKeyFilePath?: string;
+        }> = {};
+
+        // Only include changed fields
+        if (form.name !== product.name) updatePayload.name = form.name;
+        if (form.version !== product.version) updatePayload.version = form.version;
+        if (form.isOpenSource !== product.isOpenSource) updatePayload.isOpenSource = form.isOpenSource;
+        if (form.description !== product.description) updatePayload.description = form.description;
+        if (form.productDirector !== product.productDirector) updatePayload.productDirector = form.productDirector;
+        if (form.securityHead !== product.securityHead) updatePayload.securityHead = form.securityHead;
+        if (JSON.stringify(form.releaseEngineers) !== JSON.stringify(product.releaseEngineers))
+          updatePayload.releaseEngineers = form.releaseEngineers;
+        if (JSON.stringify(form.repos) !== JSON.stringify(product.repos))
+          updatePayload.repos = form.repos;
+        if (JSON.stringify(form.dependencies) !== JSON.stringify(product.dependencies))
+          updatePayload.dependencies = form.dependencies;
+        if (form.status !== product.status) updatePayload.status = form.status;
+        if (form.remark !== product.remark) updatePayload.remark = form.remark;
+        if (form.securityScanReportPath !== product.securityScanReportPath)
+          updatePayload.securityScanReportPath = form.securityScanReportPath;
+        if (form.signingReportPath !== product.signingReportPath)
+          updatePayload.signingReportPath = form.signingReportPath;
+        if (form.releaseReportPath !== product.releaseReportPath)
+          updatePayload.releaseReportPath = form.releaseReportPath;
+        if (form.signatureFilePath !== product.signatureFilePath)
+          updatePayload.signatureFilePath = form.signatureFilePath;
+        if (form.publicKeyFilePath !== product.publicKeyFilePath)
+          updatePayload.publicKeyFilePath = form.publicKeyFilePath;
+
+        const result = await updateProduct(product.id, updatePayload);
+        if (result.error) {
+          toast.error(result.error.message);
+        } else {
+          toast.success("Product updated successfully!");
+          refresh();
+          onClose();
+        }
+      } else {
+        //  CREATE - Backend ignores extra fields, uses only what's needed
+        const payload: Product = {
+          name: form.name,
+          version: form.version,
+          isOpenSource: form.isOpenSource,
+          description: form.description || "",
+          productDirector: form.productDirector || null,
+          securityHead: form.securityHead || null,
+          releaseEngineers: form.releaseEngineers || [],
+          repos: form.repos || [],
+          dependencies: form.dependencies || [],
+          status: "Pending" as ProductStatus,
+          remark: form.remark || "",
+          securityScanReportPath: form.securityScanReportPath || "",
+          signingReportPath: form.signingReportPath || "",
+          releaseReportPath: form.releaseReportPath || "",
+          signatureFilePath: form.signatureFilePath || "",
+          publicKeyFilePath: form.publicKeyFilePath || "",
+          createdBy: user.id,
+          id: "",
+          createdAt: ""
+        };
+
+        const result = await createProduct(payload);
+        if (result.error) {
+          toast.error(result.error.message);
+        } else {
+          toast.success("Product created successfully!");
+          refresh();
+          onClose();
+        }
+      }
+    } catch (error) {
+      console.error("Submit error:", error);
+      toast.error("Operation failed");
+    } finally {
+      setLoading(false);
+    }
+  };
 
 
   if (usersLoading) {
@@ -347,8 +347,8 @@ const submit = async () => {
         {mode === "view"
           ? "Product Details"
           : product
-          ? "Edit Product"
-          : "Create Product"}
+            ? "Edit Product"
+            : "Create Product"}
       </DialogTitle>
 
       <DialogContent dividers sx={{ maxHeight: "60vh", overflow: "auto" }}>
@@ -429,7 +429,7 @@ const submit = async () => {
               onChange={(e) => updateField("description", e.target.value)}
             />
 
-            
+
             <Typography variant="subtitle2" fontWeight={700} mb={2}>
               Stakeholders
             </Typography>
@@ -451,7 +451,7 @@ const submit = async () => {
                 disabled={isView}
                 onChange={(e) => updateField("productDirector", e.target.value || null)}
               >
-                {users.filter(u=>u.role=='ProjectDirector').map((u) => (
+                {users.filter(u => u.role == 'ProjectDirector').map((u) => (
                   <MenuItem key={u.id} value={u.email}>
                     {u.name} ({u.role})
                   </MenuItem>
@@ -467,7 +467,7 @@ const submit = async () => {
                 disabled={isView}
                 onChange={(e) => updateField("securityHead", e.target.value || null)}
               >
-                {users.filter(u=>u.role=='SecurityHead').map((u) => (
+                {users.filter(u => u.role == 'SecurityHead').map((u) => (
                   <MenuItem key={u.id} value={u.email}>
                     {u.name} ({u.role})
                   </MenuItem>
@@ -484,7 +484,7 @@ const submit = async () => {
                 disabled={isView}
                 onChange={(e) => updateField("releaseEngineers", e.target.value as unknown as string[])}
               >
-                {users.filter(u=>u.role=='ReleaseEngineer').map((u) => (
+                {users.filter(u => u.role == 'ReleaseEngineer').map((u) => (
                   <MenuItem key={u.id} value={u.email}>
                     <Chip label={u.name} size="small" />
                   </MenuItem>
@@ -515,7 +515,7 @@ const submit = async () => {
                     </IconButton>
                   )}
                 </Box>
-                <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "2fr 1fr" }, gap: 2 }}>
+                <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "3fr 0.7fr" }, gap: 2 }}>
                   <TextField
                     select
                     label="Repository URL *"
@@ -523,6 +523,7 @@ const submit = async () => {
                     error={!!errors[`repo-${repoIdx}-url`]}
                     helperText={errors[`repo-${repoIdx}-url`]}
                     disabled={isView}
+                    sx={{ minWidth: 550 }} 
                     onChange={(e) => setRepoField(repoIdx, "repoUrl" as keyof RepoDetails, e.target.value)}
                   >
                     {REPOSITORIES.map((url) => (
@@ -535,6 +536,7 @@ const submit = async () => {
                     error={!!errors[`repo-${repoIdx}-branch`]}
                     helperText={errors[`repo-${repoIdx}-branch`]}
                     disabled={isView}
+                    sx={{ maxWidth: 150 }}  
                     onChange={(e) => setRepoField(repoIdx, "branch" as keyof RepoDetails, e.target.value)}
                   />
                 </Box>
