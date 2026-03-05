@@ -15,6 +15,7 @@ import { getProductStats } from "../services/productService";
 import { AppUser } from "../models/User";
 import EditUserDialog from "../components/admin/EditUserDialog";
 import { ProductStatsResponse } from "../models/Product";
+import { useUserStore } from "../store/userStore";
 
 export default function AdminPage() {
   const [users, setUsers] = useState<AppUser[]>([]);
@@ -27,6 +28,7 @@ export default function AdminPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editUser, setEditUser] = useState<AppUser | null>(null);
 
+  const user = useUserStore((state) => state.user);
   /**
    * ═══════════════════════════════════════════════════════════════════════════════
    *  LOAD DATA - SILENT ON INITIAL LOAD
@@ -164,17 +166,24 @@ export default function AdminPage() {
           {/* Users Table */}
           <Box sx={{ mb: 6 }}>
             <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
-              <Typography variant="h4" sx={{ fontWeight: 800, color: "#ffffff" }}>User Management</Typography>
+              <Typography variant="h5" sx={{ fontWeight: 800, color: "#ffffff" }}>User Management</Typography>
               <Typography variant="body2" sx={{ opacity: 0.7, fontSize: "0.9rem" }}>{users.length} users</Typography>
             </Box>
             <UsersTable users={users} onEdit={openEdit} refresh={loadData} loading={usersLoading} />
           </Box>
 
-          {/* Configuration */}
+          {/* Repo */}
           <Box>
-            <Typography variant="h4" sx={{ mb: 3, fontWeight: 800, color: "#ffffff" }}>Configuration Management</Typography>
-            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)" }, gap: 4, alignItems: "start" }}>
-              <RepositoryManagement />
+            <Typography variant="h5" sx={{ mb: 3, fontWeight: 800, color: "#ffffff" }}>Repository Management</Typography>
+            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(1, 1fr)" }, gap: 4, alignItems: "start" }}>
+              <RepositoryManagement user={user} />
+            </Box>
+          </Box>
+
+          {/* Dependency */}
+          <Box>
+            <Typography variant="h5" sx={{ mb: 3, mt:3, fontWeight: 800, color: "#ffffff" }}>Dependency Management</Typography>
+            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(1, 1fr)" }, gap: 4, alignItems: "start" }}>
               <DependencyManagement />
             </Box>
           </Box>
