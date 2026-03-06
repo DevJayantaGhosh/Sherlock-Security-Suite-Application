@@ -56,20 +56,7 @@ interface Window {
       vulnerabilities?: number;
     }>;
 
-    runOpenGrep(payload: {
-      repoUrl: string;
-      branch: string;
-      isQuickScan: boolean;
-      githubToken : string;
-      scanId: string;
-    }): Promise<{
-      success: boolean;
-      cancelled?: boolean;
-      error?: string;
-      totalIssues?: number;
-      passedChecks?: number;
-      failedChecks?: number;
-    }>;
+
 
     selectFolder(): Promise<string | null>;
     selectFile(): Promise<string | null>;
@@ -140,9 +127,7 @@ interface Window {
         goodSignatures?: number;
         findings?: number;
         vulnerabilities?: number;
-        totalIssues?: number;
-        passedChecks?: number;
-        failedChecks?: number;
+
         error?: string;
       }) => void
     ): () => void;

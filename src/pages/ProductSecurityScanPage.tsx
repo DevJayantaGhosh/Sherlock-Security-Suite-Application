@@ -205,8 +205,7 @@ const isPending = product?.status === "Pending";
 const isRejected = product?.status === "Rejected";
 
 const canScan = isAuthorized && isPending;
-const isViewOnlyMode =
-  !isAuthorized || !isPending || isRejected;
+const isViewOnlyMode = !isAuthorized || !isPending || isRejected;
 
 let tooltip = "";
 if (isViewOnlyMode) {
@@ -308,7 +307,7 @@ if (isViewOnlyMode) {
           </motion.div>
 
           {/* Authorization Warning */}
-          {!isViewOnlyMode && (
+          {isViewOnlyMode && (
             <motion.div variants={itemVariants}>
               <Paper sx={{
                 p: 2,

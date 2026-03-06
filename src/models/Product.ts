@@ -48,29 +48,14 @@ export interface VulnerabilityScanResult extends BaseScanResult {
   };
 }
 
-// 4. Static Analysis / SAST (Tool: OpenGrep)
-export interface ComponentScanResult {
-  componentName: string; 
-  language: string;
-  issuesCount: number;
-  isPassing: boolean;
-}
 
-export interface StaticAnalysisResult extends BaseScanResult {
-  summary?: {
-    totalIssues: number;
-    passedChecks?: number;
-    failedChecks?: number;
-  };
-  componentResults?: ComponentScanResult[]; 
-}
 
 // Container for all scans on a single repo
 export interface RepoScanResults {
   signatureVerification?: SignatureVerificationResult; 
   secretLeakDetection?: SecretLeakDetectionResult;             
   vulnerabilityScan?: VulnerabilityScanResult;         
-  staticAnalysis?: StaticAnalysisResult;               
+             
 }
 
 // ------------------------------------------------------------------

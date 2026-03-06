@@ -21,15 +21,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   runTrivy: (payload: { repoUrl: string; branch: string; isQuickScan: boolean; githubToken : string; scanId: string }) =>
     ipcRenderer.invoke("scan:trivy", payload),
   
-  // OpenGrep SAST Scan
-  runOpenGrep: (payload: { 
-    repoUrl: string; 
-    branch: string; 
-    isQuickScan: boolean;
-    githubToken : string;
-    scanId: string;
-  }) =>
-    ipcRenderer.invoke("scan:opengrep", payload),
   
   // Cryptographic Signing Workflow
   selectFolder: () => ipcRenderer.invoke("dialog:select-folder"),

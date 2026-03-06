@@ -182,35 +182,6 @@ let productDB: Product[] = [
               low: 5
             }
           },
-          staticAnalysis: {
-            status: "success",
-            timestamp: "2026-01-26T10:15:00.000Z",
-            logs: [
-              "[OPENGREP] Starting scan...",
-              "Running with configs: auto, p/owasp-top-ten, p/secrets",
-              "Scanned 150 files.",
-              "Found 8 issues."
-            ],
-            summary: {
-              totalIssues: 8,
-              passedChecks: 150,
-              failedChecks: 8
-            },
-            componentResults: [
-              {
-                componentName: "Backend Service",
-                language: "java",
-                issuesCount: 3,
-                isPassing: true
-              },
-              {
-                componentName: "Admin Dashboard",
-                language: "javascript-typescript",
-                issuesCount: 5,
-                isPassing: false
-              }
-            ]
-          }
         }
       }
     ],

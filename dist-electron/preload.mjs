@@ -12,8 +12,6 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
   runGitleaks: (payload) => electron.ipcRenderer.invoke("scan:gitleaks", payload),
   // Trivy Scan
   runTrivy: (payload) => electron.ipcRenderer.invoke("scan:trivy", payload),
-  // OpenGrep SAST Scan
-  runOpenGrep: (payload) => electron.ipcRenderer.invoke("scan:opengrep", payload),
   // Cryptographic Signing Workflow
   selectFolder: () => electron.ipcRenderer.invoke("dialog:select-folder"),
   selectFile: () => electron.ipcRenderer.invoke("dialog:select-file"),
