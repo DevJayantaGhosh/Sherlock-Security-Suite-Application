@@ -1,4 +1,10 @@
+tools/win/*.exe filter=lfs diff=lfs merge=lfs -text
+tools/*/trivy* filter=lfs diff=lfs merge=lfs -text
 *.exe filter=lfs diff=lfs merge=lfs -text
+SoftwareSigner.exe filter=lfs diff=lfs merge=lfs -text
+SoftwareVerifier.exe filter=lfs diff=lfs merge=lfs -text
+KeyGenerator.exe filter=lfs diff=lfs merge=lfs -text
+tools/**/* filter=lfs diff=lfs merge=lfs -text
 trivy filter=lfs diff=lfs merge=lfs -text
 SoftwareSigner* filter=lfs diff=lfs merge=lfs -text
 SoftwareVerifier* filter=lfs diff=lfs merge=lfs -text
