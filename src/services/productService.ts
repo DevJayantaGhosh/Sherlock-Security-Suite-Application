@@ -7,7 +7,7 @@ import { useUserStore } from "../store/userStore";
 import { PRODUCT_API_URLS } from "../config/productManagementServiceApiUrls";
 import { ApiError } from "../config/ApiError";
 
-const USE_BACKEND = true;  // Toggle flag
+const USE_BACKEND = false;  // Toggle flag
 
 const api = axios.create({
   baseURL: PRODUCT_API_URLS.BASE,

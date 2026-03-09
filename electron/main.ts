@@ -2,7 +2,7 @@
 import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { spawn, ChildProcess } from "child_process";
+import { spawn, spawnSync, ChildProcess } from "child_process";
 import fs from "fs/promises";
 import fsSync from "fs";
 import dotenv from "dotenv";
@@ -160,6 +160,56 @@ const getRepoPath = async (
 
 
 /* ============================================================
+   GIT LFS INSTALL
+============================================================ */
+function runGitLfsInstall(
+  event: Electron.IpcMainInvokeEvent,
+  scanId: string
+): void {
+  try {
+    event.sender.send(`scan-log:${scanId}`, {
+      log: `\n📦 Running git lfs install...\n`,
+      progress: 3,
+    });
+
+    const result = spawnSync("git", ["lfs", "install"], {
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: 150000,
+    });
+
+    if (result.error) {
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `⚠️ git lfs not found on system — skipping LFS (clone will continue)\n`,
+        progress: 4,
+      });
+      return;
+    }
+
+    const stdout = result.stdout?.toString() || "";
+    const stderr = result.stderr?.toString() || "";
+    if (stdout) {
+      event.sender.send(`scan-log:${scanId}`, { log: stdout, progress: 4 });
+    }
+    if (stderr) {
+      event.sender.send(`scan-log:${scanId}`, { log: stderr, progress: 4 });
+    }
+
+    event.sender.send(`scan-log:${scanId}`, {
+      log: result.status === 0
+        ? `git lfs install done\n`
+        : `⚠️ git lfs install exited ${result.status} — LFS may not be available (clone will continue)\n`,
+      progress: 4,
+    });
+  } catch (err: any) {
+    debugLog(`runGitLfsInstall failed: ${err.message}`);
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `⚠️ git lfs install failed (${err.message}) — continuing without LFS\n`,
+        progress: 4,
+      });
+  }
+}
+
+/* ============================================================
    CLONE REPOSITORY
 ============================================================ */
 function getGitHubToken(): string | null {
@@ -206,10 +256,15 @@ async function cloneRepository(
     progress: 10,
   });
 
-  let token = getGitHubToken();
-  if (isQuickScan &&  githubToken) {
-    token=githubToken;
+  // For quickScan: only use the user-provided githubToken (don't fall back to env PAT)
+  // This allows public repos to clone anonymously so LFS works without token scope issues
+  let token: string | null = null;
+  if (isQuickScan) {
+    token = githubToken || null; // only use explicitly provided token
+  } else {
+    token = getGitHubToken(); // product flow: fall back to env PAT
   }
+
   let cloneUrl = repoUrl;
   if (token && !repoUrl.includes('x-access-token')) {
     cloneUrl = repoUrl.replace('https://', `https://x-access-token:${token}@`);
@@ -226,6 +281,9 @@ async function cloneRepository(
   try {
     await fs.mkdir(tempDir, { recursive: true });
 
+    // Run git lfs install synchronously BEFORE clone
+    runGitLfsInstall(event, scanId);
+
     return await new Promise<string | null>((resolve) => {
       const args = ["clone", "-b", branch, "--single-branch", cloneUrl, tempDir];
 
@@ -237,6 +295,7 @@ async function cloneRepository(
       const child = spawn("git", args, {
         detached: true,
         stdio: ["ignore", "pipe", "pipe"],
+        env: { ...process.env },
       });
 
       child.unref();
@@ -308,17 +367,17 @@ async function cloneRepository(
 
       ipcMain.once(`scan:cancel-${scanId}`, cancelHandler);
 
-      // Timeout after 3 minutes
+      // Timeout after 30 minutes
       setTimeout(() => {
         if (activeProcesses.has(cloneId)) {
           killProcess(child, cloneId);
           event.sender.send(`scan-log:${scanId}`, {
-            log: `\n❌ Clone timeout after 3 minutes\n`,
+            log: `\n❌ Clone timeout after 30 minutes\n`,
             progress: 0,
           });
           resolve(null);
         }
-      }, 180000);
+      }, 1800000);
     });
   } catch (err: any) {
     event.sender.send(`scan-log:${scanId}`, {
@@ -370,10 +429,15 @@ async function cloneRepositoryByTag(
     progress: 10,
   });
 
-  let token = getGitHubToken();
-  if (isQuickScan && githubToken) {
-    token = githubToken;
+  // For quickScan: only use the user-provided githubToken (don't fall back to env PAT)
+  // This allows public repos to clone anonymously so LFS works without token scope issues
+  let token: string | null = null;
+  if (isQuickScan) {
+    token = githubToken || null;
+  } else {
+    token = getGitHubToken();
   }
+
   let cloneUrl = repoUrl;
   if (token && !repoUrl.includes('x-access-token')) {
     cloneUrl = repoUrl.replace('https://', `https://x-access-token:${token}@`);
@@ -390,6 +454,9 @@ async function cloneRepositoryByTag(
   try {
     await fs.mkdir(tempDir, { recursive: true });
 
+    // Run git lfs install
+    runGitLfsInstall(event, scanId);
+
     return await new Promise<string | null>((resolve) => {
       // Step 1: Clone WITHOUT single-branch to get ALL tags
       const cloneArgs = ["clone", "--no-checkout", cloneUrl, tempDir];
@@ -402,6 +469,7 @@ async function cloneRepositoryByTag(
       const cloneProcess = spawn("git", cloneArgs, {
         detached: true,
         stdio: ["ignore", "pipe", "pipe"],
+        env: { ...process.env },
       });
 
       cloneProcess.unref();
@@ -563,16 +631,17 @@ async function cloneRepositoryByTag(
 
       ipcMain.once(`scan:cancel-${scanId}`, cancelHandler);
 
+      // Timeout after 30 minutes
       setTimeout(() => {
         if (activeProcesses.has(cloneId)) {
           killProcess(cloneProcess, cloneId);
           event.sender.send(`scan-log:${scanId}`, {
-            log: `\n❌ Clone timeout after 3 minutes\n`,
+            log: `\n❌ Clone timeout after 30 minutes\n`,
             progress: 0,
           });
           resolve(null);
         }
-      }, 180000);
+      }, 1800000);
     });
   } catch (err: any) {
     event.sender.send(`scan-log:${scanId}`, {
@@ -1855,7 +1924,18 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  // Run git lfs install once at startup so clones automatically fetch LFS objects
+  const lfs = spawn("git", ["lfs", "install"], { stdio: "ignore" });
+  lfs.on("close", (code) => {
+    debugLog(`git lfs install: ${code === 0 ? "OK" : `exited ${code} (LFS may not be available)`}`);
+  });
+  lfs.on("error", () => {
+    debugLog("git lfs not found on system — LFS objects won't be fetched automatically");
+  });
+
+  createWindow();
+});
 
 app.on("window-all-closed", () => {
   cancelAllScans();

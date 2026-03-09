@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog } from "electron";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { spawn } from "child_process";
+import { spawn, spawnSync } from "child_process";
 import fs from "fs/promises";
 import fsSync from "fs";
 import require$$1 from "path";
@@ -4015,6 +4015,52 @@ const getRepoPath = async (event, repoUrl, branch, isQuickScan, githubToken, sca
   }
   return await cloneRepository(event, repoUrl, branch, isQuickScan, githubToken, scanId);
 };
+function runGitLfsInstall(event, scanId) {
+  try {
+    event.sender.send(`scan-log:${scanId}`, {
+      log: `
+📦 Running git lfs install...
+`,
+      progress: 3
+    });
+    const result = spawnSync("git", ["lfs", "install"], {
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: 15e4
+    });
+    if (result.error) {
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `⚠️ git lfs not found on system — skipping LFS (clone will continue)
+`,
+        progress: 4
+      });
+      return;
+    }
+    const stdout = result.stdout?.toString() || "";
+    const stderr = result.stderr?.toString() || "";
+    if (stdout) {
+      event.sender.send(`scan-log:${scanId}`, { log: stdout, progress: 4 });
+    }
+    if (stderr) {
+      event.sender.send(`scan-log:${scanId}`, { log: stderr, progress: 4 });
+    }
+    event.sender.send(`scan-log:${scanId}`, {
+      log: result.status === 0 ? `git lfs install done
+` : `⚠️ git lfs install exited ${result.status} — LFS may not be available (clone will continue)
+`,
+      progress: 4
+    });
+  } catch (err) {
+    debugLog(`runGitLfsInstall failed: ${err.message}`);
+    try {
+      event.sender.send(`scan-log:${scanId}`, {
+        log: `⚠️ git lfs install failed (${err.message}) — continuing without LFS
+`,
+        progress: 4
+      });
+    } catch {
+    }
+  }
+}
 function getGitHubToken() {
   return process.env.GITHUB_PAT || null;
 }
@@ -4053,9 +4099,11 @@ Branch: ${branch}
 `,
     progress: 10
   });
-  let token = getGitHubToken();
-  if (isQuickScan && githubToken) {
-    token = githubToken;
+  let token = null;
+  if (isQuickScan) {
+    token = githubToken || null;
+  } else {
+    token = getGitHubToken();
   }
   let cloneUrl = repoUrl;
   if (token && !repoUrl.includes("x-access-token")) {
@@ -4070,6 +4118,7 @@ Branch: ${branch}
   );
   try {
     await fs.mkdir(tempDir, { recursive: true });
+    runGitLfsInstall(event, scanId);
     return await new Promise((resolve) => {
       const args = ["clone", "-b", branch, "--single-branch", cloneUrl, tempDir];
       event.sender.send(`scan-log:${scanId}`, {
@@ -4080,7 +4129,8 @@ Branch: ${branch}
       });
       const child = spawn("git", args, {
         detached: true,
-        stdio: ["ignore", "pipe", "pipe"]
+        stdio: ["ignore", "pipe", "pipe"],
+        env: { ...process.env }
       });
       child.unref();
       const cloneId = `${scanId}-clone`;
@@ -4152,13 +4202,13 @@ ${"═".repeat(60)}
           killProcess(child, cloneId);
           event.sender.send(`scan-log:${scanId}`, {
             log: `
-❌ Clone timeout after 3 minutes
+❌ Clone timeout after 30 minutes
 `,
             progress: 0
           });
           resolve(null);
         }
-      }, 18e4);
+      }, 18e5);
     });
   } catch (err) {
     event.sender.send(`scan-log:${scanId}`, {
@@ -4205,9 +4255,11 @@ Tag: ${tag}
 `,
     progress: 10
   });
-  let token = getGitHubToken();
-  if (isQuickScan && githubToken) {
-    token = githubToken;
+  let token = null;
+  if (isQuickScan) {
+    token = githubToken || null;
+  } else {
+    token = getGitHubToken();
   }
   let cloneUrl = repoUrl;
   if (token && !repoUrl.includes("x-access-token")) {
@@ -4222,6 +4274,7 @@ Tag: ${tag}
   );
   try {
     await fs.mkdir(tempDir, { recursive: true });
+    runGitLfsInstall(event, scanId);
     return await new Promise((resolve) => {
       const cloneArgs = ["clone", "--no-checkout", cloneUrl, tempDir];
       event.sender.send(`scan-log:${scanId}`, {
@@ -4232,7 +4285,8 @@ Tag: ${tag}
       });
       const cloneProcess = spawn("git", cloneArgs, {
         detached: true,
-        stdio: ["ignore", "pipe", "pipe"]
+        stdio: ["ignore", "pipe", "pipe"],
+        env: { ...process.env }
       });
       cloneProcess.unref();
       const cloneId = `${scanId}-clone-tag`;
@@ -4394,13 +4448,13 @@ ${"═".repeat(60)}
           killProcess(cloneProcess, cloneId);
           event.sender.send(`scan-log:${scanId}`, {
             log: `
-❌ Clone timeout after 3 minutes
+❌ Clone timeout after 30 minutes
 `,
             progress: 0
           });
           resolve(null);
         }
-      }, 18e4);
+      }, 18e5);
     });
   } catch (err) {
     event.sender.send(`scan-log:${scanId}`, {
@@ -5524,7 +5578,16 @@ function createWindow() {
     }
   });
 }
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  const lfs = spawn("git", ["lfs", "install"], { stdio: "ignore" });
+  lfs.on("close", (code) => {
+    debugLog(`git lfs install: ${code === 0 ? "OK" : `exited ${code} (LFS may not be available)`}`);
+  });
+  lfs.on("error", () => {
+    debugLog("git lfs not found on system — LFS objects won't be fetched automatically");
+  });
+  createWindow();
+});
 app.on("window-all-closed", () => {
   cancelAllScans();
   app.quit();
