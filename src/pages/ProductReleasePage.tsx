@@ -8,7 +8,7 @@ import ProductHeader from '../components/products/ProductHeader';
 import { authorizeRelease, getProductById } from "../services/productService";
 import { Product } from "../models/Product";
 import { useUserStore } from "../store/userStore";
-import ProductReleaseCard from "../components/release/ProductReleaseCard";
+import ProductReleaseCard from "../components/productrelease/ProductReleaseCard";
 
 import { ACCESS_MESSAGES } from "../constants/accessMessages";
 import StatusUpdateCard from "../components/products/StatusUpdateCard";
