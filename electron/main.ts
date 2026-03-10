@@ -1925,15 +1925,6 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-  // Run git lfs install once at startup so clones automatically fetch LFS objects
-  const lfs = spawn("git", ["lfs", "install"], { stdio: "ignore" });
-  lfs.on("close", (code) => {
-    debugLog(`git lfs install: ${code === 0 ? "OK" : `exited ${code} (LFS may not be available)`}`);
-  });
-  lfs.on("error", () => {
-    debugLog("git lfs not found on system — LFS objects won't be fetched automatically");
-  });
-
   createWindow();
 });
 

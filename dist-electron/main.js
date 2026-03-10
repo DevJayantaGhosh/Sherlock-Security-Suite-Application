@@ -4051,14 +4051,11 @@ function runGitLfsInstall(event, scanId) {
     });
   } catch (err) {
     debugLog(`runGitLfsInstall failed: ${err.message}`);
-    try {
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `⚠️ git lfs install failed (${err.message}) — continuing without LFS
+    event.sender.send(`scan-log:${scanId}`, {
+      log: `⚠️ git lfs install failed (${err.message}) — continuing without LFS
 `,
-        progress: 4
-      });
-    } catch {
-    }
+      progress: 4
+    });
   }
 }
 function getGitHubToken() {
@@ -5579,13 +5576,6 @@ function createWindow() {
   });
 }
 app.whenReady().then(() => {
-  const lfs = spawn("git", ["lfs", "install"], { stdio: "ignore" });
-  lfs.on("close", (code) => {
-    debugLog(`git lfs install: ${code === 0 ? "OK" : `exited ${code} (LFS may not be available)`}`);
-  });
-  lfs.on("error", () => {
-    debugLog("git lfs not found on system — LFS objects won't be fetched automatically");
-  });
   createWindow();
 });
 app.on("window-all-closed", () => {
