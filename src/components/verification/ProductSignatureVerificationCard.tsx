@@ -1,5 +1,5 @@
 // src/components/cryptosigning/ProductSignatureVerificationCard.tsx
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Box, Paper, Stack, Typography, TextField, Button,
   IconButton, InputAdornment, LinearProgress, CircularProgress,
@@ -18,6 +18,7 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
 
 import { toast } from "react-hot-toast";
+import { platform } from "../../platform";
 
 type ScanStatus = "idle" | "running" | "success" | "failed" | "valid" | "invalid";
 
@@ -77,15 +78,15 @@ export default function ProductSignatureVerificationCard({
     return () => {
       if (logCleanupRef.current) logCleanupRef.current();
       if (completeCleanupRef.current) completeCleanupRef.current();
-      if (scanIdRef.current && window.electronAPI?.cancelScan) {
-        window.electronAPI.cancelScan({ scanId: scanIdRef.current });
+      if (scanIdRef.current) {
+        platform.cancelScan({ scanId: scanIdRef.current });
       }
     };
   }, []);
 
   const handleSelectPublicKey = async () => {
     try {
-      const path = await window.electronAPI?.selectFile();
+      const path = await platform.selectFile();
       if (path) {
         setPublicKeyPath(path);
         toast.success("Public key selected");
@@ -97,7 +98,7 @@ export default function ProductSignatureVerificationCard({
 
   const handleSelectSignature = async () => {
     try {
-      const path = await window.electronAPI?.selectFile();
+      const path = await platform.selectFile();
       if (path) {
         setSignaturePath(path);
         toast.success("Signature file selected");
@@ -131,7 +132,7 @@ export default function ProductSignatureVerificationCard({
 
     setCurrentRepoIndex(repoIndex);
 
-    const logCleanup = window.electronAPI.onScanLog(scanId, (data) => {
+    const logCleanup = platform.onScanLog(scanId, (data) => {
       setLogs(prev => [...prev, data.log]);
       logsRef.current.push(data.log);
       setProgress(data.progress || 0);
@@ -139,7 +140,7 @@ export default function ProductSignatureVerificationCard({
     logCleanupRef.current = logCleanup;
 
     try {
-      const result = await window.electronAPI.verifySignature({
+      const result = await platform.verifySignature({
         repoUrl: repoDetails.repoUrl,
         branch: repoDetails.branch,
         version: repoDetails.releaseTag || productVersion,
@@ -165,7 +166,7 @@ export default function ProductSignatureVerificationCard({
   };
 
   const runSequentialVerification = async () => {
-    if (!publicKeyPath || !signaturePath || !window.electronAPI) {
+    if (!publicKeyPath || !signaturePath) {
       toast.error("Please select both public key and signature files");
       return;
     }
@@ -190,7 +191,7 @@ export default function ProductSignatureVerificationCard({
     setCurrentRepoIndex(0);
     setVerifiedCount(0);
 
-    const completeCleanup = window.electronAPI.onScanComplete(scanId, (completeData) => {
+    const completeCleanup = platform.onScanComplete(scanId, (completeData) => {
       const newStatus = completeData.success ? "success" : "failed";
       setStatus(newStatus);
       setVerificationStatus(completeData.success ? "valid" : "invalid");
@@ -220,7 +221,7 @@ export default function ProductSignatureVerificationCard({
     logsRef.current.push(msg);
 
     try {
-      await window.electronAPI.cancelScan({ scanId: scanIdRef.current! });
+      await platform.cancelScan({ scanId: scanIdRef.current! });
       setStatus("failed");
       setVerificationStatus("invalid");
     } finally {
@@ -321,9 +322,7 @@ export default function ProductSignatureVerificationCard({
                 <Box sx={{ p: 2, bgcolor: 'rgba(33, 150, 243, 0.08)', borderRadius: 1, border: '1px solid rgba(33, 150, 243, 0.2)', cursor: 'pointer' }}
                   onClick={async () => {
                     try {
-                      if (window.electronAPI?.openFilePath) {
-                        await window.electronAPI.openFilePath(savedPublicKeyPath);
-                      }
+                      await platform.openFilePath(savedPublicKeyPath);
                     } catch (error) {
                       toast.error("Failed to open file");
                     }
@@ -337,9 +336,7 @@ export default function ProductSignatureVerificationCard({
                 <Box sx={{ p: 2, bgcolor: `${borderColor}08`, borderRadius: 1, border: `1px solid ${borderColor}20`, cursor: 'pointer' }}
                   onClick={async () => {
                     try {
-                      if (window.electronAPI?.openFilePath) {
-                        await window.electronAPI.openFilePath(savedSignaturePath);
-                      }
+                      await platform.openFilePath(savedSignaturePath);
                     } catch (error) {
                       toast.error("Failed to open file");
                     }

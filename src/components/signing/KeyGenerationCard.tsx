@@ -12,10 +12,12 @@ import SaveIcon from "@mui/icons-material/Save";
 import VpnKeyIcon from "@mui/icons-material/VpnKey";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CancelIcon from "@mui/icons-material/Cancel";
 import DownloadIcon from "@mui/icons-material/Download";
 import CloseIcon from "@mui/icons-material/Close";
+
+import { platform } from "../../platform";
 
 type ScanStatus = "idle" | "running" | "success" | "failed";
 
@@ -26,12 +28,14 @@ interface KeyGenerationCardProps {
   onFolderSelect: () => Promise<string | null>;
 }
 
-export default function KeyGenerationCard({ 
-  disabled = false, 
+export default function KeyGenerationCard({
+  disabled = false,
   toolTip = "",
   borderColor = "#00e5ff",
-  onFolderSelect 
+  onFolderSelect
 }: KeyGenerationCardProps) {
+  const isElectron = platform.isElectron;
+
   const [algo, setAlgo] = useState<"rsa" | "ecdsa">("rsa");
   const [keySize, setKeySize] = useState(2048);
   const [curve, setCurve] = useState("P-256");
@@ -43,6 +47,10 @@ export default function KeyGenerationCard({
   const [modalOpen, setModalOpen] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
+
+  // Web-mode: hold generated key content for display
+  const [generatedPublicKey, setGeneratedPublicKey] = useState("");
+  const [generatedPrivateKey, setGeneratedPrivateKey] = useState("");
 
   const scanIdRef = useRef<string | null>(null);
   const logCleanupRef = useRef<(() => void) | null>(null);
@@ -62,8 +70,8 @@ export default function KeyGenerationCard({
     return () => {
       if (logCleanupRef.current) logCleanupRef.current();
       if (completeCleanupRef.current) completeCleanupRef.current();
-      if (scanIdRef.current && window.electronAPI?.cancelScan) {
-        window.electronAPI.cancelScan({ scanId: scanIdRef.current });
+      if (scanIdRef.current) {
+        platform.cancelScan({ scanId: scanIdRef.current });
       }
     };
   }, []);
@@ -81,60 +89,67 @@ export default function KeyGenerationCard({
   };
 
   const runKeyGeneration = async () => {
-    if (!outputDir || !window.electronAPI) {
+    // Electron requires outputDir; web mode does not
+    if (isElectron && !outputDir) {
       toast.error("Please select output directory");
       return;
     }
 
     const scanId = crypto.randomUUID();
     scanIdRef.current = scanId;
-    
-    setLogs([`Key Generation STARTED`,
-      `Algorithm: ${algo.toUpperCase()} ${algo === 'rsa' ? keySize + '-bit' : curve}`,
-      `Output: ${outputDir}`,
-      `Password: ${keyPassword ? 'Protected' : 'Unprotected'}`,
-      `${"═".repeat(60)}\\n`]);
-    logsRef.current = [...[
+
+    const initLogs = [
       `Key Generation STARTED`,
-      `Algorithm: ${algo.toUpperCase()} ${algo === 'rsa' ? keySize + '-bit' : curve}`,
-      `Output: ${outputDir}`,
-      `Password: ${keyPassword ? 'Protected' : 'Unprotected'}`,
-      `${"═".repeat(60)}\\n`
-    ]];
-    
+      `Algorithm: ${algo.toUpperCase()} ${algo === "rsa" ? keySize + "-bit" : curve}`,
+      ...(isElectron ? [`Output: ${outputDir}`] : []),
+      `Password: ${keyPassword ? "Protected" : "Unprotected"}`,
+      `${"═".repeat(60)}\n`
+    ];
+
+    setLogs(initLogs);
+    logsRef.current = [...initLogs];
     setStatus("running");
     setProgress(0);
     setShowLogs(false);
     setModalOpen(true);
+    setGeneratedPublicKey("");
+    setGeneratedPrivateKey("");
 
-    const logCleanup = window.electronAPI.onScanLog(scanId, (data) => {
+    const logCleanup = platform.onScanLog(scanId, (data) => {
       setLogs(prev => [...prev, data.log]);
       logsRef.current.push(data.log);
       setProgress(data.progress || 0);
     });
     logCleanupRef.current = logCleanup;
 
-    const completeCleanup = window.electronAPI.onScanComplete(scanId, (data) => {
+    const completeCleanup = platform.onScanComplete(scanId, (data) => {
       const newStatus = data.success ? "success" : "failed";
       setStatus(newStatus);
       setProgress(100);
+
+      // Web mode: capture returned key data
+      if (!isElectron && data.keyData) {
+        setGeneratedPublicKey(data.keyData.publicKey || "");
+        setGeneratedPrivateKey(data.keyData.privateKey || "");
+      }
+
       cleanupListeners();
     });
     completeCleanupRef.current = completeCleanup;
 
     try {
-      await window.electronAPI.generateKeys({
+      await platform.generateKeys({
         type: algo,
         size: keySize,
         curve,
         password: keyPassword,
-        outputDir,
+        outputDir: isElectron ? outputDir : undefined,
         scanId
       });
       toast.success("✅ Keys generated successfully!");
     } catch (err: any) {
       if (err.message !== "cancelled") {
-        const errorMsg = `\\n❌ Error: ${err.message}\\n`;
+        const errorMsg = `\n❌ Error: ${err.message}\n`;
         setLogs(prev => [...prev, errorMsg]);
         logsRef.current.push(errorMsg);
       }
@@ -144,12 +159,12 @@ export default function KeyGenerationCard({
   const cancelScan = async () => {
     if (!scanIdRef.current) return;
     setIsCancelling(true);
-    const msg = "\\n⏳ Cancelling key generation...\\n";
+    const msg = "\n⏳ Cancelling key generation...\n";
     setLogs(prev => [...prev, msg]);
     logsRef.current.push(msg);
 
     try {
-      await window.electronAPI.cancelScan({ scanId: scanIdRef.current });
+      await platform.cancelScan({ scanId: scanIdRef.current });
       setStatus("failed");
     } finally {
       cleanupListeners();
@@ -171,7 +186,7 @@ export default function KeyGenerationCard({
   };
 
   const downloadLogs = () => {
-    const logText = logs.join("\\n");
+    const logText = logs.join("\n");
     const blob = new Blob([logText], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -181,9 +196,18 @@ export default function KeyGenerationCard({
     URL.revokeObjectURL(url);
   };
 
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      toast.success(`${label} copied to clipboard`);
+    }).catch(() => {
+      toast.error(`Failed to copy ${label}`);
+    });
+  };
+
   const isRunning = status === "running";
   const canClose = !isRunning && !isCancelling;
-  const isButtonDisabled = !outputDir || isRunning || disabled;
+  // Electron: need outputDir. Web: always ready (no folder needed).
+  const isButtonDisabled = (isElectron && !outputDir) || isRunning || disabled;
 
   return (
     <>
@@ -193,6 +217,7 @@ export default function KeyGenerationCard({
         </Typography>
         <Typography variant="body2" color="text.secondary" mb={3}>
           Generate RSA or ECDSA key pairs for artifact signing.
+          {!isElectron && " Keys will be displayed here — copy and store them securely."}
         </Typography>
 
         <Stack spacing={3}>
@@ -247,24 +272,27 @@ export default function KeyGenerationCard({
           </Stack>
 
           <Stack direction="row" spacing={2} alignItems="center">
-            <TextField
-              fullWidth
-              label="Output Directory"
-              value={outputDir}
-              InputProps={{
-                readOnly: true,
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton onClick={handleSelectFolder} disabled={disabled || isRunning} size="small">
-                      <FolderOpenIcon />
-                    </IconButton>
-                  </InputAdornment>
-                )
-              }}
-            />
-            <Tooltip 
-              title={isButtonDisabled ? toolTip : ""} 
-              arrow 
+            {/* Folder picker — Electron only */}
+            {isElectron && (
+              <TextField
+                fullWidth
+                label="Output Directory"
+                value={outputDir}
+                InputProps={{
+                  readOnly: true,
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton onClick={handleSelectFolder} disabled={disabled || isRunning} size="small">
+                        <FolderOpenIcon />
+                      </IconButton>
+                    </InputAdornment>
+                  )
+                }}
+              />
+            )}
+            <Tooltip
+              title={isButtonDisabled ? toolTip : ""}
+              arrow
               placement="top"
               disableHoverListener={!isButtonDisabled}
             >
@@ -287,7 +315,56 @@ export default function KeyGenerationCard({
             </Tooltip>
           </Stack>
 
-          {/* Hide/Show Logs - ProductSigningPage style */}
+          {/* Web mode: display generated keys in copyable textareas */}
+          {!isElectron && generatedPublicKey && (
+            <Stack spacing={2}>
+              <Box>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" mb={0.5}>
+                  <Typography variant="subtitle2" fontWeight={600}>🔑 Public Key</Typography>
+                  <Button
+                    size="small"
+                    startIcon={<ContentCopyIcon />}
+                    onClick={() => copyToClipboard(generatedPublicKey, "Public key")}
+                  >
+                    Copy
+                  </Button>
+                </Stack>
+                <TextField
+                  fullWidth
+                  multiline
+                  minRows={4}
+                  maxRows={8}
+                  value={generatedPublicKey}
+                  InputProps={{ readOnly: true, sx: { fontFamily: "monospace", fontSize: 12 } }}
+                />
+              </Box>
+              <Box>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" mb={0.5}>
+                  <Typography variant="subtitle2" fontWeight={600}>🔐 Private Key</Typography>
+                  <Button
+                    size="small"
+                    startIcon={<ContentCopyIcon />}
+                    onClick={() => copyToClipboard(generatedPrivateKey, "Private key")}
+                  >
+                    Copy
+                  </Button>
+                </Stack>
+                <TextField
+                  fullWidth
+                  multiline
+                  minRows={4}
+                  maxRows={8}
+                  value={generatedPrivateKey}
+                  InputProps={{ readOnly: true, sx: { fontFamily: "monospace", fontSize: 12 } }}
+                />
+                <Typography variant="caption" color="warning.main" mt={0.5}>
+                  ⚠️ Store your private key securely. It will NOT be shown again.
+                </Typography>
+              </Box>
+            </Stack>
+          )}
+
+          {/* Hide/Show Logs */}
           {logs.length > 0 && !isRunning && (
             <Box>
               <Button
@@ -317,7 +394,7 @@ export default function KeyGenerationCard({
         </Stack>
       </Paper>
 
-      {/* Modal - SAME as DigitalSigningCard */}
+      {/* Modal — same as before */}
       <Dialog open={modalOpen} onClose={() => canClose && setModalOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle sx={{ bgcolor: "#2d2d2d", borderBottom: "1px solid #404040" }}>
           <Stack direction="row" justifyContent="space-between" alignItems="center">
@@ -347,7 +424,7 @@ export default function KeyGenerationCard({
         </DialogContent>
         <DialogActions sx={{ p: 2, bgcolor: "#2d2d2d" }}>
           {isRunning && (
-            <Button onClick={cancelScan} color="error" variant="contained" 
+            <Button onClick={cancelScan} color="error" variant="contained"
               startIcon={isCancelling ? <CircularProgress size={16} color="inherit" /> : <CancelIcon />}>
               {isCancelling ? "Cancelling..." : "Cancel Generation"}
             </Button>

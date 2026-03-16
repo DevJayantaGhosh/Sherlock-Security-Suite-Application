@@ -18,10 +18,11 @@ import {
   useMediaQuery
 } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
-import HelpOutlineIcon from "@mui/icons-material/HelpOutline"; // ← NEW IMPORT
+import HelpOutlineIcon from "@mui/icons-material/HelpOutline"; 
 import MinimizeIcon from "@mui/icons-material/HorizontalRuleRounded";
 import MaximizeIcon from "@mui/icons-material/CheckBoxOutlineBlankRounded";
 import CloseIcon from "@mui/icons-material/CloseRounded";
+import isElectron from "is-electron";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useTheme } from "@mui/material/styles";
@@ -177,22 +178,26 @@ export default function NavBar() {
               </IconButton>
             )}
 
-            {/* WINDOW BUTTONS */}
-            <IconButton size="small" onClick={() => window.electronWindow.minimize()}>
-              <MinimizeIcon fontSize="small" />
-            </IconButton>
+            {/* WINDOW BUTTONS — only in Electron (desktop) mode */}
+            {isElectron() && (
+              <>
+                <IconButton size="small" onClick={() => window.electronWindow.minimize()}>
+                  <MinimizeIcon fontSize="small" />
+                </IconButton>
 
-            <IconButton size="small" onClick={() => window.electronWindow.maximize()}>
-              <MaximizeIcon fontSize="small" />
-            </IconButton>
+                <IconButton size="small" onClick={() => window.electronWindow.maximize()}>
+                  <MaximizeIcon fontSize="small" />
+                </IconButton>
 
-            <IconButton
-              size="small"
-              sx={{ color: "#ff6b6b" }}
-              onClick={() => window.electronWindow.close()}
-            >
-              <CloseIcon fontSize="small" />
-            </IconButton>
+                <IconButton
+                  size="small"
+                  sx={{ color: "#ff6b6b" }}
+                  onClick={() => window.electronWindow.close()}
+                >
+                  <CloseIcon fontSize="small" />
+                </IconButton>
+              </>
+            )}
           </Box>
         </Toolbar>
       </AppBar>

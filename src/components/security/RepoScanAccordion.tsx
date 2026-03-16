@@ -32,6 +32,7 @@ import ErrorIcon from "@mui/icons-material/Error";
 import { Product, RepoDetails, RepoScanResults, SignatureVerificationResult,SecretLeakDetectionResult ,VulnerabilityScanResult} from "../../models/Product";
 import { useUserStore } from "../../store/userStore";
 import { authorizeApprove } from "../../services/productService";
+import { platform } from "../../platform";
 
 type ScanStatus = "idle" | "running" | "success" | "failed";
 
@@ -91,7 +92,7 @@ export default function RepoScanAccordion({
         githubToken={githubToken}
         onScanComplete={(res) => handleScanUpdate('secretLeakDetection', res)}
       />
-      <TrivyPanel
+      <VulnerabilityScanPanel
         repoDetails={repoDetails}
         isAuthorized={shouldEnableButtons}
         isQuickScan={isQuickScan}
@@ -156,7 +157,7 @@ function GPGVerificationPanel({
       if (logCleanupRef.current) logCleanupRef.current();
       if (completeCleanupRef.current) completeCleanupRef.current();
       if (scanIdRef.current) {
-        window.electronAPI.cancelScan({ scanId: scanIdRef.current });
+        platform.cancelScan({ scanId: scanIdRef.current });
       }
     };
   }, []);
@@ -176,17 +177,17 @@ function GPGVerificationPanel({
     setProgress(0);
     setStatus("running");
     setResult(null);
-    setShowLogs(true); // Always show logs when starting a new scan
+    setShowLogs(true);
     setModalOpen(true);
 
-    const logCleanup = window.electronAPI.onScanLog(scanId, (data) => {
+    const logCleanup = platform.onScanLog(scanId, (data) => {
       setLogs((prev) => [...prev, data.log]);
       logsRef.current.push(data.log); // Keep ref in sync for the final save
       setProgress(data.progress || 0);
     });
     logCleanupRef.current = logCleanup;
 
-    const completeCleanup = window.electronAPI.onScanComplete(scanId, (data) => {
+    const completeCleanup = platform.onScanComplete(scanId, (data) => {
       console.log("[GPG] Complete", data);
 
       const newStatus = data.success ? "success" : "failed";
@@ -219,7 +220,7 @@ function GPGVerificationPanel({
     completeCleanupRef.current = completeCleanup;
 
     try {
-      const result = await window.electronAPI.verifyGPG({
+      const result = await platform.verifyGPG({
         repoUrl: repoDetails.repoUrl,
         branch: repoDetails.branch,
         isQuickScan: isQuickScan,
@@ -252,7 +253,7 @@ function GPGVerificationPanel({
     logsRef.current.push(msg);
 
     try {
-      const result = await window.electronAPI.cancelScan({
+      const result = await platform.cancelScan({
         scanId: scanIdRef.current,
       });
 
@@ -559,6 +560,7 @@ function GPGVerificationPanel({
               color: "#e0e0e0",
               whiteSpace: "pre-wrap",
               wordBreak: "break-word",
+              mt: 2,
             }}
           >
             {logs.length > 0 ? (
@@ -678,7 +680,7 @@ function GitleaksPanel({
       if (logCleanupRef.current) logCleanupRef.current();
       if (completeCleanupRef.current) completeCleanupRef.current();
       if (scanIdRef.current) {
-        window.electronAPI.cancelScan({ scanId: scanIdRef.current });
+        platform.cancelScan({ scanId: scanIdRef.current });
       }
     };
   }, []);
@@ -701,14 +703,14 @@ function GitleaksPanel({
     setShowLogs(true);
     setModalOpen(true);
 
-    const logCleanup = window.electronAPI.onScanLog(scanId, (data) => {
+    const logCleanup = platform.onScanLog(scanId, (data) => {
       setLogs((prev) => [...prev, data.log]);
       logsRef.current.push(data.log); // Keep ref in sync
       setProgress(data.progress || 0);
     });
     logCleanupRef.current = logCleanup;
 
-    const completeCleanup = window.electronAPI.onScanComplete(scanId, (data) => {
+    const completeCleanup = platform.onScanComplete(scanId, (data) => {
       console.log("[GITLEAKS] Complete", data);
 
       const newStatus = data.success ? "success" : "failed";
@@ -742,7 +744,7 @@ function GitleaksPanel({
     completeCleanupRef.current = completeCleanup;
 
     try {
-      const result = await window.electronAPI.runGitleaks({
+      const result = await platform.runGitleaks({
         repoUrl: repoDetails.repoUrl,
         branch: repoDetails.branch,
         isQuickScan: isQuickScan,
@@ -775,7 +777,7 @@ function GitleaksPanel({
     logsRef.current.push(msg);
 
     try {
-      const result = await window.electronAPI.cancelScan({
+      const result = await platform.cancelScan({
         scanId: scanIdRef.current,
       });
 
@@ -1074,6 +1076,7 @@ function GitleaksPanel({
               color: "#e0e0e0",
               whiteSpace: "pre-wrap",
               wordBreak: "break-word",
+              mt: 2,
             }}
           >
             {logs.length > 0 ? (
@@ -1140,9 +1143,9 @@ function GitleaksPanel({
 }
 
 /* ============================================================
-   TRIVY PANEL
+   VULNERABILITY  SCAN PANEL
 ============================================================ */
-function TrivyPanel({
+function VulnerabilityScanPanel({
   repoDetails,
   isAuthorized,
   isQuickScan, 
@@ -1194,13 +1197,13 @@ function TrivyPanel({
       if (logCleanupRef.current) logCleanupRef.current();
       if (completeCleanupRef.current) completeCleanupRef.current();
       if (scanIdRef.current) {
-        window.electronAPI.cancelScan({ scanId: scanIdRef.current });
+        platform.cancelScan({ scanId: scanIdRef.current });
       }
     };
   }, []);
 
-  // Run Trivy scan
-  async function runTrivyScan() {
+  // Run vulnerability scan
+  async function runVulnerabilityScan() {
     if (!isAuthorized) return;
 
     console.log("[TRIVY] Starting scan");
@@ -1217,14 +1220,14 @@ function TrivyPanel({
     setShowLogs(true);
     setModalOpen(true);
 
-    const logCleanup = window.electronAPI.onScanLog(scanId, (data) => {
+    const logCleanup = platform.onScanLog(scanId, (data) => {
       setLogs((prev) => [...prev, data.log]);
       logsRef.current.push(data.log); // Keep ref in sync
       setProgress(data.progress || 0);
     });
     logCleanupRef.current = logCleanup;
 
-    const completeCleanup = window.electronAPI.onScanComplete(scanId, (data) => {
+    const completeCleanup = platform.onScanComplete(scanId, (data) => {
       console.log("[TRIVY] Complete", data);
 
       const newStatus = data.success ? "success" : "failed";
@@ -1258,7 +1261,7 @@ function TrivyPanel({
     completeCleanupRef.current = completeCleanup;
 
     try {
-      const result = await window.electronAPI.runTrivy({
+      const result = await platform.runTrivy({
         repoUrl: repoDetails.repoUrl,
         branch: repoDetails.branch,
         isQuickScan: isQuickScan,
@@ -1291,7 +1294,7 @@ function TrivyPanel({
     logsRef.current.push(msg);
 
     try {
-      const result = await window.electronAPI.cancelScan({
+      const result = await platform.cancelScan({
         scanId: scanIdRef.current,
       });
 
@@ -1329,7 +1332,7 @@ function TrivyPanel({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `trivy-scan-${Date.now()}.log`;
+    a.download = `vulnerability-scan-${Date.now()}.log`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -1409,7 +1412,7 @@ function TrivyPanel({
                   variant="contained"
                   startIcon={<PlayArrowIcon />}
                   disabled={!isAuthorized || isRunning}
-                  onClick={runTrivyScan}
+                  onClick={runVulnerabilityScan}
                 >
                 🔍 Run
                 </Button>
@@ -1590,6 +1593,7 @@ function TrivyPanel({
               color: "#e0e0e0",
               whiteSpace: "pre-wrap",
               wordBreak: "break-word",
+              mt: 2,
             }}
           >
             {logs.length > 0 ? (

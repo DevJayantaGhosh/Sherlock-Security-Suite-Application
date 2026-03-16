@@ -22,7 +22,6 @@ export default function ProductSignatureVerificationPage() {
 
   const [product, setProduct] = useState<Product | null>(null);
   const [repoDetailsList, setRepoDetailsList] = useState<ProductRepoDetails[]>([]);
-  const [githubToken, setGithubToken] = useState("");
   const [loading, setLoading] = useState(true);
 
   const loadProduct = useCallback(async () => {
@@ -94,7 +93,7 @@ export default function ProductSignatureVerificationPage() {
             repoDetailsList={repoDetailsList}
             productName={product.name}  // ✅ Add this
             productVersion={product.version}
-            githubToken={githubToken}
+            githubToken=""
             borderColor="#4caf50"
             savedPublicKeyPath={product.publicKeyFilePath}
             savedSignaturePath={product.signatureFilePath}

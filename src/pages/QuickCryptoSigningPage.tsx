@@ -9,6 +9,7 @@ import { toast } from "react-hot-toast";
 import KeyGenerationCard from "../components/signing/KeyGenerationCard";
 import RepoConfigForm from "../components/repoconfig/RepoConfigForm";
 import DigitalSigningCard from "../components/signing/DigitalSigningCard";
+import { platform } from "../platform";
 
 export default function QuickCryptoSigningPage() {
   const [repoDetails, setRepoDetails] = useState<RepoDetails | null>(null);
@@ -32,8 +33,8 @@ export default function QuickCryptoSigningPage() {
     toast.success("Reset complete");
   }, []);
 
-  const handleFolderSelect = async () => window.electronAPI?.selectFolder();
-  const handleFileSelect = async () => window.electronAPI?.selectFile();
+  const handleFolderSelect = async () => platform.selectFolder();
+  const handleFileSelect = async () => platform.selectFile();
 
   return (
     <Box sx={{ pt: 10, pb: 8, minHeight: "100vh", bgcolor: "background.default" }}>

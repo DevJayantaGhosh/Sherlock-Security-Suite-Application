@@ -1,17 +1,11 @@
-// src/components/cryptosigning/DigitalSigningCard.tsx
+// src/components/signing/DigitalSigningCard.tsx
 import { useState, useRef, useEffect } from "react";
 import {
   Box, Paper, Stack, Typography, TextField, Button,
   IconButton, InputAdornment, LinearProgress, CircularProgress,
   Dialog, DialogTitle, DialogContent, DialogActions,
-  Chip,
-  Collapse,
-  Tooltip
+  Chip, Collapse, Tooltip
 } from "@mui/material";
-
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-
 import { toast } from "react-hot-toast";
 import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
@@ -19,8 +13,12 @@ import CancelIcon from "@mui/icons-material/Cancel";
 import DownloadIcon from "@mui/icons-material/Download";
 import CloseIcon from "@mui/icons-material/Close";
 import FingerprintIcon from "@mui/icons-material/Fingerprint";
-import { RepoDetails } from "../../models/Product";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 
+import { platform } from "../../platform";
+import { RepoDetails } from "../../models/Product";
 
 type ScanStatus = "idle" | "running" | "success" | "failed";
 
@@ -34,15 +32,17 @@ interface DigitalSigningCardProps {
   onFileSelect: () => Promise<string | null>;
 }
 
-export default function DigitalSigningCard({ 
-  repoDetails, 
+export default function DigitalSigningCard({
+  repoDetails,
   isQuickScan,
-  githubToken, 
-  disabled = false, 
+  githubToken,
+  disabled = false,
   toolTip = "",
   borderColor = "#00e5ff",
-  onFileSelect 
+  onFileSelect
 }: DigitalSigningCardProps) {
+  const isElectron = platform.isElectron;
+
   const [privateKeyPath, setPrivateKeyPath] = useState("");
   const [signPassword, setSignPassword] = useState("");
   const [status, setStatus] = useState<ScanStatus>("idle");
@@ -50,7 +50,10 @@ export default function DigitalSigningCard({
   const [progress, setProgress] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
-  const [showLogs, setShowLogs] = useState(false); 
+  const [showLogs, setShowLogs] = useState(false);
+
+  // Web mode: hold returned signature content for display
+  const [signatureContent, setSignatureContent] = useState("");
 
   const scanIdRef = useRef<string | null>(null);
   const logCleanupRef = useRef<(() => void) | null>(null);
@@ -58,8 +61,9 @@ export default function DigitalSigningCard({
   const logEndRef = useRef<HTMLDivElement>(null);
   const logsRef = useRef<string[]>([]);
 
-  const repoType = repoDetails.repoUrl.includes('github.com') ? 
-    (githubToken ? 'Private GitHub' : 'Public GitHub') : 'Local';
+  const repoType = repoDetails.repoUrl.includes("github.com")
+    ? githubToken ? "Private GitHub" : "Public GitHub"
+    : "Local";
 
   // Auto-scroll logs in modal
   useEffect(() => {
@@ -73,8 +77,8 @@ export default function DigitalSigningCard({
     return () => {
       if (logCleanupRef.current) logCleanupRef.current();
       if (completeCleanupRef.current) completeCleanupRef.current();
-      if (scanIdRef.current && window.electronAPI?.cancelScan) {
-        window.electronAPI.cancelScan({ scanId: scanIdRef.current });
+      if (scanIdRef.current) {
+        platform.cancelScan({ scanId: scanIdRef.current });
       }
     };
   }, []);
@@ -92,52 +96,58 @@ export default function DigitalSigningCard({
   };
 
   const runSigning = async () => {
-    if (!repoDetails || !privateKeyPath || !window.electronAPI) {
-      toast.error("Please select private key file");
+    if (!repoDetails || !privateKeyPath) {
+      toast.error("Please provide private key");
       return;
     }
 
     const scanId = crypto.randomUUID();
     scanIdRef.current = scanId;
-    
-    setLogs([`Digital Signing STARTED: ${repoDetails.repoUrl}`,
-      `Branch: ${repoDetails.branch}`,
-      `Type: ${repoType}`,
-      `${"═".repeat(60)}\n`]);
-    logsRef.current = [...[
+
+    const initLogs = [
       `Digital Signing STARTED: ${repoDetails.repoUrl}`,
       `Branch: ${repoDetails.branch}`,
       `Type: ${repoType}`,
       `${"═".repeat(60)}\n`
-    ]];
-    
+    ];
+
+    setLogs(initLogs);
+    logsRef.current = [...initLogs];
     setStatus("running");
     setProgress(0);
-    setShowLogs(false); // ✅ Reset log visibility
+    setShowLogs(false);
     setModalOpen(true);
+    setSignatureContent("");
 
-    const logCleanup = window.electronAPI.onScanLog(scanId, (data) => {
+    const logCleanup = platform.onScanLog(scanId, (data) => {
       setLogs(prev => [...prev, data.log]);
       logsRef.current.push(data.log);
       setProgress(data.progress || 0);
     });
     logCleanupRef.current = logCleanup;
 
-    const completeCleanup = window.electronAPI.onScanComplete(scanId, (data) => {
+    const completeCleanup = platform.onScanComplete(scanId, (data) => {
       const newStatus = data.success ? "success" : "failed";
       setStatus(newStatus);
       setProgress(100);
+
+      // Web mode: capture returned signature content
+      if (!isElectron && data.signatureContent) {
+        setSignatureContent(data.signatureContent);
+      }
+
       cleanupListeners();
     });
     completeCleanupRef.current = completeCleanup;
 
     try {
-      await window.electronAPI.signArtifact({
+      // privateKeyPath holds file path (Electron) or raw PEM content (web)
+      await platform.signArtifact({
         repoUrl: repoDetails.repoUrl,
         branch: repoDetails.branch,
         privateKeyPath,
         password: signPassword || undefined,
-        isQuickScan: isQuickScan,
+        isQuickScan,
         githubToken: githubToken || "",
         scanId
       });
@@ -159,7 +169,7 @@ export default function DigitalSigningCard({
     logsRef.current.push(msg);
 
     try {
-      await window.electronAPI.cancelScan({ scanId: scanIdRef.current });
+      await platform.cancelScan({ scanId: scanIdRef.current });
       setStatus("failed");
     } finally {
       cleanupListeners();
@@ -169,14 +179,8 @@ export default function DigitalSigningCard({
   };
 
   const cleanupListeners = () => {
-    if (logCleanupRef.current) {
-      logCleanupRef.current();
-      logCleanupRef.current = null;
-    }
-    if (completeCleanupRef.current) {
-      completeCleanupRef.current();
-      completeCleanupRef.current = null;
-    }
+    if (logCleanupRef.current) { logCleanupRef.current(); logCleanupRef.current = null; }
+    if (completeCleanupRef.current) { completeCleanupRef.current(); completeCleanupRef.current = null; }
     scanIdRef.current = null;
   };
 
@@ -191,6 +195,14 @@ export default function DigitalSigningCard({
     URL.revokeObjectURL(url);
   };
 
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      toast.success(`${label} copied to clipboard`);
+    }).catch(() => {
+      toast.error(`Failed to copy ${label}`);
+    });
+  };
+
   const isRunning = status === "running";
   const canClose = !isRunning && !isCancelling;
   const isButtonDisabled = !privateKeyPath || isRunning || disabled;
@@ -202,66 +214,80 @@ export default function DigitalSigningCard({
           <FingerprintIcon sx={{ color: borderColor, fontSize: 24 }} /> Digital Signing
         </Typography>
         <Typography variant="body2" color="text.secondary" mb={3}>
-          Process repository and apply cryptographic signature
+          Process repository and apply cryptographic signature.
+          {!isElectron && " Paste your private key PEM content below."}
         </Typography>
 
         <Stack spacing={3}>
           {/* Repository Info */}
-          <Paper sx={{ p: 3, mb: 3, borderRadius: 2, bgcolor: 'rgba(255,255,255, 0.02)', border: '1px solid rgba(255,255,255, 0.08)' }}>
-            <Typography variant="h6" fontWeight={500} mb={2.5} sx={{ color: borderColor, fontFamily: 'monospace' }}>
+          <Paper sx={{ p: 3, mb: 3, borderRadius: 2, bgcolor: "rgba(255,255,255, 0.02)", border: "1px solid rgba(255,255,255, 0.08)" }}>
+            <Typography variant="h6" fontWeight={500} mb={2.5} sx={{ color: borderColor, fontFamily: "monospace" }}>
               📂 Repository (1)
             </Typography>
             <Paper sx={{ p: 2, borderRadius: 1, border: `2px solid ${borderColor}30`, bgcolor: `${borderColor}08` }}>
               <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
-                <Box sx={{ width: 40, height: 40, borderRadius: 1, bgcolor: `${borderColor}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${borderColor}` }}>
-                  <Typography variant="subtitle2" fontWeight={700} sx={{ color: borderColor, fontSize: '1rem' }}>1</Typography>
+                <Box sx={{ width: 40, height: 40, borderRadius: 1, bgcolor: `${borderColor}20`, display: "flex", alignItems: "center", justifyContent: "center", border: `2px solid ${borderColor}` }}>
+                  <Typography variant="subtitle2" fontWeight={700} sx={{ color: borderColor, fontSize: "1rem" }}>1</Typography>
                 </Box>
                 <Box sx={{ flex: 1, minWidth: 200 }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
-                    Repository{repoDetails.repoUrl.includes('github.com') ? '' : ' Path'}
+                  <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "monospace" }}>
+                    Repository{repoDetails.repoUrl.includes("github.com") ? "" : " Path"}
                   </Typography>
-                  <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.85rem', color: borderColor, fontWeight: 600 }}>
+                  <Typography variant="body2" sx={{ fontFamily: "monospace", fontSize: "0.85rem", color: borderColor, fontWeight: 600 }}>
                     {repoDetails.repoUrl}
                   </Typography>
                 </Box>
-                <Chip label={repoDetails.branch} size="small" sx={{ fontFamily: 'monospace', bgcolor: `${borderColor}20`, color: borderColor }} />
-                <Chip label={repoType.split(' ')[0]} size="small" sx={{ fontFamily: 'monospace' }} />
+                <Chip label={repoDetails.branch} size="small" sx={{ fontFamily: "monospace", bgcolor: `${borderColor}20`, color: borderColor }} />
+                <Chip label={repoType.split(" ")[0]} size="small" sx={{ fontFamily: "monospace" }} />
               </Stack>
             </Paper>
           </Paper>
 
-          <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+          {/* Private Key input — Electron: file picker, Web: textarea */}
+          <Stack spacing={2}>
+            {isElectron ? (
+              <TextField
+                fullWidth
+                label="Private Key File (.pem)"
+                value={privateKeyPath}
+                disabled={disabled || isRunning}
+                InputProps={{
+                  readOnly: true,
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton onClick={handleSelectKeyFile} disabled={disabled || isRunning} size="small">
+                        <FolderOpenIcon />
+                      </IconButton>
+                    </InputAdornment>
+                  )
+                }}
+              />
+            ) : (
+              <TextField
+                fullWidth
+                label="Private Key (PEM content)"
+                placeholder="-----BEGIN PRIVATE KEY-----&#10;Paste your private key here...&#10;-----END PRIVATE KEY-----"
+                value={privateKeyPath}
+                onChange={(e) => setPrivateKeyPath(e.target.value)}
+                disabled={disabled || isRunning}
+                InputProps={{ sx: { fontFamily: "monospace", fontSize: 12 } }}
+              />
+            )}
             <TextField
-              fullWidth={!privateKeyPath}
-              label="Private Key File (.pem)"
-              value={privateKeyPath}
-              disabled={disabled || isRunning}
-              InputProps={{
-                readOnly: true,
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton onClick={handleSelectKeyFile} disabled={disabled || isRunning} size="small">
-                      <FolderOpenIcon />
-                    </IconButton>
-                  </InputAdornment>
-                )
-              }}
-            />
-            <TextField
+              fullWidth
               type="password"
               label="Key Password (if encrypted)"
               value={signPassword}
               onChange={(e) => setSignPassword(e.target.value)}
-              sx={{ minWidth: 200 }}
               disabled={disabled || isRunning}
             />
           </Stack>
 
-          {/* Centered Sign Artifact Button */}
+          {/* Sign Artifact Button */}
           <Box sx={{ display: "flex", justifyContent: "center", mt: 2 }}>
-            <Tooltip 
-              title={isButtonDisabled ? toolTip : ""} 
-              arrow 
+            <Tooltip
+              title={isButtonDisabled ? toolTip : ""}
+              arrow
               placement="top"
               disableHoverListener={!isButtonDisabled}
             >
@@ -281,13 +307,37 @@ export default function DigitalSigningCard({
                   }}
                   startIcon={isRunning ? <CircularProgress size={20} color="inherit" /> : <PlayArrowIcon />}
                 >
-                  {isRunning ? `Signing... (${repoType})` : `Sign Artifact`}
+                  {isRunning ? `Signing... (${repoType})` : "Sign Artifact"}
                 </Button>
               </span>
             </Tooltip>
           </Box>
 
-          {/* ✅ Hide/Show Logs */}
+          {/* Web mode: display returned signature */}
+          {!isElectron && signatureContent && (
+            <Box>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" mb={0.5}>
+                <Typography variant="subtitle2" fontWeight={600}>📝 Signature</Typography>
+                <Button
+                  size="small"
+                  startIcon={<ContentCopyIcon />}
+                  onClick={() => copyToClipboard(signatureContent, "Signature")}
+                >
+                  Copy
+                </Button>
+              </Stack>
+              <TextField
+                fullWidth
+                multiline
+                minRows={4}
+                maxRows={8}
+                value={signatureContent}
+                InputProps={{ readOnly: true, sx: { fontFamily: "monospace", fontSize: 12 } }}
+              />
+            </Box>
+          )}
+
+          {/* Hide/Show Logs */}
           {logs.length > 0 && !isRunning && (
             <Box>
               <Button
@@ -317,8 +367,7 @@ export default function DigitalSigningCard({
         </Stack>
       </Paper>
 
-
-      {/* Modal  */}
+      {/* Modal */}
       <Dialog open={modalOpen} onClose={() => canClose && setModalOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle sx={{ bgcolor: "#2d2d2d", borderBottom: "1px solid #404040" }}>
           <Stack direction="row" justifyContent="space-between" alignItems="center">
@@ -348,7 +397,7 @@ export default function DigitalSigningCard({
         </DialogContent>
         <DialogActions sx={{ p: 2, bgcolor: "#2d2d2d" }}>
           {isRunning && (
-            <Button onClick={cancelScan} color="error" variant="contained" 
+            <Button onClick={cancelScan} color="error" variant="contained"
               startIcon={isCancelling ? <CircularProgress size={16} color="inherit" /> : <CancelIcon />}>
               {isCancelling ? "Cancelling..." : "Cancel Scan"}
             </Button>

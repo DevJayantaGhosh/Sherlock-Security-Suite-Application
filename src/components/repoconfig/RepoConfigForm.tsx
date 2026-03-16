@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import isElectron from 'is-electron';
+import { platform } from "../../platform";
 import {
   Box, Paper, TextField, Switch, InputAdornment, Collapse,
   Tabs, Tab, IconButton, Typography, Chip, CircularProgress,
@@ -129,12 +130,12 @@ export default function RepoConfigForm({
     }
     
     try {
-      if (isLoading || !window.electronAPI?.selectFolder) {
+      if (isLoading) {
         toast.error("Folder picker temporarily unavailable");
         return;
       }
       
-      const path = await window.electronAPI.selectFolder();
+      const path = await platform.selectFolder();
       if (path) {
         setLocalRepoFullPath(path);
         toast.success(`Selected: ${path}`);

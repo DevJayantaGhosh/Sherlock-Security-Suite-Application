@@ -71,14 +71,14 @@ interface Window {
       scanId: string;
     }): Promise<{ success: boolean; error?: string }>;
 
-    // Artifact Signing (UPDATED)
+    // Artifact Signing
     signArtifact(payload: {
       repoUrl: string;       
       branch: string;
       privateKeyPath: string;
       password?: string;
-      isQuickScan: booleanl
-      githubToken: string
+      isQuickScan: boolean;
+      githubToken: string;
       scanId: string;
     }): Promise<{ success: boolean; error?: string }>;
 
@@ -127,8 +127,13 @@ interface Window {
         goodSignatures?: number;
         findings?: number;
         vulnerabilities?: number;
-
         error?: string;
+        /** Returned by key-generation */
+        keyData?: { publicKey: string; privateKey: string };
+        /** Returned by sign-artifact */
+        signatureContent?: string;
+        /** Returned by verify-signature */
+        verified?: boolean;
       }) => void
     ): () => void;
   };

@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import isElectron from 'is-electron';
+import { platform } from "../../platform";
 import {
   Box, Paper, TextField, Switch, InputAdornment, Collapse,
   Tabs, Tab, IconButton, Typography, Chip, CircularProgress,
@@ -75,12 +76,11 @@ export default function VerificationRepoConfigForm({
   }, [isConfigured]);
 
   const isValidUrl = (): boolean => {
-    const urlPattern = /^(https:\/\/github\.com\/[^\/\s]+\/[^\/\s]+)(\.git)?\/?$/i;
-    return urlPattern.test(repoUrl.trim());
+    return repoUrl.trim().length > 0;
   };
 
   const isValidReleaseTag = (): boolean => {
-    return /^r\d+\.\d+\.\d+$/.test(releaseTag.trim());
+    return releaseTag.trim().length > 0;
   };
 
   const isValidLocalPath = (): boolean => {
@@ -120,12 +120,12 @@ export default function VerificationRepoConfigForm({
     }
 
     try {
-      if (isLoading || !window.electronAPI?.selectFolder) {
+      if (isLoading) {
         toast.error("Folder picker temporarily unavailable");
         return;
       }
 
-      const path = await window.electronAPI.selectFolder();
+      const path = await platform.selectFolder();
       if (path) {
         setLocalRepoPath(path);
         toast.success(`Selected: ${path}`);
@@ -231,8 +231,6 @@ export default function VerificationRepoConfigForm({
                   value={repoUrl}
                   onChange={(e) => setRepoUrl(e.target.value)}
                   placeholder="https://github.com/username/repository"
-                  error={Boolean(!isValidUrl() && repoUrl.trim())}
-                  helperText={!isValidUrl() && repoUrl.trim() ? "Invalid GitHub URL" : ""}
                   disabled={isLoading || isConfigured}
                   size="small"
                 />
@@ -240,9 +238,7 @@ export default function VerificationRepoConfigForm({
                   label="Version (Release Tag) *"
                   value={releaseTag}
                   onChange={(e) => setReleaseTag(e.target.value)}
-                  placeholder="1.2.3"
-                  error={Boolean(!isValidReleaseTag() && releaseTag.trim())}
-                  helperText={!isValidReleaseTag() && releaseTag.trim() ? "Format: 1.2.3" : ""}
+                  placeholder="v1.2.3 or 1.2.3"
                   disabled={isLoading || isConfigured}
                   size="small"
                 />

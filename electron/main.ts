@@ -675,7 +675,7 @@ function registerIPC() {
 
     return new Promise((resolve) => {
       event.sender.send(`scan-log:${scanId}`, {
-        log: `\n${"═".repeat(60)}\n🔐 GPG SIGNATURE VERIFICATION\n${"═".repeat(60)}\n\n`,
+        log: `\n${"═".repeat(60)}\n🛡️ GPG SIGNATURE VERIFICATION\n${"═".repeat(60)}\n\n`,
         progress: 52,
       });
 
@@ -1369,13 +1369,8 @@ ${"═".repeat(79)}
       return { success: false, error: "Tool not found" };
     }
 
-    //  Clone Repo
-    let repoPath;
-    if(isQuickScan){
-      repoPath=repoUrl; // Local Repo Location
-    }else{
-      repoPath= await cloneRepository(event, repoUrl, branch, isQuickScan, githubToken, scanId);
-    }
+    //  Resolve repo path (local path for quick-scan or clone)
+    const repoPath = await getRepoPath(event, repoUrl, branch, isQuickScan, githubToken, scanId);
      
     if (!repoPath) {
       event.sender.send(`scan-complete:${scanId}`, {
@@ -1586,7 +1581,7 @@ ${"═".repeat(79)}
       const summary = `
 ╔═══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                               ║
-║                          🚀 GITHUB RELEASE CREATED                           ║
+║                              GITHUB RELEASE CREATED                           ║
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 

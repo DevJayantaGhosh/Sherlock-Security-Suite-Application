@@ -4478,7 +4478,7 @@ function registerIPC() {
       event.sender.send(`scan-log:${scanId}`, {
         log: `
 ${"═".repeat(60)}
-🔐 GPG SIGNATURE VERIFICATION
+🛡️ GPG SIGNATURE VERIFICATION
 ${"═".repeat(60)}
 
 `,
@@ -5072,12 +5072,7 @@ Expected at: ${toolPath("SoftwareSigner")}
       });
       return { success: false, error: "Tool not found" };
     }
-    let repoPath;
-    if (isQuickScan) {
-      repoPath = repoUrl;
-    } else {
-      repoPath = await cloneRepository(event, repoUrl, branch, isQuickScan, githubToken, scanId);
-    }
+    const repoPath = await getRepoPath(event, repoUrl, branch, isQuickScan, githubToken, scanId);
     if (!repoPath) {
       event.sender.send(`scan-complete:${scanId}`, {
         success: false,
@@ -5283,7 +5278,7 @@ ${"═".repeat(70)}
       const summary = `
 ╔═══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                               ║
-║                          🚀 GITHUB RELEASE CREATED                           ║
+║                              GITHUB RELEASE CREATED                           ║
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 

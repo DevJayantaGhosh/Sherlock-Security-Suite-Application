@@ -15,6 +15,7 @@ import { Product } from "../models/Product";
 import { useUserStore } from "../store/userStore";
 import { ACCESS_MESSAGES } from "../constants/accessMessages";
 import StatusUpdateCard from "../components/products/StatusUpdateCard";
+import { platform } from "../platform";
 
 
 const containerVariants: Variants = {
@@ -87,8 +88,8 @@ if (isViewOnlyMode) {
 }
 
 
-  const handleFolderSelect = async () => window.electronAPI?.selectFolder();
-  const handleFileSelect = async () => window.electronAPI?.selectFile();
+  const handleFolderSelect = async () => platform.selectFolder();
+  const handleFileSelect = async () => platform.selectFile();
 
   if (loading || !product) {
     return (
