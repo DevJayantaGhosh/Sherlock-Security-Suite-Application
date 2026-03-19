@@ -102,6 +102,10 @@ export interface ScanCompleteData {
   goodSignatures?: number;
   findings?: number;
   vulnerabilities?: number;
+  critical?: number;
+  high?: number;
+  medium?: number;
+  low?: number;
   error?: string;
   /** Returned by key-generation (host-server) */
   keyData?: { publicKey: string; privateKey: string };

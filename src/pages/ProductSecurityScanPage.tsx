@@ -1,23 +1,19 @@
 import { useEffect, useState, useCallback } from "react";
 import {
   Box, Button, Container, Paper, Stack,
-  Typography, Dialog, DialogTitle,
-  DialogContent, DialogActions,
-  Tooltip, Divider, CircularProgress, Alert,
+  Typography, Divider, CircularProgress, Alert,
 } from "@mui/material";
-import { toast } from "react-hot-toast";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 
-import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import CancelIcon from "@mui/icons-material/Cancel";
 import RefreshIcon from "@mui/icons-material/Refresh";
 
 import ProductHeader from '../components/products/ProductHeader';
+import { useToast } from "../components/ToastProvider";
 import { useUserStore } from "../store/userStore";
 import { authorizeApprove, getProductById, updateProduct } from "../services/productService";
 import RepoScanAccordion from "../components/security/RepoScanAccordion";
 import DependencyAudit from "../components/security/DependencyAudit";
+import BlockchainInscriptionCard from "../components/signing/BlockchainInscriptionCard";
 import { Product, RepoDetails, ProductStatus } from "../models/Product";
 import { motion, Variants } from "framer-motion";
 import { ACCESS_MESSAGES } from "../constants/accessMessages";
@@ -85,18 +81,16 @@ export default function ProductSecurityScanPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const user = useUserStore(s => s.user);
+  const toast = useToast();
 
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [wallet, setWallet] = useState<string | null>(null);
-  const [decision, setDecision] = useState<"approve" | "reject" | null>(null);
-  const [confirmOpen, setConfirmOpen] = useState(false);
 
   // Load product using getProductById(id)
   const loadProduct = useCallback(async () => {
     if (!id) {
-      toast.error("Invalid product ID", { id: "invalid-product-id" });
+      toast("Invalid product ID", "error");
       navigate("/products");
       return;
     }
@@ -107,21 +101,19 @@ export default function ProductSecurityScanPage() {
     try {
       const result = await getProductById(id);
       if (result.error || !result.data) {
-        toast.error(`Product not found: ${result.error?.message || "Unknown error"}`, { 
-          id: "product-load-error" 
-        });
+        toast(`Product not found: ${result.error?.message || "Unknown error"}`, "error");
         navigate("/products");
         return;
       }
 
       setProduct(result.data);
     } catch (error) {
-      toast.error("Failed to load product", { id: "product-load-failed" });
+      toast("Failed to load product", "error");
       navigate("/products");
     } finally {
       setLoading(false);
     }
-  }, [id, navigate]);
+  }, [id, navigate, toast]);
 
   // Load on mount + scroll to top
   useEffect(() => {
@@ -158,46 +150,18 @@ export default function ProductSecurityScanPage() {
     try {
       const result = await updateProduct(product.id, payload);
       if (result.error) {
-        toast.error("Saved locally but backend sync failed", { 
-          id: "repo-sync-warning", 
-          duration: 4000 
-        });
+        toast("Scan results saved to database failed", "warning");
       } else {
         setProduct(result.data);
-        toast.success("Scan results saved to database", { 
-          id: "repo-sync-success", 
-          duration: 2500 
-        });
+        toast("Scan results saved to database", "success");
       }
     } catch (error) {
-      toast.error("Failed to sync with backend", { id: "repo-sync-error" });
+      toast("Failed to sync with backend", "error");
     } finally {
       setSaving(false);
       console.groupEnd();
     }
   };
-
-  // Wallet connection
-  async function connectWallet() {
-    if (!(window as any).ethereum) {
-      toast.error("MetaMask not installed");
-      return;
-    }
-
-    try {
-      const accounts = await (window as any).ethereum.request({
-        method: "eth_requestAccounts",
-      });
-      setWallet(accounts[0]);
-      toast.success(`Connected: ${accounts[0].slice(0, 6)}...${accounts[0].slice(-4)}`, {
-        id: "wallet-connected",
-        duration: 4000
-      });
-    } catch (err) {
-      toast.error("Wallet connection rejected");
-      console.error("[WALLET] Connection error:", err);
-    }
-  }
 
 // Authorization and view‑only mode
 const isAuthorized = product ? authorizeApprove(user, product) : false;
@@ -219,59 +183,22 @@ if (isViewOnlyMode) {
   }
 }
 
-  // Decision handlers
-  function handleDecision(type: "approve" | "reject") {
-    if (!isAuthorized) {
-      toast.error("Only Security-Head/Admin can approve/reject");
-      return;
-    }
-    if (!wallet) {
-      toast.error("Please connect wallet first");
-      return;
-    }
-    setDecision(type);
-    setConfirmOpen(true);
-  }
+  // Blockchain inscription callback — fires after BlockchainInscriptionCard
+  // has already inscribed on-chain AND updated the product in the DB.
+  // Stay on the page and refresh product details to reflect the new status.
+  const handleBlockchainDecision = async (status: "Approved" | "Rejected", remark: string) => {
+    toast(`Product ${status} — decision permanently inscribed on Hedera Hashgraph`, "success");
 
-  // Confirm decision
-  async function confirmDecision() {
-    if (!product || !decision || !wallet) return;
-
-    setSaving(true);
-    // JG: Implement blockchain transaction
-    
+    // Reload the product to reflect the updated status, scan report URL, etc.
     try {
-      const status: ProductStatus = decision === "approve" ? "Approved" : "Rejected";
-      
-      const payload: Partial<Product> = {
-        status,
-        remark: `Security decision recorded by wallet ${wallet.slice(0, 10)}... on ${new Date().toISOString()}`,
-        updatedAt: new Date().toISOString()
-      };
-
-      const result = await updateProduct(product.id, payload);
-      
-      if (result.error) {
-        toast.error(`Failed to save ${decision.toUpperCase()} decision`);
-        return;
+      const result = await getProductById(product?.id || id || "");
+      if (result.data) {
+        setProduct(result.data);
       }
-
-      toast.success(`Product ${decision.toUpperCase()}D successfully`, {
-        id: "decision-success",
-        duration: 5000
-      });
-
-      setTimeout(() => {
-        navigate("/products");
-      }, 2000);
-
-    } catch (error) {
-      toast.error("Decision processing failed");
-    } finally {
-      setConfirmOpen(false);
-      setSaving(false);
+    } catch {
+      // Silently ignore — the inscription already succeeded
     }
-  }
+  };
 
   // Loading state
   if (loading) {
@@ -375,168 +302,20 @@ if (isViewOnlyMode) {
             />
           </motion.div>
 
-          {/* Final Decision */}
+          {/* Blockchain Inscription — SCAN Stage */}
           <motion.div variants={itemVariants}>
-            <Paper sx={{ mt: 6, p: 4, background: "linear-gradient(140deg,#0c1023,#090c1c)", border: "1px solid rgba(255,255,255,0.08)" }}>
-              <Typography variant="h6" fontWeight={700} textAlign="center" mb={3}>
-                Security Review Decision
-              </Typography>
-
-              <Stack spacing={3} alignItems="center">
-                <motion.div variants={buttonGroupVariants} initial="hidden" animate="visible">
-                  <Tooltip title={tooltip} arrow>
-                    <span>
-                      <Button
-                        startIcon={<AccountBalanceWalletIcon />}
-                        onClick={connectWallet}
-                        disabled={!canScan || saving}
-                        variant="outlined"
-                        size="large"
-                        sx={{
-                          minWidth: 250,
-                          borderWidth: 2,
-                          "&:hover": { borderWidth: 2 },
-                        }}
-                      >
-                        {wallet
-                          ? `Wallet: ${wallet.slice(0, 6)}...${wallet.slice(-4)}`
-                          : "Connect MetaMask"
-                        }
-                      </Button>
-                    </span>
-                  </Tooltip>
-                </motion.div>
-
-                <motion.div variants={buttonGroupVariants} initial="hidden" animate="visible">
-                  <Stack direction="row" spacing={3}>
-                    <Tooltip title={tooltip} arrow>
-                      <span>
-                        <Button
-                          color="success"
-                          startIcon={<CheckCircleIcon />}
-                          variant="contained"
-                          disabled={!wallet || !canScan ||saving}
-                          onClick={() => handleDecision("approve")}
-                          size="large"
-                          sx={{
-                            minWidth: 180,
-                            py: 1.5,
-                            fontSize: 16,
-                            fontWeight: 700,
-                          }}
-                        >
-                          Approve
-                        </Button>
-                      </span>
-                    </Tooltip>
-
-                    <Tooltip title={tooltip} arrow>
-                      <span>
-                        <Button
-                          color="error"
-                          startIcon={<CancelIcon />}
-                          variant="contained"
-                          disabled={!wallet || !canScan ||saving}
-                          onClick={() => handleDecision("reject")}
-                          size="large"
-                          sx={{
-                            minWidth: 180,
-                            py: 1.5,
-                            fontSize: 16,
-                            fontWeight: 700,
-                          }}
-                        >
-                          Reject
-                        </Button>
-                      </span>
-                    </Tooltip>
-                  </Stack>
-                </motion.div>
-
-                {wallet && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.5 }}
-                  >
-                    <Typography variant="caption" color="text.secondary" textAlign="center">
-                      Your decision will be recorded on the blockchain and cannot be reverted.
-                    </Typography>
-                  </motion.div>
-                )}
-              </Stack>
-            </Paper>
+            <Box sx={{ mt: 4 }}>
+              <BlockchainInscriptionCard
+                variants={itemVariants}
+                product={product}
+                disabled={isViewOnlyMode || saving}
+                toolTip={tooltip}
+                stage="SCAN"
+                onStatusDecision={handleBlockchainDecision}
+              />
+            </Box>
           </motion.div>
         </motion.div>
-
-        {/* Confirmation Dialog */}
-        <Dialog 
-          open={confirmOpen} 
-          onClose={() => !saving && setConfirmOpen(false)}
-          PaperProps={{
-            sx: {
-              bgcolor: "#1e1e1e",
-              backgroundImage: "none",
-            },
-          }}
-        >
-          <DialogTitle sx={{ bgcolor: "#2d2d2d", borderBottom: "1px solid #404040" }}>
-            <Typography variant="h6" fontWeight={700}>
-              Confirm Security Decision
-            </Typography>
-          </DialogTitle>
-
-          <DialogContent sx={{ pt: 3 }}>
-            <Typography variant="body1" sx={{ mb: 2 }}>
-              Are you sure you want to <strong style={{ color: decision === "approve" ? "#4caf50" : "#f44336" }}>{decision?.toUpperCase()}</strong> this product?
-            </Typography>
-
-            <Paper sx={{ p: 2, bgcolor: "rgba(255,255,255,0.05)", mb: 2 }}>
-              <Typography variant="body2" color="text.secondary">
-                <strong>Product:</strong> {product.name}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                <strong>Version:</strong> {product.version}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                <strong>Security Head:</strong> {product.securityHead}
-              </Typography>
-            </Paper>
-
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              This action will be recorded on the blockchain using wallet:
-            </Typography>
-            <Paper sx={{ p: 1.5, bgcolor: "#0c1023", border: "1px solid rgba(255,255,255,0.1)" }}>
-              <Typography variant="body2" fontFamily="monospace" sx={{ wordBreak: "break-all" }}>
-                {wallet}
-              </Typography>
-            </Paper>
-
-            <Typography variant="caption" color="warning.main" sx={{ mt: 2, display: "block" }}>
-              This decision is permanent and will be visible to all stakeholders.
-            </Typography>
-          </DialogContent>
-
-          <DialogActions sx={{ p: 2, bgcolor: "#2d2d2d", borderTop: "1px solid #404040" }}>
-            <Button onClick={() => setConfirmOpen(false)} disabled={saving}>Cancel</Button>
-            <Button
-              disabled={!wallet || !canScan || saving}
-              variant="contained"
-              onClick={confirmDecision}
-              color={decision === "approve" ? "success" : "error"}
-              sx={{ fontWeight: 700 }}
-            >
-              {saving ? (
-                <>
-                  <CircularProgress size={20} sx={{ mr: 1, color: "white" }} />
-                  Processing...
-                </>
-              ) : (
-                `Confirm ${decision === "approve" ? "Approval" : "Rejection"}`
-              )}
-            </Button>
-          </DialogActions>
-        </Dialog>
       </Container>
     </Box>
   );

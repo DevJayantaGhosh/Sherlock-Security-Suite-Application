@@ -402,10 +402,26 @@ async function runVulnerabilityScan(params: {
     if (code === 0) {
       try {
         const results = JSON.parse(jsonBuffer);
-        const vulns = results.Results?.reduce(
-          (a: number, r: any) => a + (r.Vulnerabilities?.length || 0),
-          0
-        ) || 0;
+        let vulns = 0;
+        let critical = 0;
+        let high = 0;
+        let medium = 0;
+        let low = 0;
+
+        if (results.Results) {
+          for (const r of results.Results) {
+            if (r.Vulnerabilities) {
+              for (const v of r.Vulnerabilities) {
+                vulns++;
+                const sev = (v.Severity || "").toUpperCase();
+                if (sev === "CRITICAL") critical++;
+                else if (sev === "HIGH") high++;
+                else if (sev === "MEDIUM") medium++;
+                else if (sev === "LOW") low++;
+              }
+            }
+          }
+        }
 
         // Send detailed report (matching Electron)
         const detailedReport = formatTrivyReport(results);
@@ -420,14 +436,18 @@ async function runVulnerabilityScan(params: {
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 
 Vulnerabilities : ${vulns}
+Critical        : ${critical}
+High            : ${high}
+Medium          : ${medium}
+Low             : ${low}
 Status          : ${vulns > 0 ? "🚨 VULNERABILITIES DETECTED" : "✅ NO VULNERABILITIES"}
-Risk Level      : ${vulns > 10 ? "CRITICAL" : vulns > 5 ? "HIGH" : vulns > 0 ? "MEDIUM" : "NONE"}
+Risk Level      : ${critical > 0 ? "CRITICAL" : high > 0 ? "HIGH" : medium > 0 ? "MEDIUM" : low > 0 ? "LOW" : "NONE"}
 
 ${"═".repeat(79)}
 `;
 
         emitLog(scanId, summary, 100);
-        emitComplete(scanId, { success: true, vulnerabilities: vulns });
+        emitComplete(scanId, { success: true, vulnerabilities: vulns, critical, high, medium, low });
       } catch {
         emitComplete(scanId, { success: false, error: "Failed to parse Trivy results" });
       }

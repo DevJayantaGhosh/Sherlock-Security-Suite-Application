@@ -1165,11 +1165,27 @@ ${"═".repeat(79)}
             // Parse JSON Result
             const results = JSON.parse(jsonBuffer);
 
-            // Calculate Total Vulnerabilities
-            const vulns = results.Results?.reduce(
-              (acc: number, r: any) => acc + (r.Vulnerabilities?.length || 0),
-              0
-            ) || 0;
+            // Calculate Total Vulnerabilities with severity breakdown
+            let vulns = 0;
+            let critical = 0;
+            let high = 0;
+            let medium = 0;
+            let low = 0;
+
+            if (results.Results) {
+              for (const r of results.Results) {
+                if (r.Vulnerabilities) {
+                  for (const v of r.Vulnerabilities) {
+                    vulns++;
+                    const sev = (v.Severity || "").toUpperCase();
+                    if (sev === "CRITICAL") critical++;
+                    else if (sev === "HIGH") high++;
+                    else if (sev === "MEDIUM") medium++;
+                    else if (sev === "LOW") low++;
+                  }
+                }
+              }
+            }
 
             // Generate Detailed Report String
             const detailedReport = formatTrivyReport(results);
@@ -1190,8 +1206,12 @@ ${"═".repeat(79)}
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 
 Vulnerabilities : ${vulns}
+Critical        : ${critical}
+High            : ${high}
+Medium          : ${medium}
+Low             : ${low}
 Status          : ${vulns > 0 ? "🚨 VULNERABILITIES DETECTED" : "✅ NO VULNERABILITIES"}
-Risk Level      : ${vulns > 10 ? "CRITICAL" : vulns > 5 ? "HIGH" : vulns > 0 ? "MEDIUM" : "NONE"}
+Risk Level      : ${critical > 0 ? "CRITICAL" : high > 0 ? "HIGH" : medium > 0 ? "MEDIUM" : low > 0 ? "LOW" : "NONE"}
 
 ${"═".repeat(79)}
 `;
@@ -1206,6 +1226,10 @@ ${"═".repeat(79)}
             event.sender.send(`scan-complete:${scanId}`, {
               success: true,
               vulnerabilities: vulns,
+              critical,
+              high,
+              medium,
+              low,
             });
 
             resolve({ success: true, vulnerabilities: vulns });

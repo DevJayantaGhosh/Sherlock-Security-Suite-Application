@@ -1238,6 +1238,10 @@ function VulnerabilityScanPanel({
       if (data.vulnerabilities !== undefined) {
         newSummary = {
           vulnerabilities: data.vulnerabilities,
+          critical: data.critical || 0,
+          high: data.high || 0,
+          medium: data.medium || 0,
+          low: data.low || 0,
         };
         setResult(newSummary);
       }
