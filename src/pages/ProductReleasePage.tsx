@@ -9,9 +9,10 @@ import { authorizeRelease, getProductById } from "../services/productService";
 import { Product } from "../models/Product";
 import { useUserStore } from "../store/userStore";
 import ProductReleaseCard from "../components/productrelease/ProductReleaseCard";
+import BlockchainInscriptionCard from "../components/blockchain/BlockchainInscriptionCard";
+import ProductWorkflowNav from "../components/products/ProductWorkflowNav";
 
 import { ACCESS_MESSAGES } from "../constants/accessMessages";
-import StatusUpdateCard from "../components/products/StatusUpdateCard";
 
 const itemVariants: Variants = {
   hidden: { opacity: 0, y: 20 },
@@ -110,21 +111,22 @@ export default function ProductReleasePage() {
             tooltipBatchTitle={tooltip}
           />
 
-          {/* Status Update Card */}
-          <motion.div variants={itemVariants}>
-            <StatusUpdateCard
-              product={product}
-              disabled={!canRelease || loading}
-              toolTip={tooltip}
-              cardColor="#7b5cff"
-              buttonText="Released"
-              confirmMessage="Are you sure you want to mark this product as Released ?"
-              targetStatus="Released"
-              successMessage="✅ Product marked as Released"
-              onReload={loadProduct}
-              variants={itemVariants}
-            />
-          </motion.div>
+          {/* Blockchain Inscription — inscribes release decision on Hedera */}
+          <BlockchainInscriptionCard
+            product={product}
+            disabled={!canRelease || loading}
+            variants={itemVariants}
+            toolTip={tooltip}
+            stage="RELEASE"
+            onStatusDecision={() => loadProduct()}
+          />
+
+          {/* Workflow Navigation */}
+          <ProductWorkflowNav
+            currentStep="releases"
+            product={product}
+            accentColor="#7b5cff"
+          />
 
         </motion.div>
       </Container>

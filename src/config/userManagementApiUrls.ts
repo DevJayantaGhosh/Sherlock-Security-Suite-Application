@@ -15,8 +15,8 @@ export const API_URLS = {
     LIST_INTERNAL: "/users/internal",         // GET /api/users/internal
     
     // WRITE - Admin only
-    UPDATE: (userId: string) => `/users/${userId}`,     // PUT /api/users/{id}
-    DELETE: (userId: string) => `/users/${userId}`,     // DELETE /api/users/{id}
+    UPDATE: (userId: number) => `/users/${userId}`,     // PUT /api/users/{id}
+    DELETE: (userId: number) => `/users/${userId}`,     // DELETE /api/users/{id}
     BULK_DELETE: "/users/bulk",                         // DELETE /api/users/bulk
 
   },

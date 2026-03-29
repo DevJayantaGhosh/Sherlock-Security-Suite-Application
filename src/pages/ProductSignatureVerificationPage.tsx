@@ -1,13 +1,20 @@
 // src/pages/ProductSignatureVerificationPage.tsx
 import { useState, useCallback, useEffect } from "react";
 import { Box, Container, CircularProgress, Paper, Typography, Button } from "@mui/material";
-import { motion } from "framer-motion";
+import { motion, Variants } from "framer-motion";
 import ProductHeader from "../components/products/ProductHeader";
+import ProvenanceChainCard from "../components/blockchain/ProvenanceChainCard";
 import ProductSignatureVerificationCard from "../components/verification/ProductSignatureVerificationCard";
+import ProductWorkflowNav from "../components/products/ProductWorkflowNav";
 import { getProductById } from "../services/productService";
 import { Product } from "../models/Product";
 import { toast } from "react-hot-toast";
 import { useParams, useNavigate } from "react-router-dom";
+
+const itemVariants: Variants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
+};
 
 interface ProductRepoDetails {
   repoUrl: string;
@@ -89,6 +96,9 @@ export default function ProductSignatureVerificationPage() {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
           <ProductHeader product={product} pageType="verify" />
 
+          {/* Provenance Chain — shows all 3 blockchain stages */}
+          <ProvenanceChainCard product={product} variants={itemVariants} borderColor="#4caf50" />
+
           <ProductSignatureVerificationCard
             repoDetailsList={repoDetailsList}
             productName={product.name}  // ✅ Add this
@@ -97,6 +107,13 @@ export default function ProductSignatureVerificationPage() {
             borderColor="#4caf50"
             savedPublicKeyPath={product.publicKeyFilePath}
             savedSignaturePath={product.signatureFilePath}
+          />
+
+          {/* Workflow Navigation */}
+          <ProductWorkflowNav
+            currentStep="signature-verify"
+            product={product}
+            accentColor="#4caf50"
           />
 
         </motion.div>

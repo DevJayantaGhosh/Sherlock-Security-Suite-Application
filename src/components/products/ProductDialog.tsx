@@ -15,9 +15,7 @@ import {
   FormControlLabel,
   Switch,
   CircularProgress,
-  Select,
   SelectProps,
-  useTheme
 } from "@mui/material";
 
 import AddIcon from "@mui/icons-material/Add";
@@ -326,7 +324,7 @@ export default function ProductDialog({
       toast.error("Please fix form errors");
       return;
     }
-    if (!user?.id) {
+    if (!user?.email) {
       toast.error("User not authenticated");
       return;
     }
@@ -394,7 +392,7 @@ export default function ProductDialog({
           releaseReportPath: form.releaseReportPath || "",
           signatureFilePath: form.signatureFilePath || "",
           publicKeyFilePath: form.publicKeyFilePath || "",
-          createdBy: user.id,
+          createdBy: user.email,
           id: "",
           createdAt: "",
         };

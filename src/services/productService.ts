@@ -48,13 +48,17 @@ const createApiError = (error: AxiosError, defaultMessage: string): ApiError => 
 };
 
 /* ======================================================
-   IN-MEMORY DB (KEEP ALL YOUR DATA)
+   IN-MEMORY DB — IDs, names & versions regenerated every app launch
 ====================================================== */
+const _uid1 = crypto.randomUUID().slice(0, 8);
+const _uid2 = crypto.randomUUID().slice(0, 8);
+const _ver = () => `${Math.floor(Math.random() * 5) + 1}.${Math.floor(Math.random() * 10)}.${Math.floor(Math.random() * 10)}`;
+
 let productDB: Product[] = [
   {
-    id: "1",
-    name: "Threat Scanner",
-    version: "1.2.0",
+    id: `prod-${_uid1}`,
+    name: `Threat Scanner-${_uid1}`,
+    version: _ver(),
     isOpenSource: false,
     description: "Automated threat detection and sandboxing engine.",
     productDirector: "u1",
@@ -63,166 +67,34 @@ let productDB: Product[] = [
     repos: [
       {
         repoUrl: "https://github.com/projectcs23m513/bad-project",
-        branch: "test",
+        branch: "main",
       },
     ],
     dependencies: ["Node", "Express", "Docker"],
     createdBy: "u1",
     createdAt: new Date().toISOString(),
     status: "Pending",
-    securityScanReportPath: "https://hashgraph.scan.io",
-    signatureFilePath: "/signatures/auth-service-v3.1.2-beta.sig",
-    publicKeyFilePath: "/keys/auth-service-public.asc",
-    signingReportPath: "/reports/prod_example_02-signing-v3.1.2-beta.json",
-    releaseReportPath: "/reports/prod_example_02-release-v3.1.2-beta.json"
   },
   {
-    id: "sherlock-001",
-    name: "Sherlock Security Suite Service With Build",
-    version: "1.0.0",
+    id: `prod-${_uid2}`,
+    name: `Security Analyzer-${_uid2}`,
+    version: _ver(),
     isOpenSource: true,
-    description: "Comprehensive security suite with multiple Spring Boot microservices.",
+    description: "Comprehensive security analysis and vulnerability scanning platform.",
     productDirector: "u1",
     securityHead: "u2",
     releaseEngineers: ["u3"],
     repos: [
       {
-        repoUrl: "https://github.com/DevJayantaGhosh/Sherlock-Security-Suite-Services.git",
+        repoUrl: "https://github.com/projectcs23m513/bad-project",
         branch: "main",
       },
     ],
     dependencies: ["Spring Boot", "MySQL", "Spring Security"],
     createdBy: "u1",
-    createdAt: new Date("2024-12-15").toISOString(),
+    createdAt: new Date().toISOString(),
     status: "Pending",
-    securityScanReportPath: "https://hashgraph.scan.io",
-    signatureFilePath: "/signatures/auth-service-v3.1.2-beta.sig",
-    publicKeyFilePath: "/keys/auth-service-public.asc",
-    signingReportPath: "/reports/prod_example_02-signing-v3.1.2-beta.json",
-    releaseReportPath: "/reports/prod_example_02-release-v3.1.2-beta.json"
   },
-  {
-    id: "sherlock-002",
-    name: "Sherlock Security Suite",
-    version: "1.0.0",
-    isOpenSource: true,
-    description: "Comprehensive security suite with multiple Spring Boot microservices.",
-    productDirector: "u1",
-    securityHead: "u2",
-    releaseEngineers: ["u3"],
-    repos: [
-      {
-        repoUrl: "https://github.com/DevJayantaGhosh/Sherlock-Security-Suite-Services.git",
-        branch: "main",
-      },
-    ],
-    dependencies: ["Spring Boot", "MySQL", "Spring Security"],
-    createdBy: "u1",
-    createdAt: new Date("2024-12-15").toISOString(),
-    status: "Approved",
-    securityScanReportPath: "https://hashgraph.scan.io",
-    signatureFilePath: "/signatures/auth-service-v3.1.2-beta.sig",
-    publicKeyFilePath: "/keys/auth-service-public.asc",
-    signingReportPath: "/reports/prod_example_02-signing-v3.1.2-beta.json",
-    releaseReportPath: "/reports/prod_example_02-release-v3.1.2-beta.json"
-  },
-  {
-    id: "prod_example_01",
-    name: "E-Commerce Payment Gateway",
-    version: "2.4.1",
-    isOpenSource: false,
-    description: "Core payment processing service handling transactions and secure checkout.",
-    productDirector: "u1",
-    securityHead: "u2",
-    releaseEngineers: ["u3", "u4"],
-    repos: [
-      {
-        repoUrl: "https://github.com/example/payment-gateway-service.git",
-        branch: "release/v2.4",
-        scans: {
-          signatureVerification: {
-            status: "success",
-            timestamp: "2026-01-26T10:00:00.000Z",
-            logs: [
-              "Fetching GPG keys from key server...",
-              "Verifying 45 commits...",
-              "All commits signed by authorized developers."
-            ],
-            summary: {
-              totalCommits: 45,
-              goodSignatures: 45
-            }
-          },
-          secretLeakDetection: {
-            status: "failed",
-            timestamp: "2026-01-26T10:05:00.000Z",
-            logs: [
-              "Starting Gitleaks scan...",
-              "Scanning history...",
-              "CRITICAL: Found AWS Access Key in src/config/aws.js"
-            ],
-            summary: {
-              findings: 1
-            }
-          },
-          vulnerabilityScan: {
-            status: "success",
-            timestamp: "2026-01-26T10:10:00.000Z",
-            logs: [
-              "Updating Trivy DB...",
-              "Scanning package-lock.json...",
-              "Scanning pom.xml...",
-              "Found 12 vulnerabilities."
-            ],
-            summary: {
-              vulnerabilities: 12,
-              critical: 0,
-              high: 2,
-              medium: 5,
-              low: 5
-            }
-          },
-        }
-      }
-    ],
-    dependencies: ["Spring Boot 3.2", "React 18", "PostgreSQL", "Redis"],
-    createdBy: "u1",
-    createdAt: "2026-01-20T08:30:00.000Z",
-    updatedBy: "u3",
-    updatedAt: "2026-01-26T10:20:00.000Z",
-    status: "Pending",
-    remark: "Waiting for Secret Leak remediation before final approval.",
-    securityScanReportPath: "https://hashgraph.scan.io",
-    signatureFilePath: "/signatures/auth-service-v3.1.2-beta.sig",
-    publicKeyFilePath: "/keys/auth-service-public.asc",
-    signingReportPath: "/reports/prod_example_02-signing-v3.1.2-beta.json",
-    releaseReportPath: "/reports/prod_example_02-release-v3.1.2-beta.json"
-  },
-  {
-    id: "prod_example_02",
-    name: "User Authentication Service",
-    version: "3.1.2-beta",
-    isOpenSource: true,
-    description: "Enterprise-grade authentication service with OAuth2 and JWT support.",
-    productDirector: "u1",
-    securityHead: "u5",
-    releaseEngineers: ["u3", "u6"],
-    repos: [
-      {
-        repoUrl: "https://github.com/example/auth-service.git",
-        branch: "develop",
-      }
-    ],
-    dependencies: ["Node.js", "TypeScript", "Redis", "PostgreSQL"],
-    createdBy: "u2",
-    createdAt: new Date("2026-02-01").toISOString(),
-    status: "Approved",
-    securityScanReportPath: "https://hashgraph.scan.io",
-    signatureFilePath: "/signatures/auth-service-v3.1.2-beta.sig",
-    publicKeyFilePath: "/keys/auth-service-public.asc",
-    signingReportPath: "/reports/prod_example_02-signing-v3.1.2-beta.json",
-    releaseReportPath: "/reports/prod_example_02-release-v3.1.2-beta.json"
-  }
 ];
 
 
@@ -368,7 +240,7 @@ export async function createProduct(payload: Product): Promise<{ data: Product; 
       id: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
       status: "Pending" as ProductStatus,
-      createdBy: user?.id || "u1",
+      createdBy: user?.email || "unknown",
     };
     productDB.unshift(newProduct);
     return { data: newProduct, error: null };

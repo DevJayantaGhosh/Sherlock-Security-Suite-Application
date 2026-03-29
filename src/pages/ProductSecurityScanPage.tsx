@@ -13,7 +13,8 @@ import { useUserStore } from "../store/userStore";
 import { authorizeApprove, getProductById, updateProduct } from "../services/productService";
 import RepoScanAccordion from "../components/security/RepoScanAccordion";
 import DependencyAudit from "../components/security/DependencyAudit";
-import BlockchainInscriptionCard from "../components/signing/BlockchainInscriptionCard";
+import BlockchainInscriptionCard from "../components/blockchain/BlockchainInscriptionCard";
+import ProductWorkflowNav from "../components/products/ProductWorkflowNav";
 import { Product, RepoDetails, ProductStatus } from "../models/Product";
 import { motion, Variants } from "framer-motion";
 import { ACCESS_MESSAGES } from "../constants/accessMessages";
@@ -174,7 +175,7 @@ const isViewOnlyMode = !isAuthorized || !isPending || isRejected;
 let tooltip = "";
 if (isViewOnlyMode) {
   if (!isAuthorized) {
-    tooltip = ACCESS_MESSAGES.RELEASE_ENGINEER_SIGN_MSG;
+    tooltip = ACCESS_MESSAGES.SECURITY_HEAD_MSG;
   } else if (isRejected) {
     tooltip = `Product is "${product?.status}". No further actions allowed.`;
   } else {
@@ -314,6 +315,15 @@ if (isViewOnlyMode) {
                 onStatusDecision={handleBlockchainDecision}
               />
             </Box>
+          </motion.div>
+
+          {/* Workflow Navigation */}
+          <motion.div variants={itemVariants}>
+            <ProductWorkflowNav
+              currentStep="security-scan"
+              product={product}
+              accentColor="#ff9800"
+            />
           </motion.div>
         </motion.div>
       </Container>

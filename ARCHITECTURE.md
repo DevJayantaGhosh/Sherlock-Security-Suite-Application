@@ -94,6 +94,7 @@ Both modes share the **same React frontend**. A platform abstraction layer auto-
 | **Digital Signing** | Cryptographically sign software artifacts |
 | **Signature Verification** | Verify artifact signatures with public keys |
 | **GitHub Release** | Create releases with signed artifacts via Octokit |
+| **IPFS Archival** | Upload signed artifacts to IPFS via Storacha (web3.storage) |
 | **Blockchain Archival** | Record artifact hashes on Hedera for tamper-proofing |
 | **Admin Dashboard** | User management, product approvals, analytics |
 
@@ -106,8 +107,8 @@ UI components call `platform.*` — they never know which mode is active.
 
 ```
                     ┌─────────────────────────────┐
-                    │    React UI Components      │
-                    │ (pages, components, etc.)   │
+                    │          UI Components      │
+                    │                             │
                     └──────────────┬──────────────┘
                                    │
                         platform.* calls
@@ -220,15 +221,94 @@ UI components call `platform.*` — they never know which mode is active.
 
 ---
 
+## IPFS & Blockchain — End-to-End File Archival
+
+Signing artifacts (signature file & public key) are stored across **three systems** for immutability and verifiability.
+
+### Technology Stack
+
+| Technology | Role | 
+|---|---|
+| **IPFS** | Content-addressed file storage protocol |
+| **Hedera Hashgraph** | Blockchain for immutable provenance records | 
+
+
+### End-to-End Workflow
+
+```
+┌─────────────────────┐     ┌──────────────────┐     ┌──────────────┐     ┌──────────────┐
+│  IPFSUploadCard     │     │     IPFS Node    │     │Application-DB│     │    Hedera    │
+│  (user picks file)  │     │                  │     │  (Product)   │     │ (Blockchain) │
+└─────────┬───────────┘     └────────┬─────────┘     └──────┬───────┘     └──────┬───────┘
+          │                          │                      │                    │
+          │ 1. uploadFileToIPFS()    │                      │                    │
+          │─────────────────────────►│                      │                    │
+          │                          │                      │                    │
+          │                          │                      │                    │
+          │   CID (ipfs://bafy...)   │                      │                    │
+          │◄─────────────────────────│                      │                    │
+          │                          │                      │                    │
+          │ 2. updateProduct()       │                      │                    │
+          │  signatureFilePath=CID   │                      │                    │
+          │  publicKeyFilePath=CID   │                      │                    │
+          │────────────────────────────────────────────────►│                    │
+          │                          │                      │                    │
+┌─────────┴───────────────────┐      │                      │                    │
+│ BlockchainInscriptionCard   │      │                      │                    │
+│ (SIGN stage)                │      │                      │                    │
+└─────────┬───────────────────┘      │                      │                    │
+          │                          │                      │                    │
+          │ 3. buildProductSnapshot()│                      │                    │
+          │  signatureFileIPFS = product.signatureFilePath  │                    │
+          │  publicKeyFileIPFS = product.publicKeyFilePath  │                    │
+          │                          │                      │                    │
+          │ 4. inscribeOnLedger(snapshot)                   │                    │
+          │  (SIGN stage validates both CIDs present)       │                    │
+          │─────────────────────────────────────────────────────────────────────►│
+          │                          │                      │                    │  
+          │                          │                      │                    │
+          │ 5. updateProduct()       │                      │                    │
+          │  signingReportPath =     │                      │                    │
+          │    hashscan.io URL       │                      │                    │
+          │────────────────────────────────────────────────►│                    │
+          │                          │                      │                    │
+┌─────────┴───────────────────┐      │                      │                    │
+│ ProvenanceChainCard         │      │                      │                    │
+│ (read & verify)             │      │                      │                    │
+└─────────┬───────────────────┘      │                      │                    │
+          │                          │                      │                    │
+          │ 6. getProductSnapshots() │                      │                    │
+          │◄────────────────────────────────────────────────────────────────────►│
+          │   Reads CID from chain   │                      │                    │
+          │   (MongoDB as fallback)  │                      │                    │
+          │                          │                      │                    │
+          │ 7. fetchBytesFromIPFS()  │                      │                    │
+          │─────────────────────────►│                      │                    │
+          │   Download from IPFS     │                      │                    │
+          │◄─────────────────────────│                      │                    │
+          │   (user gets the file)   │                      │                    │
+          ▼                          ▼                      ▼                    ▼
+```
+
+### Retrieval
+
+`ProvenanceChain UI Component` reads CIDs from the blockchain snapshot or ApplicationDB fallback:
+```
+signSnap?.signatureFileIPFS || product.signatureFilePath
+```
+Users can download artifacts directly from IPFS storage
+
+---
+
 ## Backend Microservices
 
 The frontend communicates with external microservices for persistent data:
 
 | Service | 
 |---|
-| **User Management** |
-| **Product Management** | 
-| **Blockchain (Hedera)** | 
+| **User Management Service** |
+| **Product Management Service** | 
+| **Software Security Provenance Chain (Blockchain Hedera)** | 
 
 ---
 

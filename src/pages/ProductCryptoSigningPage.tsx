@@ -5,7 +5,9 @@ import { motion, Variants } from "framer-motion";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import ProductHeader from '../components/products/ProductHeader';
-import BlockchainArchivalCard from "../components/signing/BlockchainArchivalCard";
+import IPFSUploadCard from "../components/signing/IPFSUploadCard";
+import BlockchainInscriptionCard from "../components/blockchain/BlockchainInscriptionCard";
+import ProductWorkflowNav from "../components/products/ProductWorkflowNav";
 import KeyGenerationCard from "../components/signing/KeyGenerationCard";
 import DigitalSigningCard from "../components/signing/DigitalSigningCard";
 
@@ -14,7 +16,6 @@ import { authorizeToSign, getProductById } from "../services/productService";
 import { Product } from "../models/Product";
 import { useUserStore } from "../store/userStore";
 import { ACCESS_MESSAGES } from "../constants/accessMessages";
-import StatusUpdateCard from "../components/products/StatusUpdateCard";
 import { platform } from "../platform";
 
 
@@ -151,30 +152,32 @@ if (isViewOnlyMode) {
               />
             ))}
 
-            <motion.div variants={itemVariants}>
-              <BlockchainArchivalCard
-                product={product}
-                disabled={!canSign || loading}
-                variants={itemVariants}
-                toolTip={tooltip}
-              />
-            </motion.div>
+            {/* IPFS Upload — public key & signature artifacts */}
+            <IPFSUploadCard
+              product={product}
+              disabled={!canSign || loading}
+              variants={itemVariants}
+              toolTip={tooltip}
+              borderColor="#00e5ff"
+              onUploadComplete={loadProduct}
+            />
 
-            {/* Status Update Card */}
-            <motion.div variants={itemVariants}>
-              <StatusUpdateCard
-                product={product}
-                disabled={!canSign || loading}
-                toolTip={tooltip}
-                cardColor="#00e5ff"
-                buttonText="Signed"
-                confirmMessage="Are you sure you want to mark this product as Signed?"
-                targetStatus="Signed"
-                successMessage="✅ Product marked as Signed"
-                onReload={loadProduct} 
-                variants={itemVariants}
-              />
-            </motion.div>
+            {/* Blockchain Inscription — inscribes signing decision on Hedera */}
+            <BlockchainInscriptionCard
+              product={product}
+              disabled={!canSign || loading}
+              variants={itemVariants}
+              toolTip={tooltip}
+              stage="SIGN"
+              onStatusDecision={() => loadProduct()}
+            />
+
+            {/* Workflow Navigation */}
+            <ProductWorkflowNav
+              currentStep="cryptographic-signing"
+              product={product}
+              accentColor="#00e5ff"
+            />
           </Stack>
         </motion.div>
       </Container>

@@ -10,6 +10,7 @@ import UsersTable from "../components/admin/UsersTable";
 import AdminStats from "../components/admin/AdminStats";
 import RepositoryManagement from "../components/admin/RepositoryManagement";
 import DependencyManagement from "../components/admin/DependencyManagement";
+import BlockchainServiceAccountManagement from "../components/admin/BlockchainServiceAccountManagement";
 import { getUsers } from "../services/userService";
 import { getProductStats } from "../services/productService";
 import { AppUser } from "../models/User";
@@ -185,6 +186,14 @@ export default function AdminPage() {
             <Typography variant="h5" sx={{ mb: 3, mt:3, fontWeight: 800, color: "#ffffff" }}>Dependency Management</Typography>
             <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(1, 1fr)" }, gap: 4, alignItems: "start" }}>
               <DependencyManagement user={user}/>
+            </Box>
+          </Box>
+
+          {/* Blockchain Service Accounts */}
+          <Box>
+            <Typography variant="h5" sx={{ mb: 3, mt: 3, fontWeight: 800, color: "#ffffff" }}>Blockchain Service Accounts</Typography>
+            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(1, 1fr)" }, gap: 4, alignItems: "start" }}>
+              <BlockchainServiceAccountManagement user={user} />
             </Box>
           </Box>
         </motion.div>

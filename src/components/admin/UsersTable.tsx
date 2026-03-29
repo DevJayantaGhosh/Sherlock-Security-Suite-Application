@@ -29,7 +29,7 @@ interface Props {
 export default function UsersTable({ users, onEdit, refresh, loading = false }: Props) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [selected, setSelected] = useState<string[]>([]);
+  const [selected, setSelected] = useState<number[]>([]);
 
   //  ConfirmDialog state 
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -64,7 +64,7 @@ export default function UsersTable({ users, onEdit, refresh, loading = false }: 
     }
   };
 
-  const toggleUser = useCallback((id: string) => {
+  const toggleUser = useCallback((id: number) => {
     setSelected((cur) =>
       cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]
     );
@@ -82,7 +82,7 @@ export default function UsersTable({ users, onEdit, refresh, loading = false }: 
   }
 
   //  SINGLE DELETE 
-  const handleDeleteClick = useCallback((userId: string) => {
+  const handleDeleteClick = useCallback((userId: number) => {
     confirmAndExec(
     "⚠️ Delete User",
     "This user will be permanently deleted from the system. This action cannot be reversed.",

@@ -6,7 +6,7 @@ export type UserRole =
   | "User";
 
 export interface AppUser {
-  id: string;
+  id: number;
   name: string;
   email: string;
   role: UserRole;

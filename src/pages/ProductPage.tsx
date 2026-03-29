@@ -21,11 +21,10 @@ import {
   getProductsPaginated,
   getOpenSourceProductsPaginated,
   deleteProduct,
-  authorizeApprove,
-  authorizeToSign,
-  authorizeRelease,
   authorizeCreate,
 } from "../services/productService";
+
+import { checkStepAccess } from "../utils/workflowAccess";
 
 import { Product } from "../models/Product";
 import { useUserStore } from "../store/userStore";
@@ -33,7 +32,6 @@ import { useUserStore } from "../store/userStore";
 import AddIcon from "@mui/icons-material/Add";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SearchIcon from '@mui/icons-material/Search';
-import { ACCESS_MESSAGES } from "../constants/accessMessages";
 
 const PAGE_SIZE = 6;
 
@@ -247,98 +245,44 @@ export default function ProductPage() {
     navigate(`/product/${productId}/signature-verify`);
   }
 
-//========================================== Access Validation =======================================  
+//========================================== Access Validation =======================================
 /**
- * SECURITY SCAN CLICK HANDLER
- * 1. Role check only assigned Security-Head can scan
+ * Generic step click handler — delegates to workflowAccess utility.
+ * Single source of truth for status + role checks.
  */
-function openSecurityScanClick(p: Product) {
-  const canScan = authorizeApprove(user, p);
-  if (!canScan) {
-    confirmAndExec(
-      ACCESS_MESSAGES.ROLE_RESTRICTED_TITLE,
-      ACCESS_MESSAGES.SECURITY_HEAD_MSG,
-      ()=>{ navigateToSecurityScan(p.id)}
+function openStepClick(p: Product, stepKey: string, navigateFn: () => void) {
+  const access = checkStepAccess(stepKey, user, p);
 
-    );
+  if (access.blocked) {
+    // Hard block — show dialog, NO navigation
+    confirmAndExec(access.title, access.message, () => {});
     return;
-  } else {
-    navigateToSecurityScan(p.id);
   }
+
+  if (access.title) {
+    // Role warning — show dialog, then navigate (view-only)
+    confirmAndExec(access.title, access.message, navigateFn);
+    return;
+  }
+
+  // Fully accessible — navigate directly
+  navigateFn();
 }
 
-/**
- * CRYPTOGRAPHIC SIGN CLICK HANDLER
- * 1. Status must be "Approved" first -> BLOCK if not
- * 2. Role check only if status passes
- */
+function openSecurityScanClick(p: Product) {
+  openStepClick(p, "security-scan", () => navigateToSecurityScan(p.id));
+}
+
 function openCryptoSignClick(p: Product) {
- // Status check FIRST - BLOCK NAVIGATION
- if (p.status !== "Released" && p.status !== "Approved") {
-   confirmAndExec(
-     ACCESS_MESSAGES.SIGNING_RESTRICTED_TITLE, 
-     ACCESS_MESSAGES.SIGNING_NEEDS_APPROVAL,
-     () => {} // EMPTY - NO NAVIGATION
-   );
-   return;
- }
- 
- // Role check SECOND - only if status OK
- const canSign = authorizeToSign(user, p);
- if (!canSign) {
-   confirmAndExec(
-     ACCESS_MESSAGES.ROLE_RESTRICTED_TITLE,
-     ACCESS_MESSAGES.RELEASE_ENGINEER_SIGN_MSG,
-     () => navigateToCryptoSign(p.id)
-   );
- } else {
-   navigateToCryptoSign(p.id);
- }
+  openStepClick(p, "cryptographic-signing", () => navigateToCryptoSign(p.id));
 }
 
-/**
- * RELEASE WORKFLOW CLICK HANDLER
- * 1. Status must be "Signed" first -> BLOCK if not  
- * 2. Role check only if status passes
- */
 function openReleaseWorkflowClick(p: Product) {
- // Status check FIRST - BLOCK NAVIGATION
- if (p.status !== "Released" && p.status !== "Signed") {
-   confirmAndExec(
-     ACCESS_MESSAGES.RELEASE_RESTRICTED_TITLE,
-     ACCESS_MESSAGES.RELEASE_NEEDS_SIGNING,
-     () => {} // EMPTY - NO NAVIGATION
-   );
-   return;
- }
-
- // Role check SECOND - only if status OK
- const canRelease = authorizeRelease(user, p);
- if (!canRelease) {
-   confirmAndExec(
-     ACCESS_MESSAGES.ROLE_RESTRICTED_TITLE,
-     ACCESS_MESSAGES.RELEASE_ENGINEER_RELEASE_MSG,
-     () => navigateToRelease(p.id)
-   );
- } else {
-   navigateToRelease(p.id);
- }
+  openStepClick(p, "releases", () => navigateToRelease(p.id));
 }
 
-/**
- * SIGNATURE VERIFY CLICK HANDLER
- * Status must be "Released" first -> BLOCK if not
- */
 function openSignatureVerifyClick(p: Product) {
- if (p.status !== "Released") {
-   confirmAndExec(
-     ACCESS_MESSAGES.VERIFY_RESTRICTED_TITLE,
-     ACCESS_MESSAGES.VERIFY_NEEDS_RELEASE,
-     () => {} // EMPTY - NO NAVIGATION
-   );
-   return;
- }
- navigateToSignatureVerify(p.id);
+  openStepClick(p, "signature-verify", () => navigateToSignatureVerify(p.id));
 }
 
 //========================================== Access Validation End =======================================

@@ -43,9 +43,11 @@ const createApiError = (error: AxiosError, defaultMessage: string): ApiError => 
 };
 
 // ===================== IN-MEMORY DATA =====================
+let nextDemoId = 7; // counter for demo user ID generation
+
 let demoUsers: AppUser[] = [
   {
-    id: "u1",
+    id: 1,
     name: "Admin",
     email: "admin@gmail.com",
     role: "Admin",
@@ -53,7 +55,7 @@ let demoUsers: AppUser[] = [
     createdAt: new Date().toISOString().split('T')[0],
   },
   {
-    id: "u2",
+    id: 2,
     name: "Director",
     email: "director@gmail.com",
     role: "ProjectDirector",
@@ -61,7 +63,7 @@ let demoUsers: AppUser[] = [
     createdAt: new Date().toISOString().split('T')[0],
   },
   {
-    id: "u3",
+    id: 3,
     name: "SecHead",
     email: "security@gmail.com",
     role: "SecurityHead",
@@ -69,7 +71,7 @@ let demoUsers: AppUser[] = [
     createdAt: new Date().toISOString().split('T')[0],
   },
   {
-    id: "u4",
+    id: 4,
     name: "Eng",
     email: "engineer@gmail.com",
     role: "ReleaseEngineer",
@@ -77,18 +79,18 @@ let demoUsers: AppUser[] = [
     createdAt: new Date().toISOString().split('T')[0],
   },
   {
-    id: "u5",
+    id: 5,
     name: "Normal",
     email: "user@gmail.com",
     role: "User",
     createdAt: new Date().toISOString().split('T')[0],
   },
   {
-    id: "u6",
+    id: 6,
     name: "Paid User",
     email: "paiduser@gmail.com",
     role: "User",
-    licenseActivatedBy: "u1",
+    licenseActivatedBy: "admin@gmail.com",
     licenseActivatedOn: "2026-01-21",
     licenseExpiredOn: "2027-01-21",
     createdAt: new Date().toISOString().split('T')[0],
@@ -138,7 +140,7 @@ export async function register(name: string, email: string, password: string): P
       return { data: {} as AppUser, error: { message: "Email already exists" } };
     }
     const user: AppUser = {
-      id: crypto.randomUUID(),
+      id: nextDemoId++,
       name,
       email,
       role: "User" as UserRole,
@@ -234,7 +236,7 @@ export async function getInternalUsers(): Promise<{ data: AppUser[]; error: ApiE
 }
 
 //  SINGLE UPDATE
-export async function updateUser(userId: string, updates: Partial<UpdateUserRequest>): Promise<{ data: AppUser; error: ApiError | null }> {
+export async function updateUser(userId: number, updates: Partial<UpdateUserRequest>): Promise<{ data: AppUser; error: ApiError | null }> {
   if (!USE_BACKEND) {
     const index = demoUsers.findIndex((u) => u.id === userId);
     if (index === -1) {
@@ -251,7 +253,7 @@ export async function updateUser(userId: string, updates: Partial<UpdateUserRequ
       licenseActivatedOn: updates.licenseActivatedOn || currentUser.licenseActivatedOn,
       licenseExpiredOn: updates.licenseExpiredOn || currentUser.licenseExpiredOn,
       lastModifiedAt: new Date().toISOString().split('T')[0],
-      modifiedBy: updates.modifiedBy || useUserStore.getState().user?.id || "admin",
+      modifiedBy: updates.modifiedBy || useUserStore.getState().user?.email || "admin",
     };
     return { data: { ...demoUsers[index], licenseValid: isLicenseValid(demoUsers[index]) }, error: null };
   }
@@ -274,7 +276,7 @@ export async function updateUser(userId: string, updates: Partial<UpdateUserRequ
 }
 
 // DELETE SINGLE
-export async function deleteUser(userId: string): Promise<{ success: boolean; error: ApiError | null }> {
+export async function deleteUser(userId: number): Promise<{ success: boolean; error: ApiError | null }> {
   if (!USE_BACKEND) {
     const index = demoUsers.findIndex((u) => u.id === userId);
     if (index === -1) {
@@ -293,7 +295,7 @@ export async function deleteUser(userId: string): Promise<{ success: boolean; er
 }
 
 //  BULK DELETE
-export async function deleteUsers(userIds: string[]): Promise<{ success: boolean; error: ApiError | null }> {
+export async function deleteUsers(userIds: number[]): Promise<{ success: boolean; error: ApiError | null }> {
   if (!USE_BACKEND) {
     const initialCount = demoUsers.length;
     demoUsers = demoUsers.filter((u) => !userIds.includes(u.id));

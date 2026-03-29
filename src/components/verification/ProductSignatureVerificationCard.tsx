@@ -19,6 +19,7 @@ import ErrorIcon from "@mui/icons-material/Error";
 
 import { toast } from "react-hot-toast";
 import { platform } from "../../platform";
+import { getGatewayUrl } from "../../services/ipfsService";
 
 type ScanStatus = "idle" | "running" | "success" | "failed" | "valid" | "invalid";
 
@@ -322,13 +323,30 @@ export default function ProductSignatureVerificationCard({
                 <Box sx={{ p: 2, bgcolor: 'rgba(33, 150, 243, 0.08)', borderRadius: 1, border: '1px solid rgba(33, 150, 243, 0.2)', cursor: 'pointer' }}
                   onClick={async () => {
                     try {
-                      await platform.openFilePath(savedPublicKeyPath);
+                      if (savedPublicKeyPath.startsWith("ipfs://")) {
+                        const url = getGatewayUrl(savedPublicKeyPath);
+                        const res = await fetch(url);
+                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                        const blob = await res.blob();
+                        const blobUrl = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = blobUrl;
+                        a.download = `${productName}-public-key.pub`;
+                        a.click();
+                        URL.revokeObjectURL(blobUrl);
+                        toast.success("Public key downloaded");
+                      } else {
+                        await platform.openFilePath(savedPublicKeyPath);
+                      }
                     } catch (error) {
-                      toast.error("Failed to open file");
+                      toast.error("Failed to download/open public key file");
                     }
                   }}>
                   <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 1.5, color: '#2196f3', fontFamily: 'monospace' }}>
                     <VpnKeyIcon sx={{ fontSize: 18 }} /> 🔓 {savedPublicKeyPath}
+                    {savedPublicKeyPath.startsWith("ipfs://") && (
+                      <DownloadIcon sx={{ fontSize: 16, ml: 0.5 }} />
+                    )}
                   </Typography>
                 </Box>
               )}
@@ -336,13 +354,30 @@ export default function ProductSignatureVerificationCard({
                 <Box sx={{ p: 2, bgcolor: `${borderColor}08`, borderRadius: 1, border: `1px solid ${borderColor}20`, cursor: 'pointer' }}
                   onClick={async () => {
                     try {
-                      await platform.openFilePath(savedSignaturePath);
+                      if (savedSignaturePath.startsWith("ipfs://")) {
+                        const url = getGatewayUrl(savedSignaturePath);
+                        const res = await fetch(url);
+                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                        const blob = await res.blob();
+                        const blobUrl = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = blobUrl;
+                        a.download = `${productName}-signature.sig`;
+                        a.click();
+                        URL.revokeObjectURL(blobUrl);
+                        toast.success("Signature file downloaded");
+                      } else {
+                        await platform.openFilePath(savedSignaturePath);
+                      }
                     } catch (error) {
-                      toast.error("Failed to open file");
+                      toast.error("Failed to download/open signature file");
                     }
                   }}>
                   <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 1.5, color: borderColor, fontFamily: 'monospace' }}>
                     <CheckCircleIcon sx={{ fontSize: 18 }} /> ✅ {savedSignaturePath}
+                    {savedSignaturePath.startsWith("ipfs://") && (
+                      <DownloadIcon sx={{ fontSize: 16, ml: 0.5 }} />
+                    )}
                   </Typography>
                 </Box>
               )}
