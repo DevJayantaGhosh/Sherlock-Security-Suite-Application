@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Paper, Stack, Typography, Chip } from '@mui/material';
+import { Box, Paper, Stack, Typography } from '@mui/material';
 import { motion } from 'framer-motion';
 
 
@@ -107,13 +107,6 @@ const QuickHeader: React.FC<QuickHeaderProps> = ({
       }}
     />
   );
-
-  const hexToRgb = (hex: string): string => {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result 
-      ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}`
-      : '255,255,255';
-  };
 
   return (
     <Paper sx={{ 

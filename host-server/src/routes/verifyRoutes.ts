@@ -6,6 +6,8 @@
 
 import { Router, Request, Response } from "express";
 import { spawn } from "child_process";
+import fs from "fs/promises";
+import path from "path";
 import { v4 as uuid } from "uuid";
 
 import { emitLog, emitComplete, sseEvents } from "../services/sseManager.js";
@@ -91,6 +93,11 @@ async function runVerification(params: {
     emitComplete(scanId, { success: false, verified: false, error: "Repository preparation failed" });
     return;
   }
+
+  // Remove .git directory so the verifier hashes only source content,
+  // not git metadata (which differs between branch-clone and tag-clone).
+  const gitDir = path.join(repoPath, ".git");
+  try { await fs.rm(gitDir, { recursive: true, force: true }); } catch { /* ignore */ }
 
   const args: string[] = [
     "verify",

@@ -105,8 +105,6 @@ export default function ProductSignatureVerificationPage() {
             productVersion={product.version}
             githubToken=""
             borderColor="#4caf50"
-            savedPublicKeyPath={product.publicKeyFilePath}
-            savedSignaturePath={product.signatureFilePath}
           />
 
           {/* Workflow Navigation */}

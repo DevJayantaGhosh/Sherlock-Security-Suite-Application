@@ -15,7 +15,7 @@ import RepoScanAccordion from "../components/security/RepoScanAccordion";
 import DependencyAudit from "../components/security/DependencyAudit";
 import BlockchainInscriptionCard from "../components/blockchain/BlockchainInscriptionCard";
 import ProductWorkflowNav from "../components/products/ProductWorkflowNav";
-import { Product, RepoDetails, ProductStatus } from "../models/Product";
+import { Product, RepoDetails } from "../models/Product";
 import { motion, Variants } from "framer-motion";
 import { ACCESS_MESSAGES } from "../constants/accessMessages";
 
@@ -57,22 +57,6 @@ const headerVariants: Variants = {
     transition: {
       duration: 0.6,
       ease: [0.4, 0, 0.2, 1],
-    },
-  },
-};
-
-const buttonGroupVariants: Variants = {
-  hidden: { 
-    opacity: 0, 
-    scale: 0.9,
-  },
-  visible: {
-    opacity: 1,
-    scale: 1,
-    transition: {
-      duration: 0.5,
-      ease: [0.4, 0, 0.2, 1],
-      delay: 0.3,
     },
   },
 };
@@ -187,7 +171,7 @@ if (isViewOnlyMode) {
   // Blockchain inscription callback — fires after BlockchainInscriptionCard
   // has already inscribed on-chain AND updated the product in the DB.
   // Stay on the page and refresh product details to reflect the new status.
-  const handleBlockchainDecision = async (status: "Approved" | "Rejected", remark: string) => {
+  const handleBlockchainDecision = async (status: "Approved" | "Rejected", _remark: string) => {
     toast(`Product ${status} — decision permanently inscribed on Hedera Hashgraph`, "success");
 
     // Reload the product to reflect the updated status, scan report URL, etc.

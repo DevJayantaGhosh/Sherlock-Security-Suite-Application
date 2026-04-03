@@ -46,7 +46,7 @@ export default function VerificationRepoConfigForm({
   onReset,
   isLoading,
   isConfigured,
-  repoDetails,
+  repoDetails: _repoDetails,
   themeColor = 'default'
 }: VerificationRepoConfigProps) {
   const theme = PAGE_CONFIG[themeColor as keyof typeof PAGE_CONFIG];

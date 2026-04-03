@@ -1454,6 +1454,11 @@ ${"═".repeat(79)}
       return { success: false, error: "Repository preparation failed" };
     }
 
+    // Remove .git directory so the signer hashes only source content,
+    // not git metadata (which differs between branch-clone and tag-clone).
+    const signerGitDir = path.join(repoPath, ".git");
+    try { await fs.rm(signerGitDir, { recursive: true, force: true }); } catch { /* ignore */ }
+
     return new Promise((resolve) => {
       // Log (SECURE: Password not shown)
       event.sender.send(`scan-log:${scanId}`, {
@@ -1747,6 +1752,11 @@ ${"═".repeat(80)}
       event.sender.send(`scan-complete:${scanId}`, { success: false, error: "Clone failed" });
       return { success: false, error: `Failed to clone repository at tag ${version}` };
     }
+
+    // Remove .git directory so the verifier hashes only source content,
+    // not git metadata (which differs between branch-clone and tag-clone).
+    const verifierGitDir = path.join(repoPath, ".git");
+    try { await fs.rm(verifierGitDir, { recursive: true, force: true }); } catch { /* ignore */ }
 
     return new Promise((resolve) => {
       event.sender.send(`scan-log:${scanId}`, {

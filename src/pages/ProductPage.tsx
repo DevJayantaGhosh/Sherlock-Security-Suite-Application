@@ -63,7 +63,7 @@ export default function ProductPage() {
    * Loading and error states
    */
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [_error, setError] = useState<string | null>(null);
   const [isBackendError, setIsBackendError] = useState(false);
   const [backendErrorShown, setBackendErrorShown] = useState(false);
 

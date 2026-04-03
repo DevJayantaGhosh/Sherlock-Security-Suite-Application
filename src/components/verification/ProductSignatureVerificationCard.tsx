@@ -19,7 +19,6 @@ import ErrorIcon from "@mui/icons-material/Error";
 
 import { toast } from "react-hot-toast";
 import { platform } from "../../platform";
-import { getGatewayUrl } from "../../services/ipfsService";
 
 type ScanStatus = "idle" | "running" | "success" | "failed" | "valid" | "invalid";
 
@@ -36,8 +35,6 @@ interface ProductSignatureVerificationCardProps {
   productVersion: string;
   githubToken: string;
   borderColor?: string;
-  savedPublicKeyPath?: string;
-  savedSignaturePath?: string;
 }
 
 export default function ProductSignatureVerificationCard({
@@ -46,8 +43,7 @@ export default function ProductSignatureVerificationCard({
   productVersion,
   githubToken,
   borderColor = "#4caf50",
-  savedPublicKeyPath,
-  savedSignaturePath
+
 }: ProductSignatureVerificationCardProps) {
   const [publicKeyPath, setPublicKeyPath] = useState("");
   const [signaturePath, setSignaturePath] = useState("");
@@ -192,25 +188,36 @@ export default function ProductSignatureVerificationCard({
     setCurrentRepoIndex(0);
     setVerifiedCount(0);
 
-    const completeCleanup = platform.onScanComplete(scanId, (completeData) => {
-      const newStatus = completeData.success ? "success" : "failed";
-      setStatus(newStatus);
-      setVerificationStatus(completeData.success ? "valid" : "invalid");
-      setProgress(100);
-      cleanupListeners();
-    });
-    completeCleanupRef.current = completeCleanup;
-
     // Sequential verification
+    let successCount = 0;
+    let wasCancelled = false;
+
     for (let i = 0; i < repoDetailsList.length; i++) {
-      if (!scanIdRef.current) break; // Cancelled
+      if (!scanIdRef.current) { wasCancelled = true; break; } // Cancelled
 
       const success = await verifySingleRepo(i);
-      if (success) setVerifiedCount(prev => prev + 1);
-
-      if (i < repoDetailsList.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+      if (success) {
+        successCount++;
+        setVerifiedCount(prev => prev + 1);
       }
+
+    }
+
+    // ── Finalize after all repos are processed ──
+    if (!wasCancelled) {
+      const allVerified = successCount === repoDetailsList.length;
+      setStatus(allVerified ? "success" : "failed");
+      setVerificationStatus(allVerified ? "valid" : "invalid");
+      setProgress(100);
+
+      const summaryMsg = `\n${"═".repeat(80)}\n` +
+        `📊 VERIFICATION COMPLETE: ${successCount}/${repoDetailsList.length} repositories verified\n` +
+        `${allVerified ? "✅ ALL SIGNATURES VALID" : "❌ SOME SIGNATURES FAILED"}\n` +
+        `${"═".repeat(80)}\n`;
+      setLogs(prev => [...prev, summaryMsg]);
+      logsRef.current.push(summaryMsg);
+
+      cleanupListeners();
     }
   };
 

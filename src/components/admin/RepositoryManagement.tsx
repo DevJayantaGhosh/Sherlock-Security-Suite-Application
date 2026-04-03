@@ -22,7 +22,6 @@ import {
   DialogActions,
   Switch,
   FormControlLabel,
-  Divider,
   TableContainer,
   Pagination
 } from "@mui/material";
@@ -35,7 +34,6 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 
 import { useEffect, useState, useCallback } from "react";
 import toast from "react-hot-toast";
-import { useUserStore } from "../../store/userStore";
 import {
   getReposPaginated,
   getOpenSourceReposPaginated,
@@ -49,7 +47,7 @@ import { AppUser } from "../../models/User";
 
 export default function RepositoryManagement({ user }: { user: AppUser | null }) {
   const [repos, setRepos] = useState<Repo[]>([]);
-  const [totalItems, setTotalItems] = useState(0);
+  const [, setTotalItems] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);

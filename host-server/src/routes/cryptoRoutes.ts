@@ -7,6 +7,8 @@
 
 import { Router, Request, Response } from "express";
 import { spawn } from "child_process";
+import fs from "fs/promises";
+import path from "path";
 import { v4 as uuid } from "uuid";
 
 import { emitLog, emitComplete, sseEvents } from "../services/sseManager.js";
@@ -163,6 +165,11 @@ async function runSignArtifact(params: {
     emitComplete(scanId, { success: false, error: "Repository preparation failed" });
     return;
   }
+
+  // Remove .git directory so the signer hashes only source content,
+  // not git metadata (which differs between branch-clone and tag-clone).
+  const gitDir = path.join(repoPath, ".git");
+  try { await fs.rm(gitDir, { recursive: true, force: true }); } catch { /* ignore */ }
 
   emitLog(scanId,
     `\n${"═".repeat(60)}\n🔏 INITIATING CRYPTOGRAPHIC SIGNING\n${"═".repeat(60)}\n\n`,

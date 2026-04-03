@@ -16,22 +16,14 @@ import {
   Stepper,
   Step,
   StepLabel,
-  Alert,
-  AlertTitle,
 } from "@mui/material";
 import {
   Home as HomeIcon,
   Security as SecurityIcon,
-  Key as KeyIcon,
-  Publish as PublishIcon,
-  Verified as VerifiedIcon,
-  AdminPanelSettings as AdminIcon,
   Engineering as EngineeringIcon,
   Fingerprint as FingerprintIcon,
   RocketLaunch as RocketLaunchIcon,
   ReceiptLong as ReceiptLongIcon,
-  Close as CloseIcon,
-  KeyboardArrowRight as ArrowRightIcon,
 } from "@mui/icons-material";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
@@ -179,7 +171,7 @@ export default function UserGuidePage() {
                 },
               }}
             >
-              {PIPELINE_STEPS.map((step, index) => {
+              {PIPELINE_STEPS.map((step, _index) => {
                 const IconComponent = step.icon;
                 return (
                   <Step key={step.label}>
@@ -200,7 +192,7 @@ export default function UserGuidePage() {
                           lineHeight: 1.4,
                         },
                       }}
-                      StepIconComponent={(props) => (
+                      StepIconComponent={(_props) => (
                         <Box
                           component={motion.div}
                           whileHover={{ scale: 1.1, y: -2 }}

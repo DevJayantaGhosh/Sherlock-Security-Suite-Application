@@ -5143,6 +5143,11 @@ Expected at: ${toolPath("SoftwareSigner")}
       });
       return { success: false, error: "Repository preparation failed" };
     }
+    const signerGitDir = path.join(repoPath, ".git");
+    try {
+      await fs.rm(signerGitDir, { recursive: true, force: true });
+    } catch {
+    }
     return new Promise((resolve) => {
       event.sender.send(`scan-log:${scanId}`, {
         log: `
@@ -5427,6 +5432,11 @@ Expected at: ${toolPath("SoftwareVerifier")}
     if (!repoPath) {
       event.sender.send(`scan-complete:${scanId}`, { success: false, error: "Clone failed" });
       return { success: false, error: `Failed to clone repository at tag ${version2}` };
+    }
+    const verifierGitDir = path.join(repoPath, ".git");
+    try {
+      await fs.rm(verifierGitDir, { recursive: true, force: true });
+    } catch {
     }
     return new Promise((resolve) => {
       event.sender.send(`scan-log:${scanId}`, {

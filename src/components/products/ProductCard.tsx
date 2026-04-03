@@ -96,14 +96,13 @@ export default function ProductCard({
     }
   };
 
-  const { progress: pipelineProgress, failed } = getPipelineState();
+  const { progress: pipelineProgress } = getPipelineState();
   const isRejected = product.status === "Rejected";
 
   /**
    * Visual completion states for button glow effects (updated indices)
    * No business logic - purely visual feedback
    */
-  const isOnboardComplete = pipelineProgress >= 1 && !isRejected;
   const isSecurityScanComplete = pipelineProgress >= 2 && !isRejected;
   const isSignComplete = pipelineProgress >= 3 && !isRejected;
   const isReleaseComplete = pipelineProgress >= 4 && !isRejected;
@@ -263,7 +262,7 @@ export default function ProductCard({
                         lineHeight: 1.5,
                       },
                     }}
-                    StepIconComponent={(props) => (
+                    StepIconComponent={(_props) => (
                       <Tooltip title={step.label}>
                         <Box
                           component={motion.div as any}

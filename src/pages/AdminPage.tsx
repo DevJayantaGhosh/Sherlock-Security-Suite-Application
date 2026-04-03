@@ -35,7 +35,7 @@ export default function AdminPage() {
    *  LOAD DATA - SILENT ON INITIAL LOAD
    * ═══════════════════════════════════════════════════════════════════════════════
    */
-  const loadData = useCallback(async (showToast = false) => {
+  const loadData = useCallback(async (_showToast = false) => {
     try {
       setLoading(true);
       

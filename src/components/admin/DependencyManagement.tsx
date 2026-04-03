@@ -10,13 +10,11 @@ import {
   TextField,
   Button,
   Paper,
-  Chip,
   CircularProgress,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  Divider,
   TableContainer,
   Pagination,
   useTheme,
@@ -30,7 +28,6 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 
 import { useEffect, useState, useCallback } from "react";
 import toast from "react-hot-toast";
-import { useUserStore } from "../../store/userStore";
 import {
   getDependenciesPaginated,
   createDependency,
@@ -45,7 +42,7 @@ export default function DependencyManagement({ user }: { user: AppUser | null })
   const isAdmin = user?.role === "Admin";
 
   const [deps, setDeps] = useState<Dependency[]>([]);
-  const [totalItems, setTotalItems] = useState(0);
+  const [, setTotalItems] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);

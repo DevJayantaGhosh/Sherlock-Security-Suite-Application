@@ -57,7 +57,7 @@ export default function RepoConfigForm({
   onReset,
   isLoading,
   isConfigured,
-  repoDetails,
+  repoDetails: _repoDetails,
   themeColor = 'default',
   hideBranchForLocal = false 
 }: RepoConfigFormProps) {
