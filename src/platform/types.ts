@@ -71,7 +71,7 @@ export interface GitleaksResult {
   findings?: number;
 }
 
-export interface TrivyResult {
+export interface VulnScanResult {
   success: boolean;
   cancelled?: boolean;
   error?: string;
@@ -125,7 +125,7 @@ export interface PlatformBridge {
   // Security scans
   verifyGPG(payload: ScanPayload): Promise<GPGResult>;
   runGitleaks(payload: ScanPayload): Promise<GitleaksResult>;
-  runTrivy(payload: ScanPayload): Promise<TrivyResult>;
+  runVulnScan(payload: ScanPayload): Promise<VulnScanResult>;
 
   // File dialogs
   selectFolder(): Promise<string | null>;

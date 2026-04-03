@@ -43,7 +43,7 @@ interface Window {
       findings?: number;
     }>;
 
-    runTrivy(payload: {
+    runVulnScan(payload: {
       repoUrl: string;
       branch: string;
       isQuickScan: boolean;

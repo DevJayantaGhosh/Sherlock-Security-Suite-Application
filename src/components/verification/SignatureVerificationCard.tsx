@@ -389,7 +389,7 @@ export default function SignatureVerificationCard({
             </Box>
           )}
         </DialogTitle>
-        <DialogContent sx={{ height: "60vh", p: 3, bgcolor: "#1a1a1a", overflow: "auto" }}>
+        <DialogContent sx={{ height: "60vh", p: 3, pt: 3,bgcolor: "#1a1a1a", overflow: "auto" }}>
           <Box sx={{ fontFamily: "monospace", fontSize: 12, lineHeight: 1.5, color: "#e0e0e0", whiteSpace: "pre-wrap" }}>
             {logs.map((log, i) => (
               <Typography key={i} component="pre" sx={{ m: 0, fontSize: 12 }}>

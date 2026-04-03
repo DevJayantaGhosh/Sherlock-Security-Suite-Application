@@ -10,7 +10,7 @@
 Sherlock Security Suite is a security platform for software supply chain integrity. It runs as:
 
 - **Desktop Mode** — Electron app with local IPC for native OS access  
-- **Web Mode** — Browser SPA backed by a Node.js host-server via REST + SSE  
+- **Web Mode** — Browser SPA backed by a Node.js host-server via REST & SSE  
 
 Both modes share the **same React frontend**. A platform abstraction layer auto-detects the environment and routes all operations through the correct backend.
 
@@ -48,7 +48,7 @@ Both modes share the **same React frontend**. A platform abstraction layer auto-
 │  │  ┌───────────────┐  │      │  ┌────────────────────┐  │         │
 │  │  │   Electron    │  │      │  │    Host-Server     │  │         │
 │  │  │   Main Proc   │  │      │  │    (Express.js)    │  │         │
-│  │  │     (IPC)     │  │      │  │    REST + SSE      │  │         │
+│  │  │     (IPC)     │  │      │  │    REST & SSE      │  │         │
 │  │  └───────┬───────┘  │      │  └──────────┬─────────┘  │         │
 │  │          │          │      │             │            │         │
 │  └──────────┼──────────┘      └─────────────┼────────────┘         │
@@ -89,7 +89,7 @@ Both modes share the **same React frontend**. A platform abstraction layer auto-
 |---|---|
 | **GPG Commit Verification** | Verify signed commits across a repository's history |
 | **Secret Leak Detection** | Scan repos for exposed credentials using Gitleaks |
-| **Vulnerability Scanning** | SBOM generation + CVE detection |
+| **Vulnerability Scanning** | SBOM generation & CVE detection |
 | **Key Generation** | RSA/ECDSA key pair generation for signing |
 | **Digital Signing** | Cryptographically sign software artifacts |
 | **Signature Verification** | Verify artifact signatures with public keys |
@@ -200,7 +200,7 @@ UI components call `platform.*` — they never know which mode is active.
      │                     │     git clone       │
      │                     │                     │
      │                     │  5. emitLog() →     │
-     │                     │    buffer + emit    │
+     │                     │    buffer & emit    │
      │                     │                     │
      │  6. SSE connected   │                     │
      │◄─ ─ ─ ─ ─ ─ ─ ─ ─ ─ │                     │
@@ -320,7 +320,7 @@ Platform-specific binaries are bundled under `tools/`:
 |---|---|---|
 | **GPG Signed Commit Verifier** | Verify GPG-signed commits | Win, macOS, Linux |
 | **GitLeaks** | Secret/credential leak detection | Win, macOS, Linux |
-| **VulnerabilityScanner** | Vulnerability scanner + SBOM | Win, macOS, Linux |
+| **VulnerabilityScanner** | Vulnerability scanner & SBOM | Win, macOS, Linux |
 | **KeyGen** | RSA/ECDSA key pair generation | Win, macOS, Linux |
 | **SoftwareSigner** | Artifact digital signing | Win, macOS, Linux |
 | **SoftwareVerifier** | Signature verification | Win, macOS, Linux |

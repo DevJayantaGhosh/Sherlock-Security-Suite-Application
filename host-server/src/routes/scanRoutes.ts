@@ -3,7 +3,7 @@
  *
  * POST /api/scan/verify-gpg      — GPG commit signature verification
  * POST /api/scan/secrets         — Secrets & credential detection (gitleaks)
- * POST /api/scan/vulnerability   — SBOM & vulnerability scan (trivy)
+ * POST /api/scan/vulnerability   — SBOM & vulnerability scan
  * POST /api/scan/cancel          — Cancel a running scan
  */
 
@@ -293,7 +293,7 @@ ${"═".repeat(79)}
 }
 
 /* ================================================================
-   Trivy — SBOM & Vulnerability Scan
+   Vulnerability Scan — SBOM & Vulnerability Scan
    Payload: { repoUrl, branch, isQuickScan, githubToken, scanId }
 ================================================================ */
 
@@ -306,8 +306,45 @@ scanRouter.post("/vulnerability", (req: Request, res: Response) => {
   res.json({ scanId, started: true });
 });
 
-/* Helper: Format Trivy Results */
-function formatTrivyReport(results: any): string {
+/* Helper: Format SBOM (Software Bill of Materials) */
+function formatSbomReport(results: any): string {
+  if (!results.Results || results.Results.length === 0) return "";
+
+  let report = "\n📦 SOFTWARE BILL OF MATERIALS (SBOM)\n";
+  report += "════════════════════════════════════════════════════════════\n";
+
+  let totalPkgs = 0;
+
+  results.Results.forEach((target: any) => {
+    const pkgs = target.Packages;
+    if (pkgs && pkgs.length > 0) {
+      report += `\n📂 Target: ${target.Target}\n`;
+      report += `   Type:   ${target.Type || "N/A"}    Packages: ${pkgs.length}\n`;
+      report += "   ────────────────────────────────────────────────────────\n";
+
+      pkgs.forEach((pkg: any) => {
+        report += `   📦 ${pkg.Name}  v${pkg.Version || "N/A"}`;
+        if (pkg.Licenses && pkg.Licenses.length > 0) {
+          report += `  [${pkg.Licenses.join(", ")}]`;
+        }
+        report += "\n";
+      });
+
+      totalPkgs += pkgs.length;
+    }
+  });
+
+  if (totalPkgs === 0) {
+    report += "\n   No packages detected.\n";
+  } else {
+    report += `\n   ── Total Packages: ${totalPkgs} ──\n`;
+  }
+
+  return report;
+}
+
+/* Helper: Format Vulnerability Scan Results */
+function formatVulnReport(results: any): string {
   if (!results.Results || results.Results.length === 0) return "";
 
   let report = "\n🔎 DETAILED VULNERABILITY REPORT\n";
@@ -345,12 +382,12 @@ async function runVulnerabilityScan(params: {
 }) {
   const { repoUrl, branch, isQuickScan, githubToken, scanId } = params;
 
-  emitLog(scanId, `\n${"═".repeat(60)}\n🚨 SBOM & VULNERABILITY SCAN\n${"═".repeat(60)}\n\n`, 2);
+  emitLog(scanId, `\n${"═".repeat(60)}\n🚨 SBOM & Vulnerability Scan 🚨\n${"═".repeat(60)}\n\n`, 2);
   emitLog(scanId, `🔹 Repository : ${repoUrl || "N/A"}\n🔹 Branch     : ${branch || "N/A"}\n\n`, 3);
 
-  const trivyPath = validateTool("trivy");
-  if (!trivyPath) {
-    emitComplete(scanId, { success: false, error: "trivy not found" });
+  const vulnScanPath = validateTool("trivy");
+  if (!vulnScanPath) {
+    emitComplete(scanId, { success: false, error: "Vulnerability scanner not found" });
     return;
   }
 
@@ -362,12 +399,12 @@ async function runVulnerabilityScan(params: {
     return;
   }
 
-  emitLog(scanId, `\n${"═".repeat(60)}\n🛡️ SBOM & VULNERABILITY SCAN\n${"═".repeat(60)}\n\n`, 52);
+  emitLog(scanId, `\n${"═".repeat(60)}\n🚨 SBOM & Vulnerability Scan 🚨\n${"═".repeat(60)}\n\n`, 52);
   emitLog(scanId, `🔍 Analyzing dependencies and security vulnerabilities...\n📦 Building Software Bill of Materials (SBOM)...\n\n`, 55);
 
   const child = spawn(
-    trivyPath,
-    ["fs", "--scanners", "vuln,misconfig", "--format", "json", repoPath],
+    vulnScanPath,
+    ["fs", "--scanners", "vuln,secret,misconfig", "--list-all-pkgs", "--skip-version-check", "--format", "json", repoPath],
     {
       detached: process.platform !== "win32",
       stdio: ["ignore", "pipe", "pipe"],
@@ -423,8 +460,12 @@ async function runVulnerabilityScan(params: {
           }
         }
 
-        // Send detailed report (matching Electron)
-        const detailedReport = formatTrivyReport(results);
+        // SBOM report
+        const sbomReport = formatSbomReport(results);
+        emitLog(scanId, sbomReport, 90);
+
+        // detailed vulnerability report
+        const detailedReport = formatVulnReport(results);
         emitLog(scanId, detailedReport, 95);
 
         const summary = `
@@ -449,10 +490,10 @@ ${"═".repeat(79)}
         emitLog(scanId, summary, 100);
         emitComplete(scanId, { success: true, vulnerabilities: vulns, critical, high, medium, low });
       } catch {
-        emitComplete(scanId, { success: false, error: "Failed to parse Trivy results" });
+        emitComplete(scanId, { success: false, error: "Failed to parse vulnerability scan results" });
       }
     } else {
-      emitComplete(scanId, { success: false, error: `Trivy exited with code ${code}` });
+      emitComplete(scanId, { success: false, error: `Vulnerability scanner exited with code ${code}` });
     }
   });
 

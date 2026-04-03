@@ -14,7 +14,7 @@ import type {
   ScanCompleteData,
   GPGResult,
   GitleaksResult,
-  TrivyResult,
+  VulnScanResult,
   GenericResult,
   VerifyResult,
 } from "./types";
@@ -86,8 +86,8 @@ export const hostServerBridge: PlatformBridge = {
     return post<GitleaksResult>("/api/scan/secrets", payload);
   },
 
-  runTrivy(payload: ScanPayload): Promise<TrivyResult> {
-    return post<TrivyResult>("/api/scan/vulnerability", payload);
+  runVulnScan(payload: ScanPayload): Promise<VulnScanResult> {
+    return post<VulnScanResult>("/api/scan/vulnerability", payload);
   },
 
   // ── File Dialogs (not available in web mode) ────────────

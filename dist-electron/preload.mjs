@@ -10,8 +10,8 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
   verifyGPG: (payload) => electron.ipcRenderer.invoke("scan:verify-gpg", payload),
   // Gitleaks Scan
   runGitleaks: (payload) => electron.ipcRenderer.invoke("scan:gitleaks", payload),
-  // Trivy Scan
-  runTrivy: (payload) => electron.ipcRenderer.invoke("scan:trivy", payload),
+  // Vulnerability Scan
+  runVulnScan: (payload) => electron.ipcRenderer.invoke("scan:vulnscan", payload),
   // Cryptographic Signing Workflow
   selectFolder: () => electron.ipcRenderer.invoke("dialog:select-folder"),
   selectFile: () => electron.ipcRenderer.invoke("dialog:select-file"),

@@ -14,7 +14,7 @@ import type {
   ScanCompleteData,
   GPGResult,
   GitleaksResult,
-  TrivyResult,
+  VulnScanResult,
   GenericResult,
   VerifyResult,
 } from "./types";
@@ -31,8 +31,8 @@ export const electronBridge: PlatformBridge = {
     return window.electronAPI.runGitleaks(payload);
   },
 
-  runTrivy(payload: ScanPayload): Promise<TrivyResult> {
-    return window.electronAPI.runTrivy(payload);
+  runVulnScan(payload: ScanPayload): Promise<VulnScanResult> {
+    return window.electronAPI.runVulnScan(payload);
   },
 
   // ── File Dialogs ────────────────────────────────────────

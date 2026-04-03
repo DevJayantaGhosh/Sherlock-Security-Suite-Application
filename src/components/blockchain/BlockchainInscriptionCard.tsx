@@ -171,9 +171,13 @@ export default function BlockchainInscriptionCard({ variants, product, disabled,
       const { data: res, error } = await inscribeOnLedger(snap);
       if (error) { setErr(error.message); setInscribing(false); toast(error.message, "error"); return; }
       setStep(2); setStep(3);
-      const upd: Partial<Product> = { status: status as any, [cfg.reportField]: res.hashScanUrl,
-        remark: remark.trim() ? `${remark.trim()} | Tx:${res.txHash.slice(0, 20)}… Block:${res.blockNumber}` : `Hedera Tx:${res.txHash.slice(0, 20)}… Block:${res.blockNumber}` };
-      const { error: de } = await updateProduct(product.id, upd);
+      const upd = {
+        ...product,
+        status: status as any,
+        [cfg.reportField]: res.hashScanUrl,
+        remark: remark.trim() ? `${remark.trim()} | Tx:${res.txHash.slice(0, 20)}… Block:${res.blockNumber}` : `Hedera Tx:${res.txHash.slice(0, 20)}… Block:${res.blockNumber}`,
+      };
+      const { error: de } = await updateProduct(upd);
       if (de) toast(`Chain OK, DB failed: ${de.message}`, "warning");
       setStep(4); toast(`Inscribed! Tx: ${res.txHash.slice(0, 16)}…`, "success");
       setDone(true); setUrl(res.hashScanUrl);

@@ -7,6 +7,7 @@ import fsSync from "fs";
 import require$$1 from "path";
 import require$$2 from "os";
 import require$$3 from "crypto";
+import https from "node:https";
 function getDefaultExportFromCjs(x) {
   return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, "default") ? x["default"] : x;
 }
@@ -3928,6 +3929,7 @@ const envPaths = [
 ];
 dotenv.config({ path: envPaths.find((p) => fsSync.existsSync(p)) });
 console.log("✅ .env loaded:", process.env.GITHUB_PAT ? "GITHUB_PAT found" : "No token");
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 let win = null;
 let splash = null;
 const activeProcesses = /* @__PURE__ */ new Map();
@@ -4776,7 +4778,40 @@ ${"═".repeat(79)}
       });
     });
   });
-  function formatTrivyReport(results) {
+  function formatSbomReport(results) {
+    if (!results.Results || results.Results.length === 0) return "";
+    let report = "\n📦 SOFTWARE BILL OF MATERIALS (SBOM)\n";
+    report += "════════════════════════════════════════════════════════════\n";
+    let totalPkgs = 0;
+    results.Results.forEach((target) => {
+      const pkgs = target.Packages;
+      if (pkgs && pkgs.length > 0) {
+        report += `
+📂 Target: ${target.Target}
+`;
+        report += `   Type:   ${target.Type || "N/A"}    Packages: ${pkgs.length}
+`;
+        report += "   ────────────────────────────────────────────────────────\n";
+        pkgs.forEach((pkg) => {
+          report += `   📦 ${pkg.Name}  v${pkg.Version || "N/A"}`;
+          if (pkg.Licenses && pkg.Licenses.length > 0) {
+            report += `  [${pkg.Licenses.join(", ")}]`;
+          }
+          report += "\n";
+        });
+        totalPkgs += pkgs.length;
+      }
+    });
+    if (totalPkgs === 0) {
+      report += "\n   No packages detected.\n";
+    } else {
+      report += `
+   ── Total Packages: ${totalPkgs} ──
+`;
+    }
+    return report;
+  }
+  function formatVulnReport(results) {
     if (!results.Results || results.Results.length === 0) return "";
     let report = "\n🔎 DETAILED VULNERABILITY REPORT\n";
     report += "════════════════════════════════════════════════════════════\n";
@@ -4806,13 +4841,13 @@ ${"═".repeat(79)}
     });
     return report;
   }
-  ipcMain.handle("scan:trivy", async (event, { repoUrl, branch, isQuickScan, githubToken, scanId }) => {
-    debugLog(`[TRIVY] Starting SBOM scan for ${repoUrl}`);
-    const trivyPath = validateTool("trivy");
-    if (!trivyPath) {
+  ipcMain.handle("scan:vulnscan", async (event, { repoUrl, branch, isQuickScan, githubToken, scanId }) => {
+    debugLog(`[VULN-SCAN] Starting SBOM scan for ${repoUrl}`);
+    const vulnScanPath = validateTool("trivy");
+    if (!vulnScanPath) {
       event.sender.send(`scan-log:${scanId}`, {
         log: `
-❌ Trivy tool not found
+❌ Vulnerability scanner tool not found
    Expected: ${toolPath("trivy")}
 
 `,
@@ -4836,7 +4871,7 @@ ${"═".repeat(79)}
       event.sender.send(`scan-log:${scanId}`, {
         log: `
 ${"═".repeat(60)}
-🛡️ TRIVY SBOM & VULNERABILITY SCAN
+🚨 SBOM & Vulnerability Scan 🚨
 ${"═".repeat(60)}
 
 `,
@@ -4850,8 +4885,8 @@ ${"═".repeat(60)}
         progress: 55
       });
       const child = spawn(
-        trivyPath,
-        ["fs", "--scanners", "vuln,misconfig", "--format", "json", repoPath],
+        vulnScanPath,
+        ["fs", "--scanners", "vuln,secret,misconfig", "--list-all-pkgs", "--skip-version-check", "--format", "json", repoPath],
         {
           detached: true,
           stdio: ["ignore", "pipe", "pipe"],
@@ -4908,7 +4943,12 @@ ${"═".repeat(60)}
                 }
               }
             }
-            const detailedReport = formatTrivyReport(results);
+            const sbomReport = formatSbomReport(results);
+            event.sender.send(`scan-log:${scanId}`, {
+              log: sbomReport,
+              progress: 90
+            });
+            const detailedReport = formatVulnReport(results);
             event.sender.send(`scan-log:${scanId}`, {
               log: detailedReport,
               progress: 95
@@ -4945,19 +4985,19 @@ ${"═".repeat(79)}
             });
             resolve({ success: true, vulnerabilities: vulns });
           } catch (err) {
-            console.error("Trivy Parse Error:", err);
+            console.error("Vulnerability Scan Parse Error:", err);
             event.sender.send(`scan-complete:${scanId}`, {
               success: false,
-              error: "Failed to parse Trivy results"
+              error: "Failed to parse vulnerability scan results"
             });
-            resolve({ success: false, error: "Failed to parse Trivy results" });
+            resolve({ success: false, error: "Failed to parse vulnerability scan results" });
           }
         } else {
           event.sender.send(`scan-complete:${scanId}`, {
             success: false,
-            error: `Trivy exited with code ${code}`
+            error: `Vulnerability scanner exited with code ${code}`
           });
-          resolve({ success: false, error: `Trivy exited with code ${code}` });
+          resolve({ success: false, error: `Vulnerability scanner exited with code ${code}` });
         }
       });
       child.on("error", (err) => {
@@ -4970,7 +5010,7 @@ ${"═".repeat(79)}
       });
       ipcMain.once(`scan:cancel-${scanId}`, () => {
         cancelled = true;
-        debugLog(`Cancelling Trivy scan: ${scanId}`);
+        debugLog(`Cancelling vulnerability scan: ${scanId}`);
         killProcess(child, scanId);
         activeProcesses.delete(scanId);
         resolve({ success: false, cancelled: true });
@@ -5242,7 +5282,11 @@ ${"═".repeat(70)}
 `,
       progress: 20
     });
-    const octokit = new Octokit2({ auth: token });
+    const sslAgent = new https.Agent({ rejectUnauthorized: false });
+    const octokit = new Octokit2({
+      auth: token,
+      request: { agent: sslAgent }
+    });
     try {
       event.sender.send(`scan-log:${scanId}`, { log: `🔍 Checking if tag ${releaseTag} exists...
 `, progress: 30 });

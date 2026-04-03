@@ -112,9 +112,14 @@ export default function IPFSUploadCard({
       const ipfsUrl = result.ipfsUrl;        // ipfs://bafy…
       setCid(ipfsUrl);
 
-      // Persist to product record
-      const field = type === "publickey" ? "publicKeyFilePath" : "signatureFilePath";
-      const { error } = await updateProduct(product.id, { [field]: ipfsUrl } as Partial<Product>);
+      // Build update with BOTH fields — use latest local state for the other field
+      const updatedProduct: Product = {
+        ...product,
+        publicKeyFilePath: type === "publickey" ? ipfsUrl : (pkCid || product.publicKeyFilePath || ""),
+        signatureFilePath: type === "signature" ? ipfsUrl : (sigCid || product.signatureFilePath || ""),
+      };
+
+      const { error } = await updateProduct(updatedProduct);
       if (error) {
         toast(`IPFS OK but DB save failed: ${error.message}`, "warning");
       } else {
@@ -129,7 +134,7 @@ export default function IPFSUploadCard({
     } finally {
       setUploading(false);
     }
-  }, [disabled, toolTip, toast, product, onUploadComplete]);
+  }, [disabled, toolTip, toast, product, pkCid, sigCid, onUploadComplete]);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);

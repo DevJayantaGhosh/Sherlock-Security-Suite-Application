@@ -36,7 +36,7 @@ import {
   ProductSnapshot,
 } from "../../services/blockchainService";
 import { getGatewayUrl, fetchBytesFromIPFS } from "../../services/ipfsService";
-import { ContractStage } from "../../config/blockchainConfig";
+import { ContractStage, getHashScanAccountUrl } from "../../config/blockchainConfig";
 
 /* ── Props ── */
 export interface ProvenanceChainCardProps {
@@ -310,7 +310,23 @@ export default function ProvenanceChainCard({ variants, product, borderColor = "
                         <SH icon={<TokenIcon sx={{ fontSize: 16, color: cfg.color }} />} label="Blockchain Metadata" color={cfg.color} />
                         <Table size="small">
                           <TableBody>
-                            <R l="Recorded By" v={<span style={{ fontFamily: "monospace" }}>{shortenAddress(snap.recordedBy)}</span>} />
+                            <R l="Recorded By" v={
+                              snap.recordedBy ? (
+                                <Stack direction="row" spacing={0.5} alignItems="center">
+                                  <span style={{ fontFamily: "monospace" }}>{shortenAddress(snap.recordedBy)}</span>
+                                  <IconButton
+                                    size="small"
+                                    href={getHashScanAccountUrl(snap.recordedBy)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    title="View on HashScan"
+                                    sx={{ p: 0.25 }}
+                                  >
+                                    <OpenInNewIcon sx={{ fontSize: 14, color: "#4caf50" }} />
+                                  </IconButton>
+                                </Stack>
+                              ) : "—"
+                            } />
                             <R l="Created By" v={snap.createdBy} />
                             <R l="Timestamp" v={formatBlockchainTimestamp(snap.timestamp)} />
                             <R l="Remark" v={snap.remark || "—"} />
@@ -375,7 +391,7 @@ export default function ProvenanceChainCard({ variants, product, borderColor = "
                           </Box>
                         </Stack>
                         <Stack direction="row" spacing={1}>
-                          <Button size="small" variant="outlined" disabled={downloading === sigIPFS} startIcon={downloading === sigIPFS ? <CircularProgress size={14} /> : <DownloadIcon />} onClick={() => downloadFromIPFS(sigIPFS, `${product.name}-signature`)} sx={{ borderColor: "#00e5ff", color: "#00e5ff" }}>{downloading === sigIPFS ? "Downloading…" : "Download"}</Button>
+                          <Button size="small" variant="outlined" disabled={downloading === sigIPFS} startIcon={downloading === sigIPFS ? <CircularProgress size={14} /> : <DownloadIcon />} onClick={() => downloadFromIPFS(sigIPFS, `${product.name}-signature.sig`)} sx={{ borderColor: "#00e5ff", color: "#00e5ff" }}>{downloading === sigIPFS ? "Downloading…" : "Download"}</Button>
                           <IconButton size="small" href={getGatewayUrl(sigIPFS)} target="_blank"><OpenInNewIcon sx={{ fontSize: 16 }} /></IconButton>
                         </Stack>
                       </Stack>
@@ -392,7 +408,7 @@ export default function ProvenanceChainCard({ variants, product, borderColor = "
                           </Box>
                         </Stack>
                         <Stack direction="row" spacing={1}>
-                          <Button size="small" variant="outlined" disabled={downloading === pkIPFS} startIcon={downloading === pkIPFS ? <CircularProgress size={14} /> : <DownloadIcon />} onClick={() => downloadFromIPFS(pkIPFS, `${product.name}-publickey`)} sx={{ borderColor: "#00e5ff", color: "#00e5ff" }}>{downloading === pkIPFS ? "Downloading…" : "Download"}</Button>
+                          <Button size="small" variant="outlined" disabled={downloading === pkIPFS} startIcon={downloading === pkIPFS ? <CircularProgress size={14} /> : <DownloadIcon />} onClick={() => downloadFromIPFS(pkIPFS, `${product.name}-publickey.pem`)} sx={{ borderColor: "#00e5ff", color: "#00e5ff" }}>{downloading === pkIPFS ? "Downloading…" : "Download"}</Button>
                           <IconButton size="small" href={getGatewayUrl(pkIPFS)} target="_blank"><OpenInNewIcon sx={{ fontSize: 16 }} /></IconButton>
                         </Stack>
                       </Stack>

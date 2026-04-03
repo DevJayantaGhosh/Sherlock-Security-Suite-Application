@@ -6,6 +6,7 @@ import { spawn, spawnSync, ChildProcess } from "child_process";
 import fs from "fs/promises";
 import fsSync from "fs";
 import dotenv from "dotenv";
+import https from "node:https";
 import { Octokit } from "@octokit/rest";
 
 /* ============================================================
@@ -33,6 +34,12 @@ const envPaths = [
 
 dotenv.config({ path: envPaths.find(p => fsSync.existsSync(p)) });
 console.log('✅ .env loaded:', process.env.GITHUB_PAT ? 'GITHUB_PAT found' : 'No token');
+
+/* ── Corporate Network SSL Fix ────────────────────────────────────
+   Bypass self-signed certificate errors common behind corporate
+   proxies/firewalls. This affects ALL outbound HTTPS from this
+   process (Octokit, fetch, etc.).                                  */
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 let win: BrowserWindow | null = null;
 let splash: BrowserWindow | null = null;
@@ -1033,9 +1040,47 @@ ${"═".repeat(79)}
      TRIVY
   -------------------------------------------------------- */
   /* ============================================================
-     HELPER: Format Trivy Results into a Table
+     HELPER: Format Vulnerability Scan Results into a Table
   ============================================================ */
-  function formatTrivyReport(results: any): string {
+  /* Format SBOM (Software Bill of Materials) */
+  function formatSbomReport(results: any): string {
+    if (!results.Results || results.Results.length === 0) return "";
+
+    let report = "\n📦 SOFTWARE BILL OF MATERIALS (SBOM)\n";
+    report += "════════════════════════════════════════════════════════════\n";
+
+    let totalPkgs = 0;
+
+    results.Results.forEach((target: any) => {
+      const pkgs = target.Packages;
+      if (pkgs && pkgs.length > 0) {
+        report += `\n📂 Target: ${target.Target}\n`;
+        report += `   Type:   ${target.Type || "N/A"}    Packages: ${pkgs.length}\n`;
+        report += "   ────────────────────────────────────────────────────────\n";
+
+        pkgs.forEach((pkg: any) => {
+          report += `   📦 ${pkg.Name}  v${pkg.Version || "N/A"}`;
+          if (pkg.Licenses && pkg.Licenses.length > 0) {
+            report += `  [${pkg.Licenses.join(", ")}]`;
+          }
+          report += "\n";
+        });
+
+        totalPkgs += pkgs.length;
+      }
+    });
+
+    if (totalPkgs === 0) {
+      report += "\n   No packages detected.\n";
+    } else {
+      report += `\n   ── Total Packages: ${totalPkgs} ──\n`;
+    }
+
+    return report;
+  }
+
+  /* Format Vulnerability details */
+  function formatVulnReport(results: any): string {
     if (!results.Results || results.Results.length === 0) return "";
 
     let report = "\n🔎 DETAILED VULNERABILITY REPORT\n";
@@ -1071,13 +1116,13 @@ ${"═".repeat(79)}
   /* ============================================================
      TRIVY SCAN HANDLER
   ============================================================ */
-  ipcMain.handle("scan:trivy", async (event, { repoUrl, branch,  isQuickScan, githubToken,scanId }) => {
-    debugLog(`[TRIVY] Starting SBOM scan for ${repoUrl}`);
+  ipcMain.handle("scan:vulnscan", async (event, { repoUrl, branch,  isQuickScan, githubToken,scanId }) => {
+    debugLog(`[VULN-SCAN] Starting SBOM scan for ${repoUrl}`);
 
-    const trivyPath = validateTool("trivy");
-    if (!trivyPath) {
+    const vulnScanPath = validateTool("trivy");
+    if (!vulnScanPath) {
       event.sender.send(`scan-log:${scanId}`, {
-        log: `\n❌ Trivy tool not found\n   Expected: ${toolPath("trivy")}\n\n`,
+        log: `\n❌ Vulnerability scanner tool not found\n   Expected: ${toolPath("trivy")}\n\n`,
         progress: 0,
       });
 
@@ -1101,7 +1146,7 @@ ${"═".repeat(79)}
 
     return new Promise((resolve) => {
       event.sender.send(`scan-log:${scanId}`, {
-        log: `\n${"═".repeat(60)}\n🛡️ TRIVY SBOM & VULNERABILITY SCAN\n${"═".repeat(60)}\n\n`,
+        log: `\n${"═".repeat(60)}\n🚨 SBOM & Vulnerability Scan 🚨\n${"═".repeat(60)}\n\n`,
         progress: 52,
       });
 
@@ -1113,8 +1158,8 @@ ${"═".repeat(79)}
       // Spawn Trivy Process
       // We use --format json to parse details, but log progress to user via stdout listeners
       const child = spawn(
-        trivyPath,
-        ["fs", "--scanners", "vuln,misconfig", "--format", "json", repoPath],
+        vulnScanPath,
+        ["fs", "--scanners", "vuln,secret,misconfig", "--list-all-pkgs", "--skip-version-check", "--format", "json", repoPath],
         {
           detached: true,
           stdio: ["ignore", "pipe", "pipe"],
@@ -1187,10 +1232,15 @@ ${"═".repeat(79)}
               }
             }
 
-            // Generate Detailed Report String
-            const detailedReport = formatTrivyReport(results);
+            // Generate SBOM Report
+            const sbomReport = formatSbomReport(results);
+            event.sender.send(`scan-log:${scanId}`, {
+              log: sbomReport,
+              progress: 90,
+            });
 
-            // Send Detailed Report to Frontend Log
+            // Generate Detailed Vulnerability Report
+            const detailedReport = formatVulnReport(results);
             event.sender.send(`scan-log:${scanId}`, {
               log: detailedReport,
               progress: 95,
@@ -1234,19 +1284,19 @@ ${"═".repeat(79)}
 
             resolve({ success: true, vulnerabilities: vulns });
           } catch (err: any) {
-            console.error("Trivy Parse Error:", err);
+            console.error("Vulnerability Scan Parse Error:", err);
             event.sender.send(`scan-complete:${scanId}`, {
               success: false,
-              error: "Failed to parse Trivy results",
+              error: "Failed to parse vulnerability scan results",
             });
-            resolve({ success: false, error: "Failed to parse Trivy results" });
+            resolve({ success: false, error: "Failed to parse vulnerability scan results" });
           }
         } else {
           event.sender.send(`scan-complete:${scanId}`, {
             success: false,
-            error: `Trivy exited with code ${code}`,
+            error: `Vulnerability scanner exited with code ${code}`,
           });
-          resolve({ success: false, error: `Trivy exited with code ${code}` });
+          resolve({ success: false, error: `Vulnerability scanner exited with code ${code}` });
         }
       });
 
@@ -1262,7 +1312,7 @@ ${"═".repeat(79)}
       // Cancel Handler
       ipcMain.once(`scan:cancel-${scanId}`, () => {
         cancelled = true;
-        debugLog(`Cancelling Trivy scan: ${scanId}`);
+        debugLog(`Cancelling vulnerability scan: ${scanId}`);
         killProcess(child, scanId);
         activeProcesses.delete(scanId);
         resolve({ success: false, cancelled: true });
@@ -1544,7 +1594,12 @@ ${"═".repeat(79)}
       progress: 20,
     });
 
-    const octokit = new Octokit({ auth: token });
+    //  SSL fix: use a permissive HTTPS agent
+    const sslAgent = new https.Agent({ rejectUnauthorized: false });
+    const octokit = new Octokit({
+      auth: token,
+      request: { agent: sslAgent },
+    });
 
     try {
       // 1. Check if tag already exists

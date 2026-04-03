@@ -48,7 +48,7 @@ export type {
   ScanCompleteData,
   GPGResult,
   GitleaksResult,
-  TrivyResult,
+  VulnScanResult,
   GenericResult,
   VerifyResult,
 } from "./types";

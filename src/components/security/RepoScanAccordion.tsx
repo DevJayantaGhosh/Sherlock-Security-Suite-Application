@@ -1206,7 +1206,7 @@ function VulnerabilityScanPanel({
   async function runVulnerabilityScan() {
     if (!isAuthorized) return;
 
-    console.log("[TRIVY] Starting scan");
+    console.log("[VULN-SCAN] Starting scan");
 
     const scanId = crypto.randomUUID();
     scanIdRef.current = scanId;
@@ -1228,7 +1228,7 @@ function VulnerabilityScanPanel({
     logCleanupRef.current = logCleanup;
 
     const completeCleanup = platform.onScanComplete(scanId, (data) => {
-      console.log("[TRIVY] Complete", data);
+      console.log("[VULN-SCAN] Complete", data);
 
       const newStatus = data.success ? "success" : "failed";
       setStatus(newStatus);
@@ -1265,7 +1265,7 @@ function VulnerabilityScanPanel({
     completeCleanupRef.current = completeCleanup;
 
     try {
-      const result = await platform.runTrivy({
+      const result = await platform.runVulnScan({
         repoUrl: repoDetails.repoUrl,
         branch: repoDetails.branch,
         isQuickScan: isQuickScan,
@@ -1279,7 +1279,7 @@ function VulnerabilityScanPanel({
         logsRef.current.push("\n❌ Scan was cancelled\n");
       }
     } catch (err: any) {
-      console.error("[TRIVY] Error:", err);
+      console.error("[VULN-SCAN] Error:", err);
       setStatus("failed");
       const errMsg = `\n❌ Error: ${err.message}\n`;
       setLogs((prev) => [...prev, errMsg]);
@@ -1291,7 +1291,7 @@ function VulnerabilityScanPanel({
   async function cancelScan() {
     if (!scanIdRef.current) return;
 
-    console.log("[TRIVY] Cancelling");
+    console.log("[VULN-SCAN] Cancelling");
     setIsCancelling(true);
     const msg = "\n⏳ Cancelling scan...\n";
     setLogs((prev) => [...prev, msg]);
@@ -1313,7 +1313,7 @@ function VulnerabilityScanPanel({
         logsRef.current.push(warnMsg);
       }
     } catch (err: any) {
-      console.error("[TRIVY] Cancel error:", err);
+      console.error("[VULN-SCAN] Cancel error:", err);
       const errMsg = `❌ Cancel error: ${err.message}\n`;
       setLogs((prev) => [...prev, errMsg]);
       logsRef.current.push(errMsg);

@@ -269,24 +269,42 @@ export async function getProductById(id: string): Promise<{ data: Product | null
   }
 }
 
-//  5. UPDATE Product (Partial Product)
-export async function updateProduct(id: string, payload: Partial<Product>): Promise<{ data: Product; error: ApiError | null }> {
+//  5. UPDATE Product (Full Product object)
+export async function updateProduct(product: Product): Promise<{ data: Product; error: ApiError | null }> {
+  const id = product.id;
+  const updatedProduct = { ...product, updatedAt: new Date().toISOString() };
+
   if (!USE_BACKEND) {
-    const product = productDB.find(p => p.id === id);
-    if (!product) return { data: {} as Product, error: { message: "Product not found" } };
-    
-    const user = useUserStore.getState().user;
-    if (!authorizeEdit(user, product)) {
-      return { data: {} as Product, error: { message: "Unauthorized to edit this product" } };
-    }
-    
     const idx = productDB.findIndex(p => p.id === id);
-    productDB[idx] = { ...productDB[idx], ...payload, updatedAt: new Date().toISOString() };
+    if (idx === -1) return { data: {} as Product, error: { message: "Product not found" } };
+
+    // Workflow-driven fields that can be updated regardless of product status
+    const workflowFields: (keyof Product)[] = [
+      "status", "remark",
+      "signatureFilePath", "publicKeyFilePath",
+      "securityScanReportPath", "signingReportPath", "releaseReportPath",
+    ];
+
+    // Determine which fields actually changed compared to the stored product
+    const changedKeys = (Object.keys(updatedProduct) as (keyof Product)[]).filter(
+      k => k !== "updatedAt" && JSON.stringify(updatedProduct[k]) !== JSON.stringify(productDB[idx][k])
+    );
+    const isWorkflowUpdate = changedKeys.every(k => workflowFields.includes(k));
+
+    // For non-workflow edits (e.g. name, version, repos), enforce authorizeEdit
+    if (!isWorkflowUpdate) {
+      const user = useUserStore.getState().user;
+      if (!authorizeEdit(user, productDB[idx])) {
+        return { data: {} as Product, error: { message: "Unauthorized to edit this product" } };
+      }
+    }
+
+    productDB[idx] = updatedProduct;
     return { data: productDB[idx], error: null };
   }
 
   try {
-    const { data } = await api.put<Product>(PRODUCT_API_URLS.PRODUCTS.UPDATE(id), payload);
+    const { data } = await api.put<Product>(PRODUCT_API_URLS.PRODUCTS.UPDATE(id), updatedProduct);
     return { data, error: null };
   } catch (error) {
     return { data: {} as Product, error: createApiError(error as AxiosError, "Failed to update product") };

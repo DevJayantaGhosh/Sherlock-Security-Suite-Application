@@ -59,21 +59,31 @@ export default function ProductReleasePage() {
   const isAuthorized = product ? authorizeRelease(user, product) : false;
   const isSigned = product?.status === "Signed";
   const isRejected = product?.status === "Rejected";
+  const isReleased = product?.status === "Released";
 
+  // GitHub Release — requires Signed status
   const canRelease = isAuthorized && isSigned;
-  const isViewOnlyMode =
-    !isAuthorized || !isSigned || isRejected;
 
-  let tooltip = "";
-  if (isViewOnlyMode) {
-    if (!isAuthorized) {
-      tooltip = ACCESS_MESSAGES.RELEASE_ENGINEER_SIGN_MSG;
-    } else if (isRejected) {
-      tooltip = `Product is "${product?.status}". No further actions allowed.`;
-    } else {
-      // !isSigned (e.g. Pending, Approved, Released, any non‑Signed)
-      tooltip = `Product is "${product?.status}". Must be "Signed" before Release.`;
-    }
+  let releaseTooltip = "";
+  if (!isAuthorized) {
+    releaseTooltip = ACCESS_MESSAGES.RELEASE_ENGINEER_SIGN_MSG;
+  } else if (isRejected) {
+    releaseTooltip = `Product is "${product?.status}". No further actions allowed.`;
+  } else if (isReleased) {
+    releaseTooltip = "Product already released.";
+  } else if (!isSigned) {
+    releaseTooltip = `Product is "${product?.status}". Must be "Signed" before Release.`;
+  }
+
+  // Blockchain inscription — only after GitHub release is done
+  const canInscribe = isAuthorized && isReleased;
+  let blockchainTooltip = "";
+  if (!isAuthorized) {
+    blockchainTooltip = ACCESS_MESSAGES.RELEASE_ENGINEER_SIGN_MSG;
+  } else if (isRejected) {
+    blockchainTooltip = `Product is "${product?.status}". No further actions allowed.`;
+  } else if (!isReleased) {
+    blockchainTooltip = `Product must be "Released" on GitHub before blockchain inscription.`;
   }
 
   if (loading) {
@@ -106,17 +116,18 @@ export default function ProductReleasePage() {
             product={product}
             borderColor="#7b5cff"
             disabled={!canRelease || loading}
-            tooltipTitle={tooltip}
-            tooltipSingleTitle={tooltip}
-            tooltipBatchTitle={tooltip}
+            tooltipTitle={releaseTooltip}
+            tooltipSingleTitle={releaseTooltip}
+            tooltipBatchTitle={releaseTooltip}
+            onReleaseComplete={() => loadProduct()}
           />
 
-          {/* Blockchain Inscription — inscribes release decision on Hedera */}
+          {/* Blockchain Inscription — only enabled after GitHub release is done */}
           <BlockchainInscriptionCard
             product={product}
-            disabled={!canRelease || loading}
+            disabled={!canInscribe || loading}
             variants={itemVariants}
-            toolTip={tooltip}
+            toolTip={blockchainTooltip}
             stage="RELEASE"
             onStatusDecision={() => loadProduct()}
           />

@@ -129,7 +129,7 @@ export default function ProductSecurityScanPage() {
     };
   }, [location.pathname]);
 
-  // Save repo updates using updateProduct(id, partial)
+  // Save repo updates using updateProduct(product)
   const handleRepoUpdate = async (repoIndex: number, updatedRepo: RepoDetails) => {
     if (!product) return;
 
@@ -149,7 +149,7 @@ export default function ProductSecurityScanPage() {
     };
 
     try {
-      const result = await updateProduct(product.id, payload);
+      const result = await updateProduct({ ...product, ...payload });
       if (result.error) {
         toast("Scan results saved to database failed", "warning");
       } else {

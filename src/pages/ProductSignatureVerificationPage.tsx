@@ -54,7 +54,7 @@ export default function ProductSignatureVerificationPage() {
       const detailsList: ProductRepoDetails[] = productData.repos.map((repo: any) => ({
         repoUrl: repo.repoUrl,
         branch: repo.branch,
-        releaseTag: `v${productData.version}`,
+        releaseTag: productData.version,
         isLocal: false
       }));
 

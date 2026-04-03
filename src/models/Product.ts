@@ -37,7 +37,7 @@ export interface SecretLeakDetectionResult extends BaseScanResult {
   };
 }
 
-// 3. Vulnerability Scan (Tool: Trivy)
+// 3. Vulnerability Scan (Tool: Vulnerability-Scanner)
 export interface VulnerabilityScanResult extends BaseScanResult {
   summary?: {
     vulnerabilities: number; // Total CVEs

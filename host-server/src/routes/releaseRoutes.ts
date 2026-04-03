@@ -1,15 +1,15 @@
 /**
- * GitHub release endpoint.
+ * GitHub release endpoint — Octokit-based.
  *
- * POST /api/release/create — create a tagged release via gh CLI or GitHub API
+ * POST /api/release/create — create a tagged release via GitHub REST API (Octokit)
  */
 
 import { Router, Request, Response } from "express";
-import { spawn } from "child_process";
+import https from "node:https";
+import { Octokit } from "@octokit/rest";
 import { v4 as uuid } from "uuid";
 
-import { emitLog, emitComplete, sseEvents } from "../services/sseManager.js";
-import * as proc from "../services/processManager.js";
+import { emitLog, emitComplete, emitCancel, sseEvents } from "../services/sseManager.js";
 
 export const releaseRouter = Router();
 
@@ -19,10 +19,13 @@ releaseRouter.post("/create", (req: Request, res: Response) => {
   const { repoUrl, branch, version, scanId: clientScanId } = req.body;
   const scanId = clientScanId || uuid();
 
+  // Fire-and-forget — logs streamed via SSE
   runCreateRelease({ repoUrl, branch, version, scanId });
 
   res.json({ scanId, started: true });
 });
+
+/* ------------------------------------------------------------------ */
 
 async function runCreateRelease(params: {
   repoUrl: string;
@@ -32,198 +35,141 @@ async function runCreateRelease(params: {
 }): Promise<void> {
   const { repoUrl, branch, version, scanId } = params;
 
+  /* ── 0. Token ─────────────────────────────────────────────── */
   const token = process.env.GITHUB_PAT;
   if (!token) {
+    emitLog(scanId, `\n❌ GITHUB TOKEN MISSING\nRequired: GITHUB_PAT environment variable\n`, 0);
     emitComplete(scanId, { success: false, error: "GITHUB_PAT not configured on server" });
     return;
   }
 
-  // Extract owner/repo from URL
-  const match = repoUrl.match(/github\.com[/:](.+?)\/(.+?)(?:\.git)?$/);
-  if (!match) {
+  /* ── 1. Parse owner / repo ────────────────────────────────── */
+  const repoMatch = repoUrl.match(/github\.com[\/:]([^\/]+)\/([^\/\.]+)/);
+  if (!repoMatch) {
+    emitLog(scanId, `\n❌ Invalid GitHub URL: ${repoUrl}\n`, 0);
     emitComplete(scanId, { success: false, error: "Invalid GitHub repository URL" });
     return;
   }
-  const [, owner, repo] = match;
-  const tagName = version.startsWith("v") ? version : `v${version}`;
 
-  emitLog(scanId, `\n📦 Creating GitHub release ${tagName} for ${owner}/${repo}...\n`, 10);
+  const [, owner, repo] = repoMatch;
+  const releaseTag = `${version}`; // version is tag in 1.0.0 format
 
-  // Use gh CLI if available, otherwise fall back to curl
-  const useGhCli = await checkGhCli();
+  /* ── 2. Header logs ───────────────────────────────────────── */
+  emitLog(
+    scanId,
+    `\n${"═".repeat(70)}\n🚀 GITHUB RELEASE CREATION\n${"═".repeat(70)}\n\n`,
+    10
+  );
 
-  if (useGhCli) {
-    return createReleaseWithGh({ owner, repo, tagName, branch, token, scanId });
-  }
-  return createReleaseWithCurl({ owner, repo, tagName, branch, token, scanId });
-}
+  emitLog(
+    scanId,
+    `🔹 Repository  : ${repoUrl}\n🔹 Owner/Repo   : ${owner}/${repo}\n🔹 Branch       : ${branch}\n🔹 Version      : ${version}\n🔹 Release Tag  : ${releaseTag}\n🔹 Release URL  : https://github.com/${owner}/${repo}/releases/tag/${releaseTag}\n\n`,
+    20
+  );
 
-function checkGhCli(): Promise<boolean> {
-  return new Promise((resolve) => {
-    const child = spawn("gh", ["--version"], { stdio: "ignore", windowsHide: true });
-    child.on("close", (code) => resolve(code === 0));
-    child.on("error", () => resolve(false));
-  });
-}
+  // Corporate network SSL fix: use a permissive HTTPS agent
+  const sslAgent = new https.Agent({ rejectUnauthorized: false });
+  const octokit = new Octokit({ auth: token, request: { agent: sslAgent } });
 
-async function createReleaseWithGh(params: {
-  owner: string;
-  repo: string;
-  tagName: string;
-  branch: string;
-  token: string;
-  scanId: string;
-}): Promise<void> {
-  const { owner, repo, tagName, branch, token, scanId } = params;
+  // Cancellation support
+  let cancelled = false;
+  const cancelHandler = () => { cancelled = true; };
+  sseEvents.once(`cancel:${scanId}`, cancelHandler);
 
-  return new Promise((resolve) => {
-    const child = spawn(
-      "gh",
-      [
-        "release",
-        "create",
-        tagName,
-        "--repo",
-        `${owner}/${repo}`,
-        "--target",
-        branch,
-        "--title",
-        `Release ${tagName}`,
-        "--notes",
-        `Automated release ${tagName}`,
-      ],
-      {
-        stdio: ["ignore", "pipe", "pipe"],
-        env: { ...process.env, GH_TOKEN: token },
-        windowsHide: true,
-      }
+  try {
+    /* ── 3. Check if tag already exists ───────────────────── */
+    if (cancelled) { emitComplete(scanId, { success: false, cancelled: true }); return; }
+    emitLog(scanId, `🔍 Checking if tag ${releaseTag} exists...\n`, 30);
+
+    try {
+      await octokit.rest.git.getRef({ owner, repo, ref: `tags/${releaseTag}` });
+      emitLog(scanId, `⚠️  Tag ${releaseTag} already exists, will update...\n`, 40);
+    } catch (e: any) {
+      if (e.status !== 404) throw e;
+      emitLog(scanId, `✅ Tag ${releaseTag} does not exist, creating new...\n`, 40);
+    }
+
+    /* ── 4. Get branch SHA ────────────────────────────────── */
+    if (cancelled) { emitComplete(scanId, { success: false, cancelled: true }); return; }
+    emitLog(scanId, `🔍 Fetching ${branch} branch SHA...\n`, 50);
+    const { data: branchRef } = await octokit.rest.git.getRef({
+      owner,
+      repo,
+      ref: `heads/${branch}`,
+    });
+    const branchSha = branchRef.object.sha;
+
+    /* ── 5. Create tag ref ────────────────────────────────── */
+    if (cancelled) { emitComplete(scanId, { success: false, cancelled: true }); return; }
+    emitLog(scanId, `🏷️  Creating tag ${releaseTag} on ${branchSha.slice(0, 7)}...\n`, 60);
+
+    try {
+      await octokit.rest.git.createRef({
+        owner,
+        repo,
+        ref: `refs/tags/${releaseTag}`,
+        sha: branchSha,
+      });
+    } catch (tagErr: any) {
+      // Tag may already exist — only fail if it's not a 422 "already exists"
+      if (tagErr.status !== 422) throw tagErr;
+      emitLog(scanId, `ℹ️  Tag already exists, continuing with release...\n`, 65);
+    }
+
+    /* ── 6. Create the release ────────────────────────────── */
+    if (cancelled) { emitComplete(scanId, { success: false, cancelled: true }); return; }
+    emitLog(scanId, `📦 Creating release ${releaseTag}...\n`, 80);
+
+    const { data: release } = await octokit.rest.repos.createRelease({
+      owner,
+      repo,
+      tag_name: releaseTag,
+      target_commitish: branch,
+      name: `Release ${version}`,
+      body: `# Release ${version}\n\n**Created from ${branch} branch**\n\n- Tag: \`${releaseTag}\`\n- Commit: \`${branchSha.slice(0, 7)}\``,
+      prerelease:
+        version.includes("-") || version.includes("rc") || version.includes("beta"),
+      draft: false,
+    });
+
+    /* ── 7. Success summary ───────────────────────────────── */
+    const summary = `
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                                                                               ║
+║                              GITHUB RELEASE CREATED                           ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+Repository     : ${owner}/${repo}
+Branch         : ${branch}
+Tag            : ${releaseTag}
+Status         : ✅ SUCCESS
+Release ID     : ${release.id}
+Release URL    : ${release.html_url}
+
+📎 Direct Link : ${release.html_url}
+
+${"═".repeat(80)}
+`;
+
+    emitLog(scanId, summary, 100);
+    sseEvents.removeListener(`cancel:${scanId}`, cancelHandler);
+    emitComplete(scanId, {
+      success: true,
+      release: { id: release.id, url: release.html_url, tag: releaseTag },
+    });
+  } catch (error: any) {
+    sseEvents.removeListener(`cancel:${scanId}`, cancelHandler);
+    const errorMsg =
+      error.status === 422
+        ? "Release/tag already exists with different content"
+        : error.message || "Unknown error";
+
+    emitLog(
+      scanId,
+      `\n❌ Release creation failed:\n${errorMsg}\n\nHTTP ${error.status || "N/A"}\n`,
+      0
     );
-    proc.register(scanId, child);
-
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout?.on("data", (d) => {
-      stdout += d.toString();
-      emitLog(scanId, d.toString(), 70);
-    });
-    child.stderr?.on("data", (d) => {
-      stderr += d.toString();
-      emitLog(scanId, d.toString(), 70);
-    });
-
-    child.on("close", (code) => {
-      proc.unregister(scanId);
-      if (code === 0) {
-        emitLog(scanId, `\n✅ Release ${tagName} created successfully\n`, 100);
-        emitComplete(scanId, { success: true });
-      } else {
-        emitComplete(scanId, {
-          success: false,
-          error: stderr || `gh release create exited ${code}`,
-        });
-      }
-      resolve();
-    });
-
-    child.on("error", (err) => {
-      proc.unregister(scanId);
-      emitComplete(scanId, { success: false, error: err.message });
-      resolve();
-    });
-
-    sseEvents.once(`cancel:${scanId}`, () => {
-      proc.killProcess(child, scanId);
-    });
-  });
-}
-
-async function createReleaseWithCurl(params: {
-  owner: string;
-  repo: string;
-  tagName: string;
-  branch: string;
-  token: string;
-  scanId: string;
-}): Promise<void> {
-  const { owner, repo, tagName, branch, token, scanId } = params;
-
-  const body = JSON.stringify({
-    tag_name: tagName,
-    target_commitish: branch,
-    name: `Release ${tagName}`,
-    body: `Automated release ${tagName}`,
-    draft: false,
-    prerelease: false,
-  });
-
-  const curlArgs = [
-    "-s",
-    "-X",
-    "POST",
-    `https://api.github.com/repos/${owner}/${repo}/releases`,
-    "-H",
-    `Authorization: token ${token}`,
-    "-H",
-    "Accept: application/vnd.github+json",
-    "-H",
-    "Content-Type: application/json",
-    "-d",
-    body,
-  ];
-
-  return new Promise((resolve) => {
-    const child = spawn("curl", curlArgs, {
-      stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true,
-    });
-    proc.register(scanId, child);
-
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout?.on("data", (d) => {
-      stdout += d.toString();
-    });
-    child.stderr?.on("data", (d) => {
-      stderr += d.toString();
-      emitLog(scanId, d.toString(), 70);
-    });
-
-    child.on("close", (code) => {
-      proc.unregister(scanId);
-      if (code === 0) {
-        try {
-          const result = JSON.parse(stdout);
-          if (result.html_url) {
-            emitLog(scanId, `\n✅ Release created: ${result.html_url}\n`, 100);
-            emitComplete(scanId, { success: true });
-          } else {
-            emitComplete(scanId, {
-              success: false,
-              error: result.message || "Unknown GitHub API error",
-            });
-          }
-        } catch {
-          emitComplete(scanId, { success: false, error: "Failed to parse GitHub response" });
-        }
-      } else {
-        emitComplete(scanId, {
-          success: false,
-          error: stderr || `curl exited ${code}`,
-        });
-      }
-      resolve();
-    });
-
-    child.on("error", (err) => {
-      proc.unregister(scanId);
-      emitComplete(scanId, { success: false, error: err.message });
-      resolve();
-    });
-
-    sseEvents.once(`cancel:${scanId}`, () => {
-      proc.killProcess(child, scanId);
-    });
-  });
+    emitComplete(scanId, { success: false, error: errorMsg });
+  }
 }

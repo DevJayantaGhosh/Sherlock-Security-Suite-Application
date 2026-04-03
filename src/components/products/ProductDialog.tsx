@@ -366,7 +366,7 @@ export default function ProductDialog({
         if (form.publicKeyFilePath !== product.publicKeyFilePath)
           updatePayload.publicKeyFilePath = form.publicKeyFilePath;
 
-        const result = await updateProduct(product.id, updatePayload);
+        const result = await updateProduct({ ...product, ...updatePayload });
         if (result.error) {
           toast.error(result.error.message);
         } else {

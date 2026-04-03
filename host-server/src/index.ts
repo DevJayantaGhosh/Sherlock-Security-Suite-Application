@@ -21,6 +21,12 @@ import { getActiveScansCount, getTotalListenerCount } from "./services/sseManage
 
 dotenv.config();
 
+/* ── Corporate Network SSL Fix ────────────────────────────────────
+   Bypass self-signed certificate errors common behind corporate
+   proxies/firewalls. This affects ALL outbound HTTPS from this
+   process (Octokit, fetch, etc.).                                  */
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
 const app = express();
 const PORT = parseInt(process.env.HOST_SERVER_PORT || "4821", 10);
 

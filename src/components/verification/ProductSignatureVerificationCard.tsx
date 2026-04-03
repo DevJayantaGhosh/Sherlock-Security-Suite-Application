@@ -312,78 +312,6 @@ export default function ProductSignatureVerificationCard({
           </Stack>
         </Paper>
 
-        {/* Saved Files Section */}
-        {(savedPublicKeyPath || savedSignaturePath) && (
-          <Paper sx={{ p: 3, mb: 3, bgcolor: `${borderColor}08`, border: `2px solid ${borderColor}30`, borderRadius: 2 }}>
-            <Typography variant="subtitle1" fontWeight={600} mb={2} sx={{ color: borderColor }}>
-              📎 Saved Product Files
-            </Typography>
-            <Stack spacing={1.5}>
-              {savedPublicKeyPath && (
-                <Box sx={{ p: 2, bgcolor: 'rgba(33, 150, 243, 0.08)', borderRadius: 1, border: '1px solid rgba(33, 150, 243, 0.2)', cursor: 'pointer' }}
-                  onClick={async () => {
-                    try {
-                      if (savedPublicKeyPath.startsWith("ipfs://")) {
-                        const url = getGatewayUrl(savedPublicKeyPath);
-                        const res = await fetch(url);
-                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                        const blob = await res.blob();
-                        const blobUrl = URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.href = blobUrl;
-                        a.download = `${productName}-public-key.pub`;
-                        a.click();
-                        URL.revokeObjectURL(blobUrl);
-                        toast.success("Public key downloaded");
-                      } else {
-                        await platform.openFilePath(savedPublicKeyPath);
-                      }
-                    } catch (error) {
-                      toast.error("Failed to download/open public key file");
-                    }
-                  }}>
-                  <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 1.5, color: '#2196f3', fontFamily: 'monospace' }}>
-                    <VpnKeyIcon sx={{ fontSize: 18 }} /> 🔓 {savedPublicKeyPath}
-                    {savedPublicKeyPath.startsWith("ipfs://") && (
-                      <DownloadIcon sx={{ fontSize: 16, ml: 0.5 }} />
-                    )}
-                  </Typography>
-                </Box>
-              )}
-              {savedSignaturePath && (
-                <Box sx={{ p: 2, bgcolor: `${borderColor}08`, borderRadius: 1, border: `1px solid ${borderColor}20`, cursor: 'pointer' }}
-                  onClick={async () => {
-                    try {
-                      if (savedSignaturePath.startsWith("ipfs://")) {
-                        const url = getGatewayUrl(savedSignaturePath);
-                        const res = await fetch(url);
-                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                        const blob = await res.blob();
-                        const blobUrl = URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.href = blobUrl;
-                        a.download = `${productName}-signature.sig`;
-                        a.click();
-                        URL.revokeObjectURL(blobUrl);
-                        toast.success("Signature file downloaded");
-                      } else {
-                        await platform.openFilePath(savedSignaturePath);
-                      }
-                    } catch (error) {
-                      toast.error("Failed to download/open signature file");
-                    }
-                  }}>
-                  <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 1.5, color: borderColor, fontFamily: 'monospace' }}>
-                    <CheckCircleIcon sx={{ fontSize: 18 }} /> ✅ {savedSignaturePath}
-                    {savedSignaturePath.startsWith("ipfs://") && (
-                      <DownloadIcon sx={{ fontSize: 16, ml: 0.5 }} />
-                    )}
-                  </Typography>
-                </Box>
-              )}
-            </Stack>
-          </Paper>
-        )}
 
         {/* Status Alert */}
         {verificationStatus !== "idle" && !isRunning && (
@@ -406,7 +334,7 @@ export default function ProductSignatureVerificationCard({
           <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
             <TextField
               fullWidth={!publicKeyPath}
-              label="Public Key File (.pub)"
+              label="Public Key File (.pem)"
               value={publicKeyPath}
               disabled={isRunning}
               InputProps={{
@@ -507,7 +435,7 @@ export default function ProductSignatureVerificationCard({
             </Box>
           )}
         </DialogTitle>
-        <DialogContent sx={{ height: "60vh", p: 3, bgcolor: "#1a1a1a", overflow: "auto" }}>
+        <DialogContent sx={{ height: "60vh", p: 3, pt: 3,bgcolor: "#1a1a1a", overflow: "auto" }}>
           <Box sx={{ fontFamily: "monospace", fontSize: 12, lineHeight: 1.5, color: "#e0e0e0", whiteSpace: "pre-wrap" }}>
             {logs.map((log, i) => (
               <Typography key={i} component="pre" sx={{ m: 0, fontSize: 12 }}>
