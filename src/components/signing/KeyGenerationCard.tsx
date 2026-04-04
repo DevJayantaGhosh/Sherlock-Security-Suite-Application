@@ -4,7 +4,7 @@ import {
   Box, Paper, Stack, Typography, TextField, MenuItem,
   Button, IconButton, InputAdornment, LinearProgress, CircularProgress,
   Dialog, DialogTitle, DialogContent, DialogActions,
-  Collapse, Tooltip
+  Collapse, Tooltip, Alert
 } from "@mui/material";
 import { toast } from "react-hot-toast";
 import FolderOpenIcon from "@mui/icons-material/FolderOpen";
@@ -98,16 +98,8 @@ export default function KeyGenerationCard({
     const scanId = crypto.randomUUID();
     scanIdRef.current = scanId;
 
-    const initLogs = [
-      `Key Generation STARTED`,
-      `Algorithm: ${algo.toUpperCase()} ${algo === "rsa" ? keySize + "-bit" : curve}`,
-      ...(isElectron ? [`Output: ${outputDir}`] : []),
-      `Password: ${keyPassword ? "Protected" : "Unprotected"}`,
-      `${"═".repeat(60)}\n`
-    ];
-
-    setLogs(initLogs);
-    logsRef.current = [...initLogs];
+    setLogs([]);
+    logsRef.current = [];
     setStatus("running");
     setProgress(0);
     setShowLogs(false);
@@ -335,7 +327,7 @@ export default function KeyGenerationCard({
                   minRows={4}
                   maxRows={8}
                   value={generatedPublicKey}
-                  InputProps={{ readOnly: true, sx: { fontFamily: "monospace", fontSize: 12 } }}
+                  InputProps={{ readOnly: true, sx: { fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace", fontSize: 12 } }}
                 />
               </Box>
               <Box>
@@ -355,7 +347,7 @@ export default function KeyGenerationCard({
                   minRows={4}
                   maxRows={8}
                   value={generatedPrivateKey}
-                  InputProps={{ readOnly: true, sx: { fontFamily: "monospace", fontSize: 12 } }}
+                  InputProps={{ readOnly: true, sx: { fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace", fontSize: 12 } }}
                 />
                 <Typography variant="caption" color="warning.main" mt={0.5}>
                   ⚠️ Store your private key securely. It will NOT be shown again.
@@ -369,24 +361,56 @@ export default function KeyGenerationCard({
             <Box>
               <Button
                 onClick={() => setShowLogs(!showLogs)}
-                endIcon={showLogs ? <ExpandMoreIcon /> : <ExpandLessIcon />}
+                endIcon={showLogs ? <ExpandLessIcon /> : <ExpandMoreIcon />}
                 variant="outlined"
                 size="small"
                 fullWidth
               >
-                {showLogs ? "Hide Logs" : "Show Logs"} ({logs.length} lines)
+                {showLogs ? "Hide Logs" : "Show Logs"}
               </Button>
+
               <Collapse in={showLogs}>
-                <Paper sx={{
-                  mt: 2, maxHeight: "400px", overflow: "auto",
-                  bgcolor: "#1a1a1a", border: "1px solid #333", p: 2,
-                  fontFamily: "monospace", fontSize: 12, color: "#e0e0e0"
-                }}>
-                  {logs.map((log, i) => (
-                    <Typography key={i} component="pre" sx={{ m: 0, fontSize: 12 }}>
-                      {log}
-                    </Typography>
-                  ))}
+                <Paper
+                  elevation={0}
+                  sx={{
+                    mt: 2,
+                    maxHeight: "400px",
+                    overflow: "auto",
+                    backgroundColor: "#1a1a1a",
+                    border: "1px solid #333",
+                    p: 2,
+                    "&::-webkit-scrollbar": { width: "8px" },
+                    "&::-webkit-scrollbar-track": { background: "#2d2d2d" },
+                    "&::-webkit-scrollbar-thumb": { background: "#555", borderRadius: "4px" },
+                    "&::-webkit-scrollbar-thumb:hover": { background: "#777" },
+                  }}
+                >
+                  <Box
+                    sx={{
+                      fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
+                      fontSize: 12,
+                      lineHeight: 1.6,
+                      color: "#e0e0e0",
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {logs.map((log, i) => (
+                      <Typography
+                        key={i}
+                        component="pre"
+                        sx={{
+                          margin: 0,
+                          fontFamily: "inherit",
+                          fontSize: "inherit",
+                          lineHeight: "inherit",
+                          color: "inherit",
+                        }}
+                      >
+                        {log}
+                      </Typography>
+                    ))}
+                  </Box>
                 </Paper>
               </Collapse>
             </Box>
@@ -394,43 +418,106 @@ export default function KeyGenerationCard({
         </Stack>
       </Paper>
 
-      {/* Modal — same as before */}
-      <Dialog open={modalOpen} onClose={() => canClose && setModalOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle sx={{ bgcolor: "#2d2d2d", borderBottom: "1px solid #404040" }}>
+      {/* Modal */}
+      <Dialog
+        open={modalOpen}
+        onClose={() => canClose && setModalOpen(false)}
+        maxWidth="md"
+        fullWidth
+        disableEscapeKeyDown={!canClose}
+        PaperProps={{
+          sx: {
+            backgroundColor: "#1e1e1e",
+            backgroundImage: "none",
+          },
+        }}
+      >
+        <DialogTitle sx={{ backgroundColor: "#2d2d2d", borderBottom: "1px solid #404040" }}>
           <Stack direction="row" justifyContent="space-between" alignItems="center">
-            <Typography variant="h6" fontWeight={700}>
+            <Typography variant="h6" fontWeight={600}>
               <VpnKeyIcon sx={{ mr: 1, fontSize: 24, color: "#7b5cff" }} /> Key Generation
             </Typography>
-            {canClose && <IconButton onClick={() => setModalOpen(false)}><CloseIcon /></IconButton>}
+            {canClose && (
+              <IconButton onClick={() => setModalOpen(false)} size="small">
+                <CloseIcon />
+              </IconButton>
+            )}
           </Stack>
           {isRunning && (
             <Box sx={{ mt: 2 }}>
-              <Stack direction="row" spacing={2} alignItems="center">
+              <Stack direction="row" spacing={2} alignItems="center" mb={1}>
                 <Box flex={1}><LinearProgress variant="determinate" value={progress} /></Box>
-                <Typography variant="body2">{progress}%</Typography>
+                <Typography variant="body2" color="text.secondary">{progress}%</Typography>
               </Stack>
             </Box>
           )}
+          {isCancelling && (
+            <Alert severity="warning" sx={{ mt: 2 }}>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <CircularProgress size={16} />
+                <Typography variant="body2">Cancelling generation and cleaning up processes...</Typography>
+              </Stack>
+            </Alert>
+          )}
         </DialogTitle>
-        <DialogContent sx={{ height: "60vh", p: 3, pt: 3, bgcolor: "#1a1a1a" }}>
-          <Box sx={{ fontFamily: "monospace", fontSize: 12, lineHeight: 1.5, color: "#e0e0e0", whiteSpace: "pre-wrap", mt: 1 }}>
-            {logs.map((log, i) => (
-              <Typography key={i} component="pre" sx={{ m: 0, fontSize: 12 }}>
-                {log}
+        <DialogContent
+          sx={{
+            height: "60vh",
+            mt: 2,
+            backgroundColor: "#1a1a1a",
+            overflow: "auto",
+            p: 3,
+            "&::-webkit-scrollbar": { width: "8px" },
+            "&::-webkit-scrollbar-track": { background: "#2d2d2d" },
+            "&::-webkit-scrollbar-thumb": { background: "#555", borderRadius: "4px" },
+            "&::-webkit-scrollbar-thumb:hover": { background: "#777" },
+          }}
+        >
+          <Box
+            sx={{
+              fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
+              fontSize: 13,
+              lineHeight: 1.6,
+              color: "#e0e0e0",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+              mt: 2,
+            }}
+          >
+            {logs.length > 0 ? (
+              <>
+                {logs.map((log, i) => (
+                  <Typography
+                    key={i}
+                    component="pre"
+                    sx={{ margin: 0, fontFamily: "inherit", fontSize: "inherit", lineHeight: "inherit", color: "inherit" }}
+                  >
+                    {log}
+                  </Typography>
+                ))}
+                <div ref={logEndRef} />
+              </>
+            ) : (
+              <Typography color="text.secondary" textAlign="center" py={4}>
+                {isRunning ? "Initializing key generation..." : "No logs available"}
               </Typography>
-            ))}
-            <div ref={logEndRef} />
+            )}
           </Box>
         </DialogContent>
-        <DialogActions sx={{ p: 2, bgcolor: "#2d2d2d" }}>
+        <DialogActions sx={{ p: 2, backgroundColor: "#2d2d2d", borderTop: "1px solid #404040" }}>
           {isRunning && (
-            <Button onClick={cancelScan} color="error" variant="contained"
-              startIcon={isCancelling ? <CircularProgress size={16} color="inherit" /> : <CancelIcon />}>
+            <Button
+              onClick={cancelScan}
+              color="error"
+              variant="contained"
+              startIcon={isCancelling ? <CircularProgress size={16} color="inherit" /> : <CancelIcon />}
+              disabled={isCancelling}
+            >
               {isCancelling ? "Cancelling..." : "Cancel Generation"}
             </Button>
           )}
           {logs.length > 0 && <Button startIcon={<DownloadIcon />} onClick={downloadLogs}>Download Logs</Button>}
-          {canClose && <Button onClick={() => setModalOpen(false)}>Close</Button>}
+          {canClose && <Button onClick={() => setModalOpen(false)} variant="outlined">Close</Button>}
         </DialogActions>
       </Dialog>
     </>

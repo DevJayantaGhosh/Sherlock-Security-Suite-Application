@@ -7,14 +7,16 @@
 
 import { Router, Request, Response } from "express";
 import { spawn } from "child_process";
-import fs from "fs/promises";
-import path from "path";
 import { v4 as uuid } from "uuid";
 
 import { emitLog, emitComplete, sseEvents } from "../services/sseManager.js";
 import * as proc from "../services/processManager.js";
 import { validateTool } from "../services/toolPaths.js";
-import { getRepoPath } from "../services/gitClone.js";
+import { getRepoPath, cloneRepositoryByTag } from "../services/gitClone.js";
+
+/** log heading separator constant  */
+const SEPARATOR_WIDTH = 80;
+
 
 export const cryptoRouter = Router();
 
@@ -42,7 +44,7 @@ async function runKeyGeneration(params: {
   }
 
   emitLog(scanId,
-    `\n${"═".repeat(65)}\n🔑 KEY GENERATION STARTED\n${"═".repeat(65)}\n\n` +
+    `\n${"═".repeat(SEPARATOR_WIDTH)}\n🔑 KEY GENERATION STARTED\n${"═".repeat(SEPARATOR_WIDTH)}\n\n` +
     `🔹 Algorithm: ${type.toUpperCase()}${type === "rsa" ? ` (${size} bits)` : ` (${curve})`}\n` +
     `🔹 Output: In-memory (string output)\n` +
     `🔹 Security: ${password ? "🔒 Protected" : "⚠️ No Password"}\n\n`,
@@ -94,19 +96,20 @@ async function runKeyGeneration(params: {
         }
       }
 
-      let finalReport = `╔══════════════════════════════════════════════════════════════════════╗\n`;
-      finalReport +=    `                    KEY GENERATION REPORT                               \n`;
-      finalReport +=    `╚══════════════════════════════════════════════════════════════════════╝\n\n`;
-      finalReport += `    RESULT             : ${trueSuccess ? "✅ SUCCESS" : "❌ FAILED (" + code + ")"}\n`;
-      finalReport += `    Algorithm         : ${type.toUpperCase()}\n`;
-      finalReport += `    Timestamp      : ${new Date().toLocaleTimeString()}\n`;
+      const finalReport = `
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                                                                               ║
+║                    🔑  KEY GENERATION REPORT  🔑                             ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
 
-      if (trueSuccess) {
-        finalReport += `    ✅ KEYS READY FOR SIGNING!\n`;
-      } else {
-        finalReport += `    ⚠️  Check error logs above\n`;
-      }
-      finalReport += `\n${"═".repeat(70)}`;
+RESULT             : ${trueSuccess ? "✅ SUCCESS" : "❌ FAILED (" + code + ")"}
+Algorithm          : ${type.toUpperCase()}
+Timestamp          : ${new Date().toLocaleTimeString()}
+${trueSuccess ? "✅ KEYS READY FOR SIGNING!" : "⚠️  Check error logs above"}
+
+${"═".repeat(SEPARATOR_WIDTH)}
+`;
 
       emitLog(scanId, finalReport, 100);
 
@@ -133,25 +136,25 @@ async function runKeyGeneration(params: {
   });
 }
 
-/** Artifact signing. Payload: { repoUrl, branch, privateKeyPath, password?, isQuickScan, githubToken, scanId } */
+/** Artifact signing. Payload: { repoUrl, branch, version, privateKeyPath, password?, isQuickScan, githubToken, localRepoLocation, scanId } */
 
 cryptoRouter.post("/sign-artifact", (req: Request, res: Response) => {
   const {
-    repoUrl, branch, privateKeyPath, password,
-    isQuickScan, githubToken, scanId: clientScanId,
+    repoUrl, branch, version, privateKeyPath, password,
+    isQuickScan, githubToken, localRepoLocation, scanId: clientScanId,
   } = req.body;
   const scanId = clientScanId || uuid();
 
-  runSignArtifact({ repoUrl, branch, privateKeyPath, password, isQuickScan, githubToken, scanId });
+  runSignArtifact({ repoUrl, branch, version, privateKeyPath, password, isQuickScan, githubToken, localRepoLocation, scanId });
 
   res.json({ scanId, started: true });
 });
 
 async function runSignArtifact(params: {
-  repoUrl: string; branch: string; privateKeyPath: string; password?: string;
-  isQuickScan: boolean; githubToken: string; scanId: string;
+  repoUrl: string; branch: string; version: string; privateKeyPath: string; password?: string;
+  isQuickScan: boolean; githubToken: string; localRepoLocation?: string; scanId: string;
 }): Promise<void> {
-  const { repoUrl, branch, privateKeyPath, password, isQuickScan, githubToken, scanId } = params;
+  const { repoUrl, branch, version, privateKeyPath, password, isQuickScan, githubToken, localRepoLocation, scanId } = params;
 
   const exePath = validateTool("SoftwareSigner");
   if (!exePath) {
@@ -160,25 +163,29 @@ async function runSignArtifact(params: {
     return;
   }
 
-  const repoPath = await getRepoPath(repoUrl, branch, isQuickScan, githubToken, scanId);
+  // Use local repo path when provided, otherwise clone from remote
+  let repoPath: string | null = null;
+  if (localRepoLocation) {
+    emitLog(scanId, `📂 Using local repository: ${localRepoLocation}\n`, 15);
+    repoPath = localRepoLocation;
+  } else if (version) {
+    repoPath = await cloneRepositoryByTag(repoUrl, version, isQuickScan, githubToken, scanId);
+  } else {
+    repoPath = await getRepoPath(repoUrl, branch, isQuickScan, githubToken, scanId);
+  }
   if (!repoPath) {
     emitComplete(scanId, { success: false, error: "Repository preparation failed" });
     return;
   }
 
-  // Remove .git directory so the signer hashes only source content,
-  // not git metadata (which differs between branch-clone and tag-clone).
-  const gitDir = path.join(repoPath, ".git");
-  try { await fs.rm(gitDir, { recursive: true, force: true }); } catch { /* ignore */ }
-
   emitLog(scanId,
-    `\n${"═".repeat(60)}\n🔏 INITIATING CRYPTOGRAPHIC SIGNING\n${"═".repeat(60)}\n\n`,
+    `\n${"═".repeat(SEPARATOR_WIDTH)}\n🔏 INITIATING CRYPTOGRAPHIC SIGNING\n${"═".repeat(SEPARATOR_WIDTH)}\n\n`,
     30
   );
 
   emitLog(scanId,
-    `🔹 Target Repo : ${repoUrl}\n` +
-    `🔹 Branch      : ${branch}\n` +
+    `🔹 Target Repo : ${localRepoLocation || repoUrl}\n` +
+    `🔹 Branch      : ${localRepoLocation ? "(local)" : branch}\n` +
     `🔹 Signing Key : (provided inline)\n` +
     `🔹 Security    : ${password ? "Password Protected 🔒" : "No Password ⚠️"}\n\n`,
     35
@@ -232,21 +239,23 @@ async function runSignArtifact(params: {
       }
 
       const summary = `
-╔══════════════════════════════════════════════════════════════════════╗
-                    DIGITAL SIGNATURE REPORT                            
-╚══════════════════════════════════════════════════════════════════════╝
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                                                                               ║
+║                   ✍️  DIGITAL SIGNATURE REPORT  ✍️                           ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
 
- Status             : ${success ? "✅ SIGNED & VERIFIED" : "❌ SIGNING FAILED"}
- Repository    : ${repoUrl}
- Branch           : ${branch}
- Timestamp   : ${new Date().toLocaleTimeString()}
+ Status        : ${success ? "✅ SIGNING SUCCESS" : "❌ SIGNING FAILED"}
+ Repository    : ${localRepoLocation || repoUrl}
+ Branch        : ${localRepoLocation ? "(local)" : branch}
+ Timestamp     : ${new Date().toLocaleTimeString()}
 
  🔏 Signature Details:
  ───────────────────────────────────────────────
- 💾 Size             : ${signatureContent.length} chars
+ 💾 Size       : ${signatureContent.length} chars
  🔑 Key Used   : (provided inline)
 
-\n ${"═".repeat(70)}
+${"═".repeat(SEPARATOR_WIDTH)}
 `;
 
       emitLog(scanId, summary, 100);

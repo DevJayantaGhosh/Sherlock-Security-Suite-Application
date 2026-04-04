@@ -4,7 +4,7 @@ import {
   Box, Paper, Stack, Typography, TextField, Button,
   IconButton, InputAdornment, LinearProgress, CircularProgress,
   Dialog, DialogTitle, DialogContent, DialogActions,
-  Chip, Collapse, Tooltip
+  Chip, Collapse, Tooltip, Alert
 } from "@mui/material";
 import { toast } from "react-hot-toast";
 import FolderOpenIcon from "@mui/icons-material/FolderOpen";
@@ -19,11 +19,13 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 
 import { platform } from "../../platform";
 import { RepoDetails } from "../../models/Product";
+import { TagBasedRepoDetails } from "../repoconfig/TagBasedRepoConfig";
 
 type ScanStatus = "idle" | "running" | "success" | "failed";
 
 interface DigitalSigningCardProps {
-  repoDetails: RepoDetails;
+  repoDetails: RepoDetails | TagBasedRepoDetails;
+  version: string;
   isQuickScan: boolean;
   githubToken: string;
   disabled: boolean;
@@ -34,6 +36,7 @@ interface DigitalSigningCardProps {
 
 export default function DigitalSigningCard({
   repoDetails,
+  version,
   isQuickScan,
   githubToken,
   disabled = false,
@@ -61,9 +64,20 @@ export default function DigitalSigningCard({
   const logEndRef = useRef<HTMLDivElement>(null);
   const logsRef = useRef<string[]>([]);
 
-  const repoType = repoDetails.repoUrl.includes("github.com")
-    ? githubToken ? "Private GitHub" : "Public GitHub"
-    : "Local";
+  // Determine if this is a VerificationRepoDetails (has isLocal field)
+  const isTagBasedDetails = "isLocal" in repoDetails;
+  const isLocal = isTagBasedDetails ? (repoDetails as TagBasedRepoDetails).isLocal : false;
+  const localRepoLocation = isLocal ? repoDetails.repoUrl : "";
+  // For TagBasedRepoDetails, use releaseTag as version if not provided externally
+  const effectiveVersion = version || (isTagBasedDetails ? (repoDetails as TagBasedRepoDetails).releaseTag || "" : "");
+  // Branch: VerificationRepoDetails doesn't have branch, use "main" as fallback
+  const branch = "branch" in repoDetails ? (repoDetails as RepoDetails).branch : "main";
+
+  const repoType = isLocal
+    ? "Local"
+    : repoDetails.repoUrl.includes("github.com")
+      ? githubToken ? "Private GitHub" : "Public GitHub"
+      : "Local";
 
   // Auto-scroll logs in modal
   useEffect(() => {
@@ -104,15 +118,8 @@ export default function DigitalSigningCard({
     const scanId = crypto.randomUUID();
     scanIdRef.current = scanId;
 
-    const initLogs = [
-      `Digital Signing STARTED: ${repoDetails.repoUrl}`,
-      `Branch: ${repoDetails.branch}`,
-      `Type: ${repoType}`,
-      `${"═".repeat(60)}\n`
-    ];
-
-    setLogs(initLogs);
-    logsRef.current = [...initLogs];
+    setLogs([]);
+    logsRef.current = [];
     setStatus("running");
     setProgress(0);
     setShowLogs(false);
@@ -144,10 +151,12 @@ export default function DigitalSigningCard({
       // privateKeyPath holds file path (Electron) or raw PEM content (web)
       await platform.signArtifact({
         repoUrl: repoDetails.repoUrl,
-        branch: repoDetails.branch,
+        branch,
+        version: effectiveVersion,
         privateKeyPath,
         password: signPassword || undefined,
         isQuickScan,
+        localRepoLocation,
         githubToken: githubToken || "",
         scanId
       });
@@ -221,7 +230,7 @@ export default function DigitalSigningCard({
         <Stack spacing={3}>
           {/* Repository Info */}
           <Paper sx={{ p: 3, mb: 3, borderRadius: 2, bgcolor: "rgba(255,255,255, 0.02)", border: "1px solid rgba(255,255,255, 0.08)" }}>
-            <Typography variant="h6" fontWeight={500} mb={2.5} sx={{ color: borderColor, fontFamily: "monospace" }}>
+            <Typography variant="h6" fontWeight={500} mb={2.5} sx={{ color: borderColor, fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace" }}>
               📂 Repository (1)
             </Typography>
             <Paper sx={{ p: 2, borderRadius: 1, border: `2px solid ${borderColor}30`, bgcolor: `${borderColor}08` }}>
@@ -230,15 +239,15 @@ export default function DigitalSigningCard({
                   <Typography variant="subtitle2" fontWeight={700} sx={{ color: borderColor, fontSize: "1rem" }}>1</Typography>
                 </Box>
                 <Box sx={{ flex: 1, minWidth: 200 }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "monospace" }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace" }}>
                     Repository{repoDetails.repoUrl.includes("github.com") ? "" : " Path"}
                   </Typography>
-                  <Typography variant="body2" sx={{ fontFamily: "monospace", fontSize: "0.85rem", color: borderColor, fontWeight: 600 }}>
+                  <Typography variant="body2" sx={{ fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace", fontSize: "0.85rem", color: borderColor, fontWeight: 600 }}>
                     {repoDetails.repoUrl}
                   </Typography>
                 </Box>
-                <Chip label={repoDetails.branch} size="small" sx={{ fontFamily: "monospace", bgcolor: `${borderColor}20`, color: borderColor }} />
-                <Chip label={repoType.split(" ")[0]} size="small" sx={{ fontFamily: "monospace" }} />
+                <Chip label={effectiveVersion || branch} size="small" sx={{ fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace", bgcolor: `${borderColor}20`, color: borderColor }} />
+                <Chip label={repoType.split(" ")[0]} size="small" sx={{ fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace" }} />
               </Stack>
             </Paper>
           </Paper>
@@ -270,7 +279,7 @@ export default function DigitalSigningCard({
                 value={privateKeyPath}
                 onChange={(e) => setPrivateKeyPath(e.target.value)}
                 disabled={disabled || isRunning}
-                InputProps={{ sx: { fontFamily: "monospace", fontSize: 12 } }}
+                InputProps={{ sx: { fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace", fontSize: 12 } }}
               />
             )}
             <TextField
@@ -332,7 +341,7 @@ export default function DigitalSigningCard({
                 minRows={4}
                 maxRows={8}
                 value={signatureContent}
-                InputProps={{ readOnly: true, sx: { fontFamily: "monospace", fontSize: 12 } }}
+                InputProps={{ readOnly: true, sx: { fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace", fontSize: 12 } }}
               />
             </Box>
           )}
@@ -347,19 +356,51 @@ export default function DigitalSigningCard({
                 size="small"
                 fullWidth
               >
-                {showLogs ? "Hide Logs" : "Show Logs"} ({logs.length} lines)
+                {showLogs ? "Hide Logs" : "Show Logs"}
               </Button>
+
               <Collapse in={showLogs}>
-                <Paper sx={{
-                  mt: 2, maxHeight: "400px", overflow: "auto",
-                  bgcolor: "#1a1a1a", border: "1px solid #333", p: 2,
-                  fontFamily: "monospace", fontSize: 12, color: "#e0e0e0"
-                }}>
-                  {logs.map((log, i) => (
-                    <Typography key={i} component="pre" sx={{ m: 0, fontSize: 12 }}>
-                      {log}
-                    </Typography>
-                  ))}
+                <Paper
+                  elevation={0}
+                  sx={{
+                    mt: 2,
+                    maxHeight: "400px",
+                    overflow: "auto",
+                    backgroundColor: "#1a1a1a",
+                    border: "1px solid #333",
+                    p: 2,
+                    "&::-webkit-scrollbar": { width: "8px" },
+                    "&::-webkit-scrollbar-track": { background: "#2d2d2d" },
+                    "&::-webkit-scrollbar-thumb": { background: "#555", borderRadius: "4px" },
+                    "&::-webkit-scrollbar-thumb:hover": { background: "#777" },
+                  }}
+                >
+                  <Box
+                    sx={{
+                      fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
+                      fontSize: 12,
+                      lineHeight: 1.6,
+                      color: "#e0e0e0",
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {logs.map((log, i) => (
+                      <Typography
+                        key={i}
+                        component="pre"
+                        sx={{
+                          margin: 0,
+                          fontFamily: "inherit",
+                          fontSize: "inherit",
+                          lineHeight: "inherit",
+                          color: "inherit",
+                        }}
+                      >
+                        {log}
+                      </Typography>
+                    ))}
+                  </Box>
                 </Paper>
               </Collapse>
             </Box>
@@ -368,42 +409,105 @@ export default function DigitalSigningCard({
       </Paper>
 
       {/* Modal */}
-      <Dialog open={modalOpen} onClose={() => canClose && setModalOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle sx={{ bgcolor: "#2d2d2d", borderBottom: "1px solid #404040" }}>
+      <Dialog
+        open={modalOpen}
+        onClose={() => canClose && setModalOpen(false)}
+        maxWidth="md"
+        fullWidth
+        disableEscapeKeyDown={!canClose}
+        PaperProps={{
+          sx: {
+            backgroundColor: "#1e1e1e",
+            backgroundImage: "none",
+          },
+        }}
+      >
+        <DialogTitle sx={{ backgroundColor: "#2d2d2d", borderBottom: "1px solid #404040" }}>
           <Stack direction="row" justifyContent="space-between" alignItems="center">
-            <Typography variant="h6" fontWeight={700}>
+            <Typography variant="h6" fontWeight={600}>
               <FingerprintIcon sx={{ mr: 1, fontSize: 24, color: borderColor }} /> Digital Signing
             </Typography>
-            {canClose && <IconButton onClick={() => setModalOpen(false)}><CloseIcon /></IconButton>}
+            {canClose && (
+              <IconButton onClick={() => setModalOpen(false)} size="small">
+                <CloseIcon />
+              </IconButton>
+            )}
           </Stack>
           {isRunning && (
             <Box sx={{ mt: 2 }}>
-              <Stack direction="row" spacing={2} alignItems="center">
+              <Stack direction="row" spacing={2} alignItems="center" mb={1}>
                 <Box flex={1}><LinearProgress variant="determinate" value={progress} /></Box>
-                <Typography variant="body2">{progress}%</Typography>
+                <Typography variant="body2" color="text.secondary">{progress}%</Typography>
               </Stack>
             </Box>
           )}
+          {isCancelling && (
+            <Alert severity="warning" sx={{ mt: 2 }}>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <CircularProgress size={16} />
+                <Typography variant="body2">Cancelling scan and cleaning up processes...</Typography>
+              </Stack>
+            </Alert>
+          )}
         </DialogTitle>
-        <DialogContent sx={{ height: "60vh", p: 3, pt: 3, bgcolor: "#1a1a1a" }}>
-          <Box sx={{ fontFamily: "monospace", fontSize: 12, lineHeight: 1.5, color: "#e0e0e0", whiteSpace: "pre-wrap", mt: 1 }}>
-            {logs.map((log, i) => (
-              <Typography key={i} component="pre" sx={{ m: 0, fontSize: 12 }}>
-                {log}
+        <DialogContent
+          sx={{
+            height: "60vh",
+            mt: 2,
+            backgroundColor: "#1a1a1a",
+            overflow: "auto",
+            p: 3,
+            "&::-webkit-scrollbar": { width: "8px" },
+            "&::-webkit-scrollbar-track": { background: "#2d2d2d" },
+            "&::-webkit-scrollbar-thumb": { background: "#555", borderRadius: "4px" },
+            "&::-webkit-scrollbar-thumb:hover": { background: "#777" },
+          }}
+        >
+          <Box
+            sx={{
+              fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
+              fontSize: 13,
+              lineHeight: 1.6,
+              color: "#e0e0e0",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+              mt: 2,
+            }}
+          >
+            {logs.length > 0 ? (
+              <>
+                {logs.map((log, i) => (
+                  <Typography
+                    key={i}
+                    component="pre"
+                    sx={{ margin: 0, fontFamily: "inherit", fontSize: "inherit", lineHeight: "inherit", color: "inherit" }}
+                  >
+                    {log}
+                  </Typography>
+                ))}
+                <div ref={logEndRef} />
+              </>
+            ) : (
+              <Typography color="text.secondary" textAlign="center" py={4}>
+                {isRunning ? "Initializing signing..." : "No logs available"}
               </Typography>
-            ))}
-            <div ref={logEndRef} />
+            )}
           </Box>
         </DialogContent>
-        <DialogActions sx={{ p: 2, bgcolor: "#2d2d2d" }}>
+        <DialogActions sx={{ p: 2, backgroundColor: "#2d2d2d", borderTop: "1px solid #404040" }}>
           {isRunning && (
-            <Button onClick={cancelScan} color="error" variant="contained"
-              startIcon={isCancelling ? <CircularProgress size={16} color="inherit" /> : <CancelIcon />}>
+            <Button
+              onClick={cancelScan}
+              color="error"
+              variant="contained"
+              startIcon={isCancelling ? <CircularProgress size={16} color="inherit" /> : <CancelIcon />}
+              disabled={isCancelling}
+            >
               {isCancelling ? "Cancelling..." : "Cancel Scan"}
             </Button>
           )}
           {logs.length > 0 && <Button startIcon={<DownloadIcon />} onClick={downloadLogs}>Download Logs</Button>}
-          {canClose && <Button onClick={() => setModalOpen(false)}>Close</Button>}
+          {canClose && <Button onClick={() => setModalOpen(false)} variant="outlined">Close</Button>}
         </DialogActions>
       </Dialog>
     </>

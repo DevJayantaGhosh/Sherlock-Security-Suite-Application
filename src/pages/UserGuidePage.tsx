@@ -37,8 +37,8 @@ export default function UserGuidePage() {
   const PIPELINE_STEPS = [
     { label: "Onboard Product", icon: EngineeringIcon, color: "#ffe920" },
     { label: "Security Scan", icon: SecurityIcon, color: "#ff9800" },
-    { label: "Cryptographic Sign", icon: FingerprintIcon, color: "#00e5ff" },
     { label: "Release", icon: RocketLaunchIcon, color: "#7b5cff" },
+    { label: "Cryptographic Sign", icon: FingerprintIcon, color: "#00e5ff" },
     { label: "Verify Signature", icon: ReceiptLongIcon, color: "#4caf50" },
   ];
 
@@ -268,31 +268,31 @@ export default function UserGuidePage() {
               {
                 step: 2,
                 title: "Security Scan",
-                desc: "Security Head runs SAST scans. Can APPROVE (→ Cryptographic Sign) or REJECT",
+                desc: "Security Head runs SAST scans. Can APPROVE (→ Release) or REJECT",
                 roles: ["SecurityHead"],
                 icon: SecurityIcon,
                 color: "#ff9800",
               },
               {
                 step: 3,
-                title: "Cryptographic Sign",
-                desc: "Release Engineers digitally sign artifacts (requires Approved status)",
-                roles: ["ReleaseEngineer"],
-                icon: FingerprintIcon,
-                color: "#00e5ff",
-              },
-              {
-                step: 4,
                 title: "Release",
-                desc: "Release Engineers publish signed artifacts (requires Signed status)",
+                desc: "Release Engineers publish approved artifacts (requires Approved status)",
                 roles: ["ReleaseEngineer"],
                 icon: RocketLaunchIcon,
                 color: "#7b5cff",
               },
               {
+                step: 4,
+                title: "Cryptographic Sign",
+                desc: "Release Engineers digitally sign released artifacts (requires Released status)",
+                roles: ["ReleaseEngineer"],
+                icon: FingerprintIcon,
+                color: "#00e5ff",
+              },
+              {
                 step: 5,
                 title: "Signature Verification",
-                desc: "All users verify cryptographic signatures (requires Released status)",
+                desc: "All users verify cryptographic signatures (requires Signed status)",
                 roles: ["All Roles"],
                 icon: ReceiptLongIcon,
                 color: "#4caf50",
@@ -448,15 +448,15 @@ export default function UserGuidePage() {
                 </Typography>
               </Box>
 
-              {/* 3. SIGN → SIGNED */}
+              {/* 3. RELEASE → RELEASED */}
               <Box sx={{ textAlign: "center", flexShrink: 0, width: 80 }}>
-                <Box sx={{ p: 2, bgcolor: "rgba(0,229,255,0.15)", borderRadius: 2, border: "1px solid rgba(0,229,255,0.3)" }}>
-                  <FingerprintIcon sx={{ fontSize: 24, color: "#00e5ff" }} />
-                  <Typography variant="caption" fontWeight={700} color="#00e5ff" sx={{ display: "block", fontSize: "0.65rem", mt: 0.5 }}>
-                    SIGN
+                <Box sx={{ p: 2, bgcolor: "rgba(123,92,255,0.15)", borderRadius: 2, border: "1px solid rgba(123,92,255,0.3)" }}>
+                  <RocketLaunchIcon sx={{ fontSize: 24, color: "#7b5cff" }} />
+                  <Typography variant="caption" fontWeight={700} color="#7b5cff" sx={{ display: "block", fontSize: "0.65rem", mt: 0.5 }}>
+                    RELEASE
                   </Typography>
                 </Box>
-                <Chip label="SIGNED" size="small" sx={{ mt: 1, bgcolor: "#00e5ff", color: "#000", fontWeight: 700, height: 24, fontSize: "0.6rem", width: 65 }} />
+                <Chip label="RELEASED" size="small" sx={{ mt: 1, bgcolor: "#7b5cff", color: "white", fontWeight: 700, height: 24, fontSize: "0.6rem", width: 72 }} />
               </Box>
 
               {/* DOTTED LINE 3 */}
@@ -467,22 +467,22 @@ export default function UserGuidePage() {
                   left: 8,
                   right: 8,
                   height: 2,
-                  borderBottom: "2px dashed #7b5cff40",
-                  backgroundImage: "linear-gradient(to right, transparent 50%, #7b5cff60 50%)",
+                  borderBottom: "2px dashed #00e5ff40",
+                  backgroundImage: "linear-gradient(to right, transparent 50%, #00e5ff60 50%)",
                   backgroundSize: "8px 2px",
                   backgroundRepeat: "repeat-x",
                 }} />
               </Box>
 
-              {/* 4. RELEASE → RELEASED */}
+              {/* 4. SIGN → SIGNED */}
               <Box sx={{ textAlign: "center", flexShrink: 0, width: 80 }}>
-                <Box sx={{ p: 2, bgcolor: "rgba(123,92,255,0.15)", borderRadius: 2, border: "1px solid rgba(123,92,255,0.3)" }}>
-                  <RocketLaunchIcon sx={{ fontSize: 24, color: "#7b5cff" }} />
-                  <Typography variant="caption" fontWeight={700} color="#7b5cff" sx={{ display: "block", fontSize: "0.65rem", mt: 0.5 }}>
-                    RELEASE
+                <Box sx={{ p: 2, bgcolor: "rgba(0,229,255,0.15)", borderRadius: 2, border: "1px solid rgba(0,229,255,0.3)" }}>
+                  <FingerprintIcon sx={{ fontSize: 24, color: "#00e5ff" }} />
+                  <Typography variant="caption" fontWeight={700} color="#00e5ff" sx={{ display: "block", fontSize: "0.65rem", mt: 0.5 }}>
+                    SIGN
                   </Typography>
                 </Box>
-                <Chip label="RELEASED" size="small" sx={{ mt: 1, bgcolor: "#7b5cff", color: "white", fontWeight: 700, height: 24, fontSize: "0.6rem", width: 72 }} />
+                <Chip label="SIGNED" size="small" sx={{ mt: 1, bgcolor: "#00e5ff", color: "#000", fontWeight: 700, height: 24, fontSize: "0.6rem", width: 65 }} />
               </Box>
 
               {/* DOTTED LINE 4 */}
@@ -546,8 +546,8 @@ export default function UserGuidePage() {
                   <TableCell align="center" sx={{ color: "white", fontWeight: 700, py: 2, borderBottom: "none", minWidth: 70 }}>Edit</TableCell>
                   <TableCell align="center" sx={{ color: "white", fontWeight: 700, py: 2, borderBottom: "none", minWidth: 80 }}>Delete</TableCell>
                   <TableCell align="center" sx={{ color: "warning.main", fontWeight: 700, py: 2, borderBottom: "none", minWidth: 80 }}>Scan</TableCell>
-                  <TableCell align="center" sx={{ color: "info.main", fontWeight: 700, py: 2, borderBottom: "none", minWidth: 110 }}>Cryptographic Sign</TableCell>
                   <TableCell align="center" sx={{ color: "primary.main", fontWeight: 700, py: 2, borderBottom: "none", minWidth: 80 }}>Release</TableCell>
+                  <TableCell align="center" sx={{ color: "info.main", fontWeight: 700, py: 2, borderBottom: "none", minWidth: 110 }}>Cryptographic Sign</TableCell>
                   <TableCell align="center" sx={{ color: "success.main", fontWeight: 700, py: 2, borderBottom: "none", minWidth: 100 }}>Verify</TableCell>
                 </TableRow>
               </TableHead>
@@ -601,11 +601,11 @@ export default function UserGuidePage() {
                     <TableCell align="center" sx={{ fontWeight: 600, py: 2.5, color: row.scan.includes("✅") ? "warning.main" : "error.main", minWidth: 80 }}>
                       {row.scan}
                     </TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 600, py: 2.5, color: row.sign.includes("✅") ? "info.main" : "error.main", minWidth: 110 }}>
-                      {row.sign}
-                    </TableCell>
                     <TableCell align="center" sx={{ fontWeight: 600, py: 2.5, color: row.release.includes("✅") ? "primary.main" : "error.main", minWidth: 80 }}>
                       {row.release}
+                    </TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 600, py: 2.5, color: row.sign.includes("✅") ? "info.main" : "error.main", minWidth: 110 }}>
+                      {row.sign}
                     </TableCell>
                     <TableCell align="center" sx={{ fontWeight: 600, py: 2.5, color: row.verify.includes("✅") ? "success.main" : "error.main", minWidth: 100 }}>
                       {row.verify}

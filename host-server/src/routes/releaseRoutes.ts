@@ -11,16 +11,21 @@ import { v4 as uuid } from "uuid";
 
 import { emitLog, emitComplete, emitCancel, sseEvents } from "../services/sseManager.js";
 
+/** log heading separator constant  */
+const SEPARATOR_WIDTH = 80;
+
+
+
 export const releaseRouter = Router();
 
-/** Payload: { repoUrl, branch, version, scanId } */
+/** Payload: { repoUrl, branch, version, githubToken?, scanId } */
 
 releaseRouter.post("/create", (req: Request, res: Response) => {
-  const { repoUrl, branch, version, scanId: clientScanId } = req.body;
+  const { repoUrl, branch, version, githubToken, scanId: clientScanId } = req.body;
   const scanId = clientScanId || uuid();
 
   // Fire-and-forget — logs streamed via SSE
-  runCreateRelease({ repoUrl, branch, version, scanId });
+  runCreateRelease({ repoUrl, branch, version, githubToken, scanId });
 
   res.json({ scanId, started: true });
 });
@@ -31,15 +36,16 @@ async function runCreateRelease(params: {
   repoUrl: string;
   branch: string;
   version: string;
+  githubToken?: string;
   scanId: string;
 }): Promise<void> {
-  const { repoUrl, branch, version, scanId } = params;
+  const { repoUrl, branch, version, githubToken, scanId } = params;
 
-  /* ── 0. Token ─────────────────────────────────────────────── */
-  const token = process.env.GITHUB_PAT;
+  /* ── 0. Token — prefer payload token (Quick Release), fallback to env (Product flow) */
+  const token = githubToken || process.env.GITHUB_PAT;
   if (!token) {
-    emitLog(scanId, `\n❌ GITHUB TOKEN MISSING\nRequired: GITHUB_PAT environment variable\n`, 0);
-    emitComplete(scanId, { success: false, error: "GITHUB_PAT not configured on server" });
+    emitLog(scanId, `\n❌ GITHUB TOKEN MISSING\nProvide a token in the UI or set GITHUB_PAT environment variable\n`, 0);
+    emitComplete(scanId, { success: false, error: "GitHub token not provided and GITHUB_PAT not configured on server" });
     return;
   }
 
@@ -57,7 +63,7 @@ async function runCreateRelease(params: {
   /* ── 2. Header logs ───────────────────────────────────────── */
   emitLog(
     scanId,
-    `\n${"═".repeat(70)}\n🚀 GITHUB RELEASE CREATION\n${"═".repeat(70)}\n\n`,
+    `\n${"═".repeat(SEPARATOR_WIDTH)}\n🚀 GITHUB RELEASE CREATION\n${"═".repeat(SEPARATOR_WIDTH)}\n\n`,
     10
   );
 
@@ -136,7 +142,7 @@ async function runCreateRelease(params: {
     const summary = `
 ╔═══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                               ║
-║                              GITHUB RELEASE CREATED                           ║
+║                    🚀  GITHUB RELEASE CREATED  🚀                            ║
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 
@@ -149,7 +155,7 @@ Release URL    : ${release.html_url}
 
 📎 Direct Link : ${release.html_url}
 
-${"═".repeat(80)}
+${"═".repeat(SEPARATOR_WIDTH)}
 `;
 
     emitLog(scanId, summary, 100);

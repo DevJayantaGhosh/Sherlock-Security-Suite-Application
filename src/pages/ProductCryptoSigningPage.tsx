@@ -68,13 +68,13 @@ export default function ProductCryptoSigningPage() {
 
 
 
-// Authorization and view‑only mode
+// Authorization and view‑only mode (flow: Scan → Release → Sign → Verify)
 const isAuthorized = product ? authorizeToSign(user, product) : false;
-const isApproved = product?.status === "Approved";
+const isReleased = product?.status === "Released";
 const isRejected = product?.status === "Rejected";
 
-const canSign = isAuthorized && isApproved;
-const isViewOnlyMode = !isAuthorized || !isApproved || isRejected;
+const canSign = isAuthorized && isReleased;
+const isViewOnlyMode = !isAuthorized || !isReleased || isRejected;
 
 let tooltip = "";
 if (isViewOnlyMode) {
@@ -83,7 +83,7 @@ if (isViewOnlyMode) {
   } else if (isRejected) {
     tooltip = `Product is "${product?.status}". No further actions allowed.`;
   } else {
-    // !isApproved (e.g. Pending, Signed, Released, anything but Approved)
+    // !isReleased (e.g. Pending, Approved, Signed — anything but Released)
     tooltip = `Product is "${product?.status}". Signing actions are not allowed at this stage.`;
   }
 }
@@ -143,6 +143,7 @@ if (isViewOnlyMode) {
               <DigitalSigningCard
                 key={index}
                 repoDetails={repo}
+                version={product.version}
                 isQuickScan={false}
                 githubToken=""
                 disabled={!canSign || loading}

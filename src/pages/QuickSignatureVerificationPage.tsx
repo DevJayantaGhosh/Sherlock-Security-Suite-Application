@@ -4,16 +4,16 @@ import { Box, Container } from "@mui/material";
 import { motion } from "framer-motion";
 import QuickHeader from "../components/QuickHeader";
 import SignatureVerificationCard from "../components/verification/SignatureVerificationCard";
-import VerificationRepoConfigForm, { VerificationRepoDetails } from "../components/repoconfig/VerificationRepoConfigForm";
+import TagBasedRepoConfig, { TagBasedRepoDetails } from "../components/repoconfig/TagBasedRepoConfig";
 import { toast } from "react-hot-toast";
 
 export default function QuickSignatureVerificationPage() {
-  const [repoDetails, setRepoDetails] = useState<VerificationRepoDetails | null>(null);
+  const [repoDetails, setRepoDetails] = useState<TagBasedRepoDetails | null>(null);
   const [githubToken, setGithubToken] = useState("");
   const [loading, setLoading] = useState(false);
   const [isConfigured, setIsConfigured] = useState(false);
 
-  const handleConfigureRepo = useCallback((details: VerificationRepoDetails, token?: string) => {
+  const handleConfigureRepo = useCallback((details: TagBasedRepoDetails, token?: string) => {
     setRepoDetails(details);
     setGithubToken(token || "");
     setIsConfigured(true);
@@ -37,7 +37,7 @@ export default function QuickSignatureVerificationPage() {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
           <QuickHeader pageType="verify" />
 
-          <VerificationRepoConfigForm
+          <TagBasedRepoConfig
             themeColor="verify"
             onConfigure={handleConfigureRepo}
             onReset={handleReset}

@@ -46,8 +46,10 @@ export default function NavBar() {
     { label: "About", path: "/about" },
     { label: "Products", path: "/products" },
     { label: "Quick-Scan", path: "/quick-security-scan" },
-    { label: "Crypto-Signing", path: "/quick-crypto-sign" },
-    { label: "Verification", path: "/quick-sign-verify" },
+    { label: "Release", path: "/quick-release" },
+    { label: "Sign", path: "/quick-crypto-sign" },
+    { label: "Verify", path: "/quick-sign-verify" },
+
   ];
 
   const adminLinks = [{ label: "Admin", path: "/admin" }];

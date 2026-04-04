@@ -19,7 +19,7 @@ interface ThemeConfig {
   nameColor: string;
 }
 
-interface RepoConfigFormProps {
+interface BranchBasedRepoConfigProps {
   onConfigure: (repoDetails: RepoDetails, githubToken?: string) => void;
   onReset: () => void;
   isLoading: boolean;
@@ -30,29 +30,19 @@ interface RepoConfigFormProps {
 }
 
 const PAGE_CONFIG = {
-  crypto: { 
-    color: '#00e5ff', 
-    shadow: 'rgba(0,229,255,0.5)', 
-    nameColor: '#00e5ff'
-  },
   security: { 
     color: '#ff9800', 
     shadow: 'rgba(255,152,0,0.5)', 
     nameColor: '#ff9800'
   },
-  verify: { 
-    color: '#4caf50', 
-    shadow: 'rgba(76,175,80,0.5)', 
-    nameColor: '#4caf50'
-  },
   default: { 
-    color: '#00e5ff', 
-    shadow: 'rgba(0,229,255,0.5)', 
-    nameColor: '#00e5ff'
+    color: '#ff9800', 
+    shadow: 'rgba(255,152,0,0.5)', 
+    nameColor: '#ff9800'
   }
 } as const;
 
-export default function RepoConfigForm({
+export default function BranchBasedRepoConfig({
   onConfigure,
   onReset,
   isLoading,
@@ -60,7 +50,7 @@ export default function RepoConfigForm({
   repoDetails: _repoDetails,
   themeColor = 'default',
   hideBranchForLocal = false 
-}: RepoConfigFormProps) {
+}: BranchBasedRepoConfigProps) {
   const theme: ThemeConfig = PAGE_CONFIG[themeColor];
 
   const [activeTab, setActiveTab] = useState(0);
@@ -306,7 +296,7 @@ export default function RepoConfigForm({
                       onChange={(e) => setStandaloneAuth({ ...standaloneAuth, githubToken: e.target.value })}
                       type="password"
                       size="small"
-                      placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                      placeholder="github_pat_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
                       error={standaloneAuth.isPrivate && !validateStandaloneAuth()}
                       helperText={
                         standaloneAuth.isPrivate && !validateStandaloneAuth()

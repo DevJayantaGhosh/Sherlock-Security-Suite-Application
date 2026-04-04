@@ -1,6 +1,6 @@
 // src/pages/RegisterPage.tsx - COMPLETE WITH EMAIL + PASSWORD VALIDATION
 import { useState } from "react";
-import { Box, Container, Paper, Typography, TextField, Button, Chip } from "@mui/material";
+import { Box, Container, Paper, Typography, TextField, Button, Chip, Divider } from "@mui/material";
 import { motion } from "framer-motion";
 import { register } from "../services/userService";
 import { useNavigate } from "react-router-dom";
@@ -278,9 +278,10 @@ export default function RegisterPage() {
               {loading ? "Creating..." : "Sign up"}
             </Button>
             
-            <Typography variant="caption" sx={{ display: "block", mt: 2, color: "text.secondary" }}>
-              Use one of the demo emails: [admin@gmail.com](mailto:admin@gmail.com), [director@gmail.com](mailto:director@gmail.com), [security@gmail.com](mailto:security@gmail.com), [engineer@gmail.com](mailto:engineer@gmail.com), [user@gmail.com](mailto:user@gmail.com)
-            </Typography>
+            <Divider sx={{ my: 3 }} />
+            <Button onClick={() => navigate("/login")} variant="text" fullWidth>
+              Back to Login
+            </Button>
           </Paper>
         </motion.div>
       </Container>

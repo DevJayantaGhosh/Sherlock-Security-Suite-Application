@@ -233,12 +233,12 @@ export default function ProductPage() {
     navigate(`/product/${productId}/security-scan`);
   }
 
-  function navigateToCryptoSign(productId: string) {
-    navigate(`/product/${productId}/cryptographic-signing`);
-  }
-
   function navigateToRelease(productId: string) {
     navigate(`/product/${productId}/releases`);
+  }
+
+  function navigateToCryptoSign(productId: string) {
+    navigate(`/product/${productId}/cryptographic-signing`);
   }
 
   function navigateToSignatureVerify(productId: string) {
@@ -273,12 +273,12 @@ function openSecurityScanClick(p: Product) {
   openStepClick(p, "security-scan", () => navigateToSecurityScan(p.id));
 }
 
-function openCryptoSignClick(p: Product) {
-  openStepClick(p, "cryptographic-signing", () => navigateToCryptoSign(p.id));
-}
-
 function openReleaseWorkflowClick(p: Product) {
   openStepClick(p, "releases", () => navigateToRelease(p.id));
+}
+
+function openCryptoSignClick(p: Product) {
+  openStepClick(p, "cryptographic-signing", () => navigateToCryptoSign(p.id));
 }
 
 function openSignatureVerifyClick(p: Product) {
@@ -352,9 +352,9 @@ function openSignatureVerifyClick(p: Product) {
             <MenuItem value="All">All Status</MenuItem>
             <MenuItem value="Pending">Pending</MenuItem>
             <MenuItem value="Approved">Approved</MenuItem>
-            <MenuItem value="Signed">Signed</MenuItem>
             <MenuItem value="Rejected">Rejected</MenuItem>
             <MenuItem value="Released">Released</MenuItem>
+            <MenuItem value="Signed">Signed</MenuItem>
           </TextField>
 
           <Box sx={{ flex: 1, minWidth: 300 }}>
@@ -526,8 +526,8 @@ function openSignatureVerifyClick(p: Product) {
                     () => handleDelete(p.id)
                   )}
                   onSecurityScan={() => openSecurityScanClick(p)}
-                  onCryptographicSign={() => openCryptoSignClick(p)}
                   onRelease={() => openReleaseWorkflowClick(p)}
+                  onCryptographicSign={() => openCryptoSignClick(p)}
                   onSignatureVerify={() => openSignatureVerifyClick(p)}
                 />
               ))

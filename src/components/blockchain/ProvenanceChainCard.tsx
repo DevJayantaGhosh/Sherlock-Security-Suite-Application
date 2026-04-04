@@ -1,6 +1,6 @@
 /**
  * ProvenanceChainCard — Displays the full 3-stage provenance chain
- * (SCAN -> SIGN -> RELEASE) in a blockchain-like visual flow.
+ * (SCAN -> RELEASE -> SIGN) in a blockchain-like visual flow.
  * Each stage block is expandable. Includes IPFS artifact downloads.
  */
 import { useState, useEffect } from "react";
@@ -48,8 +48,8 @@ export interface ProvenanceChainCardProps {
 /* ── Stage config ── */
 const STAGES = [
   { key: "SCAN", label: "Security Scan", contractStage: ContractStage.SCAN, color: "#ff9800", icon: <SecurityIcon sx={{ fontSize: 20 }} /> },
-  { key: "SIGN", label: "Digital Signing", contractStage: ContractStage.SIGN, color: "#00e5ff", icon: <FingerprintIcon sx={{ fontSize: 20 }} /> },
   { key: "RELEASE", label: "Release", contractStage: ContractStage.RELEASE, color: "#7b5cff", icon: <RocketLaunchIcon sx={{ fontSize: 20 }} /> },
+  { key: "SIGN", label: "Digital Signing", contractStage: ContractStage.SIGN, color: "#00e5ff", icon: <FingerprintIcon sx={{ fontSize: 20 }} /> },
 ] as const;
 
 const glow = keyframes`0%,100%{box-shadow:0 0 8px rgba(76,175,80,.3)}50%{box-shadow:0 0 20px rgba(76,175,80,.6)}`;
@@ -58,7 +58,7 @@ const glow = keyframes`0%,100%{box-shadow:0 0 8px rgba(76,175,80,.3)}50%{box-sha
 function R({ l, v }: { l: string; v: React.ReactNode }) {
   return (
     <TableRow>
-      <TableCell sx={{ fontWeight: 700, width: 155, fontFamily: "monospace", py: 0.4, border: "none", fontSize: ".82rem" }}>{l}</TableCell>
+      <TableCell sx={{ fontWeight: 700, width: 155, fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace", py: 0.4, border: "none", fontSize: ".82rem" }}>{l}</TableCell>
       <TableCell sx={{ py: 0.4, border: "none", fontSize: ".82rem" }}>{v}</TableCell>
     </TableRow>
   );
@@ -259,7 +259,7 @@ export default function ProvenanceChainCard({ variants, product, borderColor = "
                         <SH icon={<InventoryIcon sx={{ fontSize: 16, color: cfg.color }} />} label="Product" color={cfg.color} />
                         <Table size="small" sx={{ mb: 1 }}>
                           <TableBody>
-                            <R l="Product ID" v={<span style={{ fontFamily: "monospace", fontSize: ".78rem" }}>{snap.productId}</span>} />
+                            <R l="Product ID" v={<span style={{ fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace", fontSize: ".78rem" }}>{snap.productId}</span>} />
                             <R l="Name" v={snap.name} />
                             <R l="Version" v={snap.version} />
                             <R l="Open Source" v={snap.isOpenSource ? "Yes" : "No"} />
@@ -281,7 +281,7 @@ export default function ProvenanceChainCard({ variants, product, borderColor = "
                         <SH icon={<FolderIcon sx={{ fontSize: 16, color: cfg.color }} />} label={`Repositories (${repos.length})`} color={cfg.color} />
                         {repos.length > 0 ? repos.map((rp: any, ri: number) => (
                           <Paper key={ri} sx={{ p: 1.5, mb: 1, bgcolor: "rgba(255,255,255,.02)", border: "1px solid rgba(255,255,255,.06)" }}>
-                            <Typography variant="body2" fontWeight={600} sx={{ fontFamily: "monospace", fontSize: ".8rem" }}>{rp.repoUrl || rp.url || "—"}</Typography>
+                            <Typography variant="body2" fontWeight={600} sx={{ fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace", fontSize: ".8rem" }}>{rp.repoUrl || rp.url || "—"}</Typography>
                             <Typography variant="caption" color="text.secondary">Branch: <strong>{rp.branch || "—"}</strong></Typography>
                             <ScanLines scans={rp.scans} />
                           </Paper>
@@ -313,7 +313,7 @@ export default function ProvenanceChainCard({ variants, product, borderColor = "
                             <R l="Recorded By" v={
                               snap.recordedBy ? (
                                 <Stack direction="row" spacing={0.5} alignItems="center">
-                                  <span style={{ fontFamily: "monospace" }}>{shortenAddress(snap.recordedBy)}</span>
+                                  <span style={{ fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace" }}>{shortenAddress(snap.recordedBy)}</span>
                                   <IconButton
                                     size="small"
                                     href={getHashScanAccountUrl(snap.recordedBy)}
@@ -364,8 +364,8 @@ export default function ProvenanceChainCard({ variants, product, borderColor = "
                   const signS = snapByStage(ContractStage.SIGN);
                   const releaseS = snapByStage(ContractStage.RELEASE);
                   const parts: string[] = [];
-                  if (scanS && signS) parts.push(`Scan → Sign: ${timeDiff(scanS.timestamp, signS.timestamp)}`);
-                  if (signS && releaseS) parts.push(`Sign → Release: ${timeDiff(signS.timestamp, releaseS.timestamp)}`);
+                  if (scanS && releaseS) parts.push(`Scan → Release: ${timeDiff(scanS.timestamp, releaseS.timestamp)}`);
+                  if (releaseS && signS) parts.push(`Release → Sign: ${timeDiff(releaseS.timestamp, signS.timestamp)}`);
                   return parts.length > 0 ? ` · ${parts.join(" · ")}` : "";
                 })()}
               </Typography>
@@ -387,7 +387,7 @@ export default function ProvenanceChainCard({ variants, product, borderColor = "
                           <FingerprintIcon sx={{ fontSize: 20, color: "#00e5ff" }} />
                           <Box sx={{ minWidth: 0 }}>
                             <Typography variant="body2" fontWeight={600}>Signature File</Typography>
-                            <Typography variant="caption" sx={{ fontFamily: "monospace", fontSize: ".75rem", color: "text.secondary", wordBreak: "break-all" }}>{sigIPFS}</Typography>
+                            <Typography variant="caption" sx={{ fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace", fontSize: ".75rem", color: "text.secondary", wordBreak: "break-all" }}>{sigIPFS}</Typography>
                           </Box>
                         </Stack>
                         <Stack direction="row" spacing={1}>
@@ -404,7 +404,7 @@ export default function ProvenanceChainCard({ variants, product, borderColor = "
                           <VpnKeyIcon sx={{ fontSize: 20, color: "#00e5ff" }} />
                           <Box sx={{ minWidth: 0 }}>
                             <Typography variant="body2" fontWeight={600}>Public Key File</Typography>
-                            <Typography variant="caption" sx={{ fontFamily: "monospace", fontSize: ".75rem", color: "text.secondary", wordBreak: "break-all" }}>{pkIPFS}</Typography>
+                            <Typography variant="caption" sx={{ fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace", fontSize: ".75rem", color: "text.secondary", wordBreak: "break-all" }}>{pkIPFS}</Typography>
                           </Box>
                         </Stack>
                         <Stack direction="row" spacing={1}>

@@ -174,7 +174,7 @@ export default function IPFSUploadCard({
 
           {pkCid ? (
             <Stack direction="row" spacing={1} alignItems="center">
-              <Typography variant="body2" sx={{ fontFamily: "monospace", fontSize: ".82rem", flex: 1, wordBreak: "break-all" }}>
+              <Typography variant="body2" sx={{ fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace", fontSize: ".82rem", flex: 1, wordBreak: "break-all" }}>
                 {pkCid}
               </Typography>
               <IconButton size="small" onClick={() => copyToClipboard(pkCid)}><ContentCopyIcon sx={{ fontSize: 16 }} /></IconButton>
@@ -222,7 +222,7 @@ export default function IPFSUploadCard({
 
           {sigCid ? (
             <Stack direction="row" spacing={1} alignItems="center">
-              <Typography variant="body2" sx={{ fontFamily: "monospace", fontSize: ".82rem", flex: 1, wordBreak: "break-all" }}>
+              <Typography variant="body2" sx={{ fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace", fontSize: ".82rem", flex: 1, wordBreak: "break-all" }}>
                 {sigCid}
               </Typography>
               <IconButton size="small" onClick={() => copyToClipboard(sigCid)}><ContentCopyIcon sx={{ fontSize: 16 }} /></IconButton>

@@ -112,9 +112,7 @@ export default function Login() {
               </Button>
             </Box>
 
-            <Typography variant="caption" sx={{ display: "block", mt: 2, color: "text.secondary" }}>
-              Demo accounts (any password): [admin@gmail.com](mailto:admin@gmail.com), [paiduser@gmail.com](mailto:paiduser@gmail.com), [user@gmail.com](mailto:user@gmail.com)
-            </Typography>
+
           </Paper>
         </motion.div>
       </Container>

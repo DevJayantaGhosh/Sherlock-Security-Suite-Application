@@ -145,8 +145,8 @@ export default function AdminPage() {
               <AdminStats title="Pending" value={stats.pending} color="#f59e0b" loading={statsLoading} />
               <AdminStats title="Approved" value={stats.approved} color="#10b981" loading={statsLoading} />
               <AdminStats title="Rejected" value={stats.rejected} color="#ef4444" loading={statsLoading} />
-              <AdminStats title="Signed" value={stats.signed} color="#00e5ff" loading={statsLoading} />
               <AdminStats title="Released" value={stats.released} color="#8b5cf6" loading={statsLoading} />
+              <AdminStats title="Signed" value={stats.signed} color="#00e5ff" loading={statsLoading} />
             </Box>
           </Box>
 

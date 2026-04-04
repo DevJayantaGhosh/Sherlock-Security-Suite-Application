@@ -24,9 +24,11 @@ export interface GenerateKeysPayload {
 export interface SignArtifactPayload {
   repoUrl: string;
   branch: string;
+  version: string;
   privateKeyPath: string;
   password?: string;
   isQuickScan: boolean;
+  localRepoLocation: string;
   githubToken: string;
   scanId: string;
 }
@@ -35,6 +37,8 @@ export interface CreateReleasePayload {
   repoUrl: string;
   branch: string;
   version: string;
+  /** Optional: passed by Quick Release flow. Product flow falls back to GITHUB_PAT env. */
+  githubToken?: string;
   scanId: string;
 }
 

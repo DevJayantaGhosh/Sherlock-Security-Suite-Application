@@ -75,9 +75,11 @@ interface Window {
     signArtifact(payload: {
       repoUrl: string;       
       branch: string;
+      version: string;
       privateKeyPath: string;
       password?: string;
       isQuickScan: boolean;
+      localRepoLocation: string;
       githubToken: string;
       scanId: string;
     }): Promise<{ success: boolean; error?: string }>;
@@ -88,6 +90,7 @@ interface Window {
       repoUrl: string;
       branch: string;
       version: string;
+      githubToken?: string;   // Quick Release passes token; Product flow falls back to env
       scanId: string;
     }): Promise<{ success: boolean; error?: string }>;
 

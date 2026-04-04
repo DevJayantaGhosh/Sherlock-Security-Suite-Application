@@ -15,6 +15,7 @@ import {
   Chip,
   Collapse,
   IconButton,
+  Alert,
 } from "@mui/material";
 import { motion } from "framer-motion";
 import { toast } from "react-hot-toast";
@@ -43,6 +44,7 @@ interface ProductReleaseCardProps {
   tooltipTitle?: string;
   tooltipSingleTitle?: string;
   tooltipBatchTitle?: string;
+  githubToken?: string;
   onReleaseComplete?: () => void;
 }
 
@@ -51,6 +53,7 @@ export default function ProductReleaseCard({
   borderColor = "#7b5cff",
   disabled = false,
   tooltipTitle = "",
+  githubToken,
   onReleaseComplete,
 }: ProductReleaseCardProps) {
   const [status, setStatus] = useState<ReleaseStatus>("idle");
@@ -151,7 +154,7 @@ export default function ProductReleaseCard({
       completeCleanupRef.current = completeCleanup;
 
       platform
-        .createGitHubRelease({ repoUrl, branch, version, scanId })
+        .createGitHubRelease({ repoUrl, branch, version, githubToken, scanId })
         .catch((err: any) => {
           if (err.message !== "cancelled") {
             const errorMsg = `\n❌ Error: ${err.message}\n`;
@@ -182,17 +185,8 @@ export default function ProductReleaseCard({
       repos.map((r) => ({ repoUrl: r.repoUrl, branch: r.branch, status: "pending" as const }))
     );
 
-    const initLogs = [
-      `🚀 GitHub Release STARTED`,
-      `Product: ${product.name}`,
-      `Version: ${product.version}`,
-      `Repositories: ${totalRepos}`,
-      ...repos.map((r, i) => `  ${i + 1}. ${r.repoUrl} (${r.branch})`),
-      `${"=".repeat(60)}\n`,
-    ];
-
-    setLogs(initLogs);
-    logsRef.current = [...initLogs];
+    setLogs([]);
+    logsRef.current = [];
     setStatus("running");
     setProgress(0);
     setShowLogs(false);
@@ -306,10 +300,10 @@ export default function ProductReleaseCard({
           {/* Repository Info — styled like DigitalSigningCard */}
           {product.repos && product.repos.length > 0 && (
             <Paper sx={{ p: 3, mb: 3, borderRadius: 2, bgcolor: "rgba(255,255,255, 0.02)", border: "1px solid rgba(255,255,255, 0.08)" }}>
-              <Typography variant="h6" fontWeight={500} mb={1} sx={{ color: borderColor, fontFamily: "monospace" }}>
+              <Typography variant="h6" fontWeight={500} mb={1} sx={{ color: borderColor, fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace" }}>
                 📂 {repoCount === 1 ? "Repository" : "Repositories"} ({repoCount})
               </Typography>
-              <Typography variant="body2" color="text.secondary" mb={2} sx={{ fontFamily: "monospace", fontSize: "0.85rem" }}>
+              <Typography variant="body2" color="text.secondary" mb={2} sx={{ fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace", fontSize: "0.85rem" }}>
                 Version (Release Tag): <strong style={{ color: borderColor }}>{product.version || "N/A"}</strong>
               </Typography>
               <Stack spacing={1.5}>
@@ -323,15 +317,15 @@ export default function ProductReleaseCard({
                           <Typography variant="subtitle2" fontWeight={700} sx={{ color: borderColor, fontSize: "1rem" }}>{idx + 1}</Typography>
                         </Box>
                         <Box sx={{ flex: 1, minWidth: 200 }}>
-                          <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "monospace" }}>
+                          <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace" }}>
                             Repository
                           </Typography>
-                          <Typography variant="body2" sx={{ fontFamily: "monospace", fontSize: "0.85rem", color: borderColor, fontWeight: 600 }}>
+                          <Typography variant="body2" sx={{ fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace", fontSize: "0.85rem", color: borderColor, fontWeight: 600 }}>
                             {repo.repoUrl}
                           </Typography>
                         </Box>
-                        <Chip label={repo.branch} size="small" sx={{ fontFamily: "monospace", bgcolor: `${borderColor}20`, color: borderColor }} />
-                        <Chip label={repoType} size="small" sx={{ fontFamily: "monospace" }} />
+                        <Chip label={repo.branch} size="small" sx={{ fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace", bgcolor: `${borderColor}20`, color: borderColor }} />
+                        <Chip label={repoType} size="small" sx={{ fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace" }} />
                         {rs && rs.status !== "pending" && (
                           <Typography sx={{ fontSize: 18 }}>{repoStatusIcon(rs.status)}</Typography>
                         )}
@@ -353,19 +347,51 @@ export default function ProductReleaseCard({
                 size="small"
                 fullWidth
               >
-                {showLogs ? "Hide Logs" : "Show Logs"} ({logs.length} lines)
+                {showLogs ? "Hide Logs" : "Show Logs"}
               </Button>
+
               <Collapse in={showLogs}>
-                <Paper sx={{
-                  mt: 2, maxHeight: 400, overflow: "auto",
-                  bgcolor: "#1a1a1a", border: "1px solid #333", p: 2,
-                  fontFamily: "monospace", fontSize: 12, color: "#e0e0e0"
-                }}>
-                  {logs.map((line, i) => (
-                    <Typography key={i} component="pre" sx={{ m: 0, fontSize: 12 }}>
-                      {line}
-                    </Typography>
-                  ))}
+                <Paper
+                  elevation={0}
+                  sx={{
+                    mt: 2,
+                    maxHeight: "400px",
+                    overflow: "auto",
+                    backgroundColor: "#1a1a1a",
+                    border: "1px solid #333",
+                    p: 2,
+                    "&::-webkit-scrollbar": { width: "8px" },
+                    "&::-webkit-scrollbar-track": { background: "#2d2d2d" },
+                    "&::-webkit-scrollbar-thumb": { background: "#555", borderRadius: "4px" },
+                    "&::-webkit-scrollbar-thumb:hover": { background: "#777" },
+                  }}
+                >
+                  <Box
+                    sx={{
+                      fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
+                      fontSize: 12,
+                      lineHeight: 1.6,
+                      color: "#e0e0e0",
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {logs.map((line, i) => (
+                      <Typography
+                        key={i}
+                        component="pre"
+                        sx={{
+                          margin: 0,
+                          fontFamily: "inherit",
+                          fontSize: "inherit",
+                          lineHeight: "inherit",
+                          color: "inherit",
+                        }}
+                      >
+                        {line}
+                      </Typography>
+                    ))}
+                  </Box>
                 </Paper>
               </Collapse>
             </Box>
@@ -409,26 +435,60 @@ export default function ProductReleaseCard({
         </Stack>
       </Paper>
 
-      <Dialog open={modalOpen} onClose={() => !isRunning && setModalOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle sx={{ bgcolor: "#2d2d2d", borderBottom: "1px solid #404040" }}>
+      <Dialog
+        open={modalOpen}
+        onClose={() => !isRunning && setModalOpen(false)}
+        maxWidth="md"
+        fullWidth
+        disableEscapeKeyDown={isRunning}
+        PaperProps={{
+          sx: {
+            backgroundColor: "#1e1e1e",
+            backgroundImage: "none",
+          },
+        }}
+      >
+        <DialogTitle sx={{ backgroundColor: "#2d2d2d", borderBottom: "1px solid #404040" }}>
           <Stack direction="row" justifyContent="space-between" alignItems="center">
-            <Typography variant="h6" fontWeight={700} display="flex" alignItems="center" gap={1}>
+            <Typography variant="h6" fontWeight={600} display="flex" alignItems="center" gap={1}>
               <RocketLaunchIcon sx={{ color: borderColor, fontSize: 24 }} /> GitHub Release — {product.name} v{product.version}
             </Typography>
             {!isRunning && (
-              <IconButton onClick={() => setModalOpen(false)}><CloseIcon /></IconButton>
+              <IconButton onClick={() => setModalOpen(false)} size="small">
+                <CloseIcon />
+              </IconButton>
             )}
           </Stack>
           {isRunning && (
             <Box sx={{ mt: 2 }}>
-              <Stack direction="row" spacing={2} alignItems="center">
+              <Stack direction="row" spacing={2} alignItems="center" mb={1}>
                 <Box flex={1}><LinearProgress variant="determinate" value={progress} /></Box>
-                <Typography variant="body2">{progress}%</Typography>
+                <Typography variant="body2" color="text.secondary">{progress}%</Typography>
               </Stack>
             </Box>
           )}
+          {isCancelling && (
+            <Alert severity="warning" sx={{ mt: 2 }}>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <CircularProgress size={16} />
+                <Typography variant="body2">Cancelling release and cleaning up processes...</Typography>
+              </Stack>
+            </Alert>
+          )}
         </DialogTitle>
-        <DialogContent sx={{ height: "60vh", p: 3, pt: 3, bgcolor: "#1a1a1a" }}>
+        <DialogContent
+          sx={{
+            height: "60vh",
+            mt: 2,
+            backgroundColor: "#1a1a1a",
+            overflow: "auto",
+            p: 3,
+            "&::-webkit-scrollbar": { width: "8px" },
+            "&::-webkit-scrollbar-track": { background: "#2d2d2d" },
+            "&::-webkit-scrollbar-thumb": { background: "#555", borderRadius: "4px" },
+            "&::-webkit-scrollbar-thumb:hover": { background: "#777" },
+          }}
+        >
           {/* Per-repo progress chips */}
           {repoCount > 1 && repoStatuses.length > 0 && (
             <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mb: 2 }}>
@@ -451,24 +511,50 @@ export default function ProductReleaseCard({
             </Box>
           )}
 
-          <Box sx={{ fontFamily: "monospace", fontSize: 12, lineHeight: 1.5, color: "#e0e0e0", whiteSpace: "pre-wrap", mt: 1 }}>
-            {logs.map((line, i) => (
-              <Typography key={i} component="pre" sx={{ m: 0, fontSize: 12 }}>
-                {line}
+          <Box
+            sx={{
+              fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
+              fontSize: 13,
+              lineHeight: 1.6,
+              color: "#e0e0e0",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+              mt: 2,
+            }}
+          >
+            {logs.length > 0 ? (
+              <>
+                {logs.map((line, i) => (
+                  <Typography
+                    key={i}
+                    component="pre"
+                    sx={{ margin: 0, fontFamily: "inherit", fontSize: "inherit", lineHeight: "inherit", color: "inherit" }}
+                  >
+                    {line}
+                  </Typography>
+                ))}
+                <div ref={logEndRef} />
+              </>
+            ) : (
+              <Typography color="text.secondary" textAlign="center" py={4}>
+                {isRunning ? "Initializing release..." : "No logs available"}
               </Typography>
-            ))}
-            <div ref={logEndRef} />
+            )}
           </Box>
         </DialogContent>
-        <DialogActions sx={{ p: 2, bgcolor: "#2d2d2d" }}>
+        <DialogActions sx={{ p: 2, backgroundColor: "#2d2d2d", borderTop: "1px solid #404040" }}>
           {isRunning && (
-            <Button onClick={cancelRelease} color="error" variant="contained"
+            <Button
+              onClick={cancelRelease}
+              color="error"
+              variant="contained"
               startIcon={isCancelling ? <CircularProgress size={16} color="inherit" /> : <CancelIcon />}
-              disabled={isCancelling}>
+              disabled={isCancelling}
+            >
               {isCancelling ? "Cancelling..." : "Cancel"}
             </Button>
           )}
-          {isCompleted && <Button variant="contained" onClick={() => setModalOpen(false)}>Close</Button>}
+          {isCompleted && <Button variant="outlined" onClick={() => setModalOpen(false)}>Close</Button>}
         </DialogActions>
       </Dialog>
     </motion.div>

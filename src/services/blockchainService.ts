@@ -322,7 +322,7 @@ export async function inscribeOnLedger(
       if (currentCount >= 3) {
         return {
           data: {} as InscriptionResult,
-          error: { message: "This product already has all 3 blockchain records (SCAN → SIGN → RELEASE). No further inscriptions allowed." },
+          error: { message: "This product already has all 3 blockchain records (SCAN → RELEASE → SIGN). No further inscriptions allowed." },
         };
       }
 
@@ -339,9 +339,9 @@ export async function inscribeOnLedger(
         } catch { /* ignore read error, let the contract enforce */ }
       }
 
-      // R5: Stage ordering — count 0→SCAN, 1→SIGN, 2→RELEASE
-      const expectedStage = currentCount; // 0=SCAN, 1=SIGN, 2=RELEASE
-      const stageNames = ["SCAN", "SIGN", "RELEASE"];
+      // R5: Stage ordering — count 0→SCAN, 1→RELEASE, 2→SIGN
+      const expectedStage = currentCount; // 0=SCAN, 1=RELEASE, 2=SIGN
+      const stageNames = ["SCAN", "RELEASE", "SIGN"];
       if (snapshot.stage !== expectedStage) {
         const expected = stageNames[expectedStage] || `stage ${expectedStage}`;
         const actual = stageNames[snapshot.stage] || `stage ${snapshot.stage}`;
@@ -356,8 +356,8 @@ export async function inscribeOnLedger(
       // R8: Status must match stage
       const validStatuses: Record<number, string[]> = {
         0: ["Approved", "Rejected"],
-        1: ["Signed"],
-        2: ["Released"],
+        1: ["Released"],
+        2: ["Signed"],
       };
       const allowed = validStatuses[snapshot.stage];
       if (allowed && !allowed.includes(snapshot.status)) {
@@ -370,7 +370,7 @@ export async function inscribeOnLedger(
       }
 
       // R6/R7: IPFS file rules
-      if (snapshot.stage === 1) {
+      if (snapshot.stage === 2) {
         if (!snapshot.signatureFileIPFS || !snapshot.publicKeyFileIPFS) {
           return {
             data: {} as InscriptionResult,
@@ -739,9 +739,9 @@ export function getStageName(stage: number): string {
     case 0:
       return "SCAN";
     case 1:
-      return "SIGN";
-    case 2:
       return "RELEASE";
+    case 2:
+      return "SIGN";
     default:
       return `UNKNOWN(${stage})`;
   }

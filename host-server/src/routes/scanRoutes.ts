@@ -19,6 +19,9 @@ import * as proc from "../services/processManager.js";
 import { validateTool } from "../services/toolPaths.js";
 import { getRepoPath } from "../services/gitClone.js";
 
+/** Single source of truth for separator / box-banner width in scan logs. */
+const SEPARATOR_WIDTH = 80;
+
 export const scanRouter = Router();
 
 /* ================================================================
@@ -146,7 +149,7 @@ Missing/Invalid  : ${commitCount - goodSignatures}
 Success Rate     : ${successRate}%
 Status           : ${code === 0 ? "✅ COMPLETE" : "❌ FAILED"}
 
-${"═".repeat(79)}
+${"═".repeat(SEPARATOR_WIDTH)}
 `;
 
     emitLog(scanId, summary, 100);
@@ -274,7 +277,7 @@ Potential Secrets : ${findings}
 Status            : ${findings > 0 ? "🚨 SECRETS DETECTED" : "✅ CLEAN"}
 Severity          : ${findings > 0 ? "HIGH - Immediate action required" : "NONE"}
 
-${"═".repeat(79)}
+${"═".repeat(SEPARATOR_WIDTH)}
 `;
 
     emitLog(scanId, summary, 100);
@@ -484,7 +487,7 @@ Low             : ${low}
 Status          : ${vulns > 0 ? "🚨 VULNERABILITIES DETECTED" : "✅ NO VULNERABILITIES"}
 Risk Level      : ${critical > 0 ? "CRITICAL" : high > 0 ? "HIGH" : medium > 0 ? "MEDIUM" : low > 0 ? "LOW" : "NONE"}
 
-${"═".repeat(79)}
+${"═".repeat(SEPARATOR_WIDTH)}
 `;
 
         emitLog(scanId, summary, 100);

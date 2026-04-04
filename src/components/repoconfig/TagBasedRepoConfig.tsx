@@ -13,43 +13,70 @@ import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import LinkIcon from '@mui/icons-material/Link';
 import SearchIcon from '@mui/icons-material/Search';
 
-export interface VerificationRepoDetails {
+export interface TagBasedRepoDetails {
   repoUrl: string;
   releaseTag?: string;  // Optional for local repos
   isLocal: boolean;
 }
 
-interface VerificationRepoConfigProps {
-  onConfigure: (details: VerificationRepoDetails, githubToken?: string) => void;
-  onReset: () => void;
-  isLoading: boolean;
-  isConfigured: boolean;
-  repoDetails: VerificationRepoDetails | null;
-  themeColor?: string;
-}
-
 const PAGE_CONFIG = {
+  release: {
+    color: '#7c4dff',
+    shadow: 'rgba(124,77,255,0.5)',
+    nameColor: '#7c4dff',
+    title: 'Release Target',
+    icon: '🚀',
+    buttonLabel: 'Configure Release Target'
+  },
+  crypto: {
+    color: '#00e5ff',
+    shadow: 'rgba(0,229,255,0.5)',
+    nameColor: '#00e5ff',
+    title: 'Signing Target',
+    icon: '🔏',
+    buttonLabel: 'Configure Signing Target'
+  },
   verify: {
     color: '#4caf50',
     shadow: 'rgba(76,175,80,0.5)',
-    nameColor: '#4caf50'
+    nameColor: '#4caf50',
+    title: 'Verification Target',
+    icon: '🔍',
+    buttonLabel: 'Configure Verification Target'
   },
   default: {
     color: '#4caf50',
     shadow: 'rgba(76,175,80,0.5)',
-    nameColor: '#4caf50'
+    nameColor: '#4caf50',
+    title: 'Repository Target',
+    icon: '📦',
+    buttonLabel: 'Configure Target'
   }
 } as const;
 
-export default function VerificationRepoConfigForm({
+type ThemeKey = keyof typeof PAGE_CONFIG;
+
+interface TagBasedRepoConfigProps {
+  onConfigure: (details: TagBasedRepoDetails, githubToken?: string) => void;
+  onReset: () => void;
+  isLoading: boolean;
+  isConfigured: boolean;
+  repoDetails: TagBasedRepoDetails | null;
+  themeColor?: string;
+  /** When true, the "Local Repository" tab is hidden even in Electron mode */
+  hideLocal?: boolean;
+}
+
+export default function TagBasedRepoConfig({
   onConfigure,
   onReset,
   isLoading,
   isConfigured,
   repoDetails: _repoDetails,
-  themeColor = 'default'
-}: VerificationRepoConfigProps) {
-  const theme = PAGE_CONFIG[themeColor as keyof typeof PAGE_CONFIG];
+  themeColor = 'default',
+  hideLocal = false
+}: TagBasedRepoConfigProps) {
+  const theme = PAGE_CONFIG[(themeColor in PAGE_CONFIG ? themeColor : 'default') as ThemeKey];
 
   const [activeTab, setActiveTab] = useState(0);
   const [repoUrl, setRepoUrl] = useState("");
@@ -142,7 +169,7 @@ export default function VerificationRepoConfigForm({
       return;
     }
 
-    const configuredRepo: VerificationRepoDetails = {
+    const configuredRepo: TagBasedRepoDetails = {
       repoUrl: activeTab === 0 ? repoUrl.trim() : localRepoPath.trim(),
       releaseTag: activeTab === 0 ? releaseTag.trim() : undefined,
       isLocal: activeTab === 1
@@ -187,7 +214,7 @@ export default function VerificationRepoConfigForm({
         <Stack direction="row" justifyContent="space-between" alignItems="center">
           <Typography variant="h6" fontWeight={700} sx={{ color: theme.color, display: 'flex', alignItems: 'center', gap: 1 }}>
             <SearchIcon sx={{ fontSize: 24 }} />
-            Verification Target
+            {theme.title}
           </Typography>
           {isConfigured && (
             <Chip label="CONFIGURED" color="success" size="small" sx={{ fontWeight: 600 }} />
@@ -201,7 +228,7 @@ export default function VerificationRepoConfigForm({
             iconPosition="start"
             disabled={isConfigured}
           />
-          {isElectronMode && (
+          {isElectronMode && !hideLocal && (
             <Tab
               label="Local Repository"
               icon={<FolderOpenIcon />}
@@ -215,7 +242,7 @@ export default function VerificationRepoConfigForm({
         {activeTab === 0 && (
           <Paper sx={{
             p: 3,
-            bgcolor: "rgba(76, 175, 80, 0.03)",
+            bgcolor: `${theme.color}08`,
             border: `2px solid ${theme.color}`,
             borderRadius: 3,
             boxShadow: 2
@@ -238,7 +265,7 @@ export default function VerificationRepoConfigForm({
                   label="Version (Release Tag) *"
                   value={releaseTag}
                   onChange={(e) => setReleaseTag(e.target.value)}
-                  placeholder="v1.2.3 or 1.2.3"
+                  placeholder="1.2.3"
                   disabled={isLoading || isConfigured}
                   size="small"
                 />
@@ -268,8 +295,8 @@ export default function VerificationRepoConfigForm({
                 <Collapse in={standaloneAuth.isPrivate} timeout={200}>
                   <Paper sx={{
                     p: 2.5,
-                    bgcolor: "rgba(76,175,80,0.08)",
-                    border: "1px solid rgba(76,175,80,0.3)",
+                    bgcolor: `${theme.color}14`,
+                    border: `1px solid ${theme.color}4D`,
                     borderRadius: 2
                   }}>
                     <Typography variant="body2" fontWeight={600} mb={2} sx={{ color: theme.color }}>
@@ -284,7 +311,7 @@ export default function VerificationRepoConfigForm({
                       })}
                       type="password"
                       size="small"
-                      placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                      placeholder="github_pat_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
                       error={standaloneAuth.isPrivate && !validateStandaloneAuth()}
                       helperText={
                         standaloneAuth.isPrivate && !validateStandaloneAuth()
@@ -308,7 +335,7 @@ export default function VerificationRepoConfigForm({
         {activeTab === 1 && (
           <Paper sx={{
             p: 3,
-            bgcolor: "rgba(76, 175, 80, 0.04)",
+            bgcolor: `${theme.color}0A`,
             border: `2px solid ${theme.color}`,
             borderRadius: 3,
             boxShadow: 3
@@ -354,7 +381,7 @@ export default function VerificationRepoConfigForm({
             ) : isConfigured ? (
               "Configured"
             ) : (
-              `Configure Verification Target`
+              theme.buttonLabel
             )}
           </Button>
 

@@ -6,7 +6,7 @@ import { toast } from "react-hot-toast";
 import { motion } from "framer-motion";
 import QuickHeader from "../components/QuickHeader";
 import RepoScanAccordion from "../components/security/RepoScanAccordion";
-import RepoConfigForm from "../components/repoconfig/RepoConfigForm";
+import BranchBasedRepoConfig from "../components/repoconfig/BranchBasedRepoConfig";
 import { RepoDetails } from "../models/Product";
 
 import SearchIcon from '@mui/icons-material/Search';
@@ -51,7 +51,7 @@ export default function QuickSecurityScanPage() {
         >
           <QuickHeader pageType="security" />
 
-          <RepoConfigForm
+          <BranchBasedRepoConfig
             themeColor="security"  
             onConfigure={handleConfigureRepo}
             onReset={handleReset}

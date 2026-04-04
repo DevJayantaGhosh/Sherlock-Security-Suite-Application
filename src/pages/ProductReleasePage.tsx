@@ -57,29 +57,29 @@ export default function ProductReleasePage() {
 
   // Authorization and view‑only mode
   const isAuthorized = product ? authorizeRelease(user, product) : false;
-  const isSigned = product?.status === "Signed";
+  const isApproved = product?.status === "Approved";
   const isRejected = product?.status === "Rejected";
   const isReleased = product?.status === "Released";
 
-  // GitHub Release — requires Signed status
-  const canRelease = isAuthorized && isSigned;
+  // GitHub Release — requires Approved status (flow: Scan → Release → Sign → Verify)
+  const canRelease = isAuthorized && isApproved;
 
   let releaseTooltip = "";
   if (!isAuthorized) {
-    releaseTooltip = ACCESS_MESSAGES.RELEASE_ENGINEER_SIGN_MSG;
+    releaseTooltip = ACCESS_MESSAGES.RELEASE_ENGINEER_RELEASE_MSG;
   } else if (isRejected) {
     releaseTooltip = `Product is "${product?.status}". No further actions allowed.`;
   } else if (isReleased) {
     releaseTooltip = "Product already released.";
-  } else if (!isSigned) {
-    releaseTooltip = `Product is "${product?.status}". Must be "Signed" before Release.`;
+  } else if (!isApproved) {
+    releaseTooltip = `Product is "${product?.status}". Must be "Approved" before Release.`;
   }
 
   // Blockchain inscription — only after GitHub release is done
   const canInscribe = isAuthorized && isReleased;
   let blockchainTooltip = "";
   if (!isAuthorized) {
-    blockchainTooltip = ACCESS_MESSAGES.RELEASE_ENGINEER_SIGN_MSG;
+    blockchainTooltip = ACCESS_MESSAGES.RELEASE_ENGINEER_RELEASE_MSG;
   } else if (isRejected) {
     blockchainTooltip = `Product is "${product?.status}". No further actions allowed.`;
   } else if (!isReleased) {

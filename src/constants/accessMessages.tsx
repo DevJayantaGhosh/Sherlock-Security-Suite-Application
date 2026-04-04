@@ -5,12 +5,12 @@ export const ACCESS_MESSAGES = {
   RELEASE_ENGINEER_SIGN_MSG: "Only assigned Release-Engineer(s) can sign artifacts but you can view this page" as const,
   RELEASE_ENGINEER_RELEASE_MSG: "Only assigned Release-Engineer(s) can make release but you can view this page" as const,
 
-  // Status-based blocks
-  SIGNING_RESTRICTED_TITLE: "Signing Restricted" as const,
+  // Status-based blocks (flow: Scan → Release → Sign → Verify)
   RELEASE_RESTRICTED_TITLE: "Release Restricted" as const,
+  SIGNING_RESTRICTED_TITLE: "Signing Restricted" as const,
   VERIFY_RESTRICTED_TITLE: "Signature Verification Restricted" as const,
-  SIGNING_NEEDS_APPROVAL: "Product must be Approved by assigned Security-Head first!" as const,
-  RELEASE_NEEDS_SIGNING: "Product must be Signed by assigned Release Engineer(s) first!" as const,
-  VERIFY_NEEDS_RELEASE: "Product must be Released before signatures can be verified." as const,
+  RELEASE_NEEDS_APPROVAL: "Product must be Approved by assigned Security-Head before Release!" as const,
+  SIGNING_NEEDS_RELEASE: "Product must be Released before cryptographic signing can proceed!" as const,
+  VERIFY_NEEDS_SIGNING: "Product must be Signed before signatures can be verified." as const,
 
 } as const;

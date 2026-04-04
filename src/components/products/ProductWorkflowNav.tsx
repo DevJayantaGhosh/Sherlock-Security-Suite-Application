@@ -6,8 +6,8 @@
  *
  * Workflow order:
  *   1. Security Scan          /product/:id/security-scan
- *   2. Cryptographic Signing  /product/:id/cryptographic-signing
- *   3. Releases               /product/:id/releases
+ *   2. Releases               /product/:id/releases
+ *   3. Cryptographic Signing  /product/:id/cryptographic-signing
  *   4. Signature Verification /product/:id/signature-verify
  */
 import { useState } from "react";
@@ -171,7 +171,7 @@ export default function ProductWorkflowNav({
                 icon={getChipIcon(step.key, idx)}
                 onClick={idx === currentIndex ? undefined : () => navigateToStep(step.key)}
                 sx={{
-                  fontFamily: "monospace",
+                  fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
                   ...getChipStyle(step.key, idx),
                   "&:hover": idx !== currentIndex ? {
                     opacity: 0.9,
@@ -210,7 +210,7 @@ export default function ProductWorkflowNav({
             </Button>
           )}
 
-          <Typography variant="caption" color="text.disabled" sx={{ fontFamily: "monospace" }}>
+          <Typography variant="caption" color="text.disabled" sx={{ fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace" }}>
             Step {currentIndex + 1} of {WORKFLOW_STEPS.length}
           </Typography>
 

@@ -9,7 +9,7 @@ import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 
 interface QuickHeaderProps {
-  pageType: 'security'|'crypto'| 'verify' | 'default';
+  pageType: 'security'|'crypto'| 'verify' | 'release' | 'default';
   description?: string;
   titleOverride?: string;
 }
@@ -33,6 +33,12 @@ const PAGE_CONFIG = {
     nameColor: '#4caf50',
     repoColor: 'rgba(76,175,80,0.15)'
   },
+  release: { 
+    color: '#7c4dff', 
+    shadow: 'rgba(124,77,255,0.5)', 
+    nameColor: '#7c4dff',
+    repoColor: 'rgba(124,77,255,0.15)'
+  },
   default: { 
     color: '#00e5ff', 
     shadow: 'rgba(0,229,255,0.5)', 
@@ -45,6 +51,7 @@ const FINAL_TITLES = {
   crypto: 'Cryptographic Signing Station',
   security: 'Quick Security Scan & Analysis',
   verify: 'Digital Signature Verification',
+  release: 'Quick GitHub Release',
   default: 'Product Dashboard'
 } as const;
 

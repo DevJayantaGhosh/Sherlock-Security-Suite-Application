@@ -21,6 +21,7 @@ import LicenseActivationPage from "./pages/LicenseActivationPage";
 import QuickSecurityScanPage from "./pages/QuickSecurityScanPage";
 import QuickCryptoSigningPage from "./pages/QuickCryptoSigningPage";
 import QuickSignatureVerificationPage from "./pages/QuickSignatureVerificationPage";
+import QuickReleasePage from "./pages/QuickReleasePage";
 import UserGuidePage from "./pages/UserGuidePage";
 
 export default function App() {
@@ -83,6 +84,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <QuickSignatureVerificationPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/quick-release"
+            element={
+              <ProtectedRoute>
+                <QuickReleasePage />
               </ProtectedRoute>
             }
           />

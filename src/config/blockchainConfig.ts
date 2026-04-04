@@ -25,8 +25,8 @@ export const HEDERA_TESTNET = {
 // ── Stage Enum (mirrors Solidity) ───────────────────────
 export enum ContractStage {
   SCAN = 0,
-  SIGN = 1,
-  RELEASE = 2,
+  RELEASE = 1,
+  SIGN = 2,
 }
 
 // ── Stage Display Config ────────────────────────────────
@@ -40,15 +40,6 @@ export const STAGE_CONFIG = {
     rejectButton: "Inscribe Rejection on Ledger",
     reportField: "securityScanReportPath" as const,
   },
-  SIGN: {
-    contractStage: ContractStage.SIGN,
-    icon: "🔷",
-    title: "Signing Provenance — Blockchain Inscription",
-    color: "#00e5ff",
-    approveButton: "Inscribe Signing on Ledger",
-    rejectButton: "",
-    reportField: "signingReportPath" as const,
-  },
   RELEASE: {
     contractStage: ContractStage.RELEASE,
     icon: "🟣",
@@ -57,6 +48,15 @@ export const STAGE_CONFIG = {
     approveButton: "Inscribe Release on Ledger",
     rejectButton: "",
     reportField: "releaseReportPath" as const,
+  },
+  SIGN: {
+    contractStage: ContractStage.SIGN,
+    icon: "🔷",
+    title: "Signing Provenance — Blockchain Inscription",
+    color: "#00e5ff",
+    approveButton: "Inscribe Signing on Ledger",
+    rejectButton: "",
+    reportField: "signingReportPath" as const,
   },
 } as const;
 

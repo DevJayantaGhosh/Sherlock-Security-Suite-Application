@@ -3937,6 +3937,7 @@ const repoCache = /* @__PURE__ */ new Map();
 function debugLog(msg) {
   console.log(`[ELECTRON][${(/* @__PURE__ */ new Date()).toISOString()}] ${msg}`);
 }
+const SEPARATOR_WIDTH = 80;
 function getOsFolder() {
   if (process.platform === "win32") return "win";
   if (process.platform === "darwin") return "darwin";
@@ -4015,7 +4016,14 @@ const getRepoPath = async (event, repoUrl, branch, isQuickScan, githubToken, sca
       return cleanPath;
     }
   }
-  return await cloneRepository(event, repoUrl, branch, isQuickScan, githubToken, scanId);
+  return await cloneRepository(
+    event,
+    repoUrl,
+    branch,
+    isQuickScan,
+    githubToken,
+    scanId
+  );
 };
 function runGitLfsInstall(event, scanId) {
   try {
@@ -4085,9 +4093,9 @@ async function cloneRepository(event, repoUrl, branch, isQuickScan, githubToken,
   }
   event.sender.send(`scan-log:${scanId}`, {
     log: `
-${"═".repeat(60)}
+${"═".repeat(SEPARATOR_WIDTH)}
 📦 CLONING REPOSITORY
-${"═".repeat(60)}
+${"═".repeat(SEPARATOR_WIDTH)}
 `,
     progress: 5
   });
@@ -4162,7 +4170,7 @@ Branch: ${branch}
             log: `
 ✅ Clone successful!
    Location: ${tempDir}
-${"═".repeat(60)}
+${"═".repeat(SEPARATOR_WIDTH)}
 
 `,
             progress: 50
@@ -4241,9 +4249,9 @@ async function cloneRepositoryByTag(event, repoUrl, tag, isQuickScan, githubToke
   }
   event.sender.send(`scan-log:${scanId}`, {
     log: `
-${"═".repeat(60)}
+${"═".repeat(SEPARATOR_WIDTH)}
 📦 CLONING REPOSITORY (TAG)
-${"═".repeat(60)}
+${"═".repeat(SEPARATOR_WIDTH)}
 `,
     progress: 5
   });
@@ -4404,7 +4412,7 @@ ${tags}
 ✅ Clone & tag checkout successful!
   Location: ${tempDir}
   Tag: ${tag}
-${"═".repeat(60)}
+${"═".repeat(SEPARATOR_WIDTH)}
 
 `,
                 progress: 50
@@ -4466,83 +4474,92 @@ ${"═".repeat(60)}
   }
 }
 function registerIPC() {
-  ipcMain.handle("scan:verify-gpg", async (event, { repoUrl, branch, isQuickScan, githubToken, scanId }) => {
-    debugLog(`[GPG] Starting verification for ${repoUrl} on branch ${branch}`);
-    const repoPath = await getRepoPath(event, repoUrl, branch, isQuickScan, githubToken, scanId);
-    if (!repoPath) {
-      event.sender.send(`scan-complete:${scanId}`, {
-        success: false,
-        error: "Repository preparation failed"
-      });
-      return { success: false, error: "Repository preparation failed" };
-    }
-    return new Promise((resolve) => {
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `
-${"═".repeat(60)}
-🛡️ GPG SIGNATURE VERIFICATION
-${"═".repeat(60)}
-
-`,
-        progress: 52
-      });
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `🔍 Analyzing ALL commit signatures on branch: ${branch}...
-
-`,
-        progress: 55
-      });
-      const child = spawn(
-        "git",
-        ["log", "--show-signature", "--pretty=format:%H|%an|%aI|%s", branch],
-        {
-          cwd: repoPath,
-          detached: true,
-          stdio: ["ignore", "pipe", "pipe"]
-        }
+  ipcMain.handle(
+    "scan:verify-gpg",
+    async (event, { repoUrl, branch, isQuickScan, githubToken, scanId }) => {
+      debugLog(`[GPG] Starting verification for ${repoUrl} on branch ${branch}`);
+      const repoPath = await getRepoPath(
+        event,
+        repoUrl,
+        branch,
+        isQuickScan,
+        githubToken,
+        scanId
       );
-      child.unref();
-      activeProcesses.set(scanId, child);
-      let buffer = "";
-      let stderrBuffer = "";
-      let commitCount = 0;
-      let goodSignatures = 0;
-      let cancelled = false;
-      child.stdout?.on("data", (chunk) => {
-        if (cancelled) return;
-        buffer += chunk.toString();
-      });
-      child.stderr?.on("data", (chunk) => {
-        if (cancelled) return;
-        stderrBuffer += chunk.toString();
-      });
-      child.on("close", (code) => {
-        activeProcesses.delete(scanId);
-        if (cancelled) {
-          resolve({ success: false, cancelled: true });
-          return;
-        }
-        const fullOutput = buffer + "\n" + stderrBuffer;
-        const lines = fullOutput.split("\n");
-        for (let i = 0; i < lines.length; i++) {
-          const line = lines[i].trim();
-          if (line.includes("|")) {
-            commitCount++;
-            const [sha, author, date, subject] = line.split("|");
-            let isGoodSig = false;
-            let signatureBlock = "";
-            for (let j = Math.max(0, i - 20); j < i; j++) {
-              signatureBlock += lines[j] + "\n";
-            }
-            if (signatureBlock.includes("Good signature from") || signatureBlock.includes("gpg: Good signature") || signatureBlock.includes("Signature made") || signatureBlock.includes("using RSA key") && signatureBlock.includes("Good") || signatureBlock.includes("using ECDSA key") && signatureBlock.includes("Good")) {
-              isGoodSig = true;
-              goodSignatures++;
-            }
-            if (signatureBlock.includes("Verified") && !isGoodSig) {
-              isGoodSig = true;
-              goodSignatures++;
-            }
-            const log = `
+      if (!repoPath) {
+        event.sender.send(`scan-complete:${scanId}`, {
+          success: false,
+          error: "Repository preparation failed"
+        });
+        return { success: false, error: "Repository preparation failed" };
+      }
+      return new Promise((resolve) => {
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `
+${"═".repeat(SEPARATOR_WIDTH)}
+🛡️ GPG SIGNATURE VERIFICATION
+${"═".repeat(SEPARATOR_WIDTH)}
+
+`,
+          progress: 52
+        });
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `🔍 Analyzing ALL commit signatures on branch: ${branch}...
+
+`,
+          progress: 55
+        });
+        const child = spawn(
+          "git",
+          ["log", "--show-signature", "--pretty=format:%H|%an|%aI|%s", branch],
+          {
+            cwd: repoPath,
+            detached: true,
+            stdio: ["ignore", "pipe", "pipe"]
+          }
+        );
+        child.unref();
+        activeProcesses.set(scanId, child);
+        let buffer = "";
+        let stderrBuffer = "";
+        let commitCount = 0;
+        let goodSignatures = 0;
+        let cancelled = false;
+        child.stdout?.on("data", (chunk) => {
+          if (cancelled) return;
+          buffer += chunk.toString();
+        });
+        child.stderr?.on("data", (chunk) => {
+          if (cancelled) return;
+          stderrBuffer += chunk.toString();
+        });
+        child.on("close", (code) => {
+          activeProcesses.delete(scanId);
+          if (cancelled) {
+            resolve({ success: false, cancelled: true });
+            return;
+          }
+          const fullOutput = buffer + "\n" + stderrBuffer;
+          const lines = fullOutput.split("\n");
+          for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (line.includes("|")) {
+              commitCount++;
+              const [sha, author, date, subject] = line.split("|");
+              let isGoodSig = false;
+              let signatureBlock = "";
+              for (let j = Math.max(0, i - 20); j < i; j++) {
+                signatureBlock += lines[j] + "\n";
+              }
+              if (signatureBlock.includes("Good signature from") || signatureBlock.includes("gpg: Good signature") || signatureBlock.includes("Signature made") || signatureBlock.includes("using RSA key") && signatureBlock.includes("Good") || signatureBlock.includes("using ECDSA key") && signatureBlock.includes("Good")) {
+                isGoodSig = true;
+                goodSignatures++;
+              }
+              if (signatureBlock.includes("Verified") && !isGoodSig) {
+                isGoodSig = true;
+                goodSignatures++;
+              }
+              const log = `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📝 Commit ${commitCount}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -4554,15 +4571,15 @@ Message : ${subject}
 GPG     : ${isGoodSig ? "✅ GOOD SIGNATURE" : "❌ MISSING/INVALID"}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 `;
-            event.sender.send(`scan-log:${scanId}`, {
-              log,
-              progress: 55 + Math.min(commitCount / Math.max(commitCount, 1) * 35, 35)
-            });
-            signatureBlock = "";
+              event.sender.send(`scan-log:${scanId}`, {
+                log,
+                progress: 55 + Math.min(commitCount / Math.max(commitCount, 1) * 35, 35)
+              });
+              signatureBlock = "";
+            }
           }
-        }
-        const successRate = commitCount > 0 ? Math.round(goodSignatures / commitCount * 100) : 0;
-        const summary = `
+          const successRate = commitCount > 0 ? Math.round(goodSignatures / commitCount * 100) : 0;
+          const summary = `
 
 
 ╔═══════════════════════════════════════════════════════════════════════════════╗
@@ -4578,141 +4595,162 @@ Missing/Invalid  : ${commitCount - goodSignatures}
 Success Rate     : ${successRate}%
 Status           : ${code === 0 ? "✅ COMPLETE" : "❌ FAILED"}
 
-${"═".repeat(79)}
+${"═".repeat(SEPARATOR_WIDTH)}
 `;
+          event.sender.send(`scan-log:${scanId}`, {
+            log: summary,
+            progress: 100
+          });
+          event.sender.send(`scan-complete:${scanId}`, {
+            success: code === 0,
+            totalCommits: commitCount,
+            goodSignatures
+          });
+          resolve({
+            success: code === 0,
+            totalCommits: commitCount,
+            goodSignatures
+          });
+        });
+        child.on("error", (err) => {
+          activeProcesses.delete(scanId);
+          event.sender.send(`scan-complete:${scanId}`, {
+            success: false,
+            error: err.message
+          });
+          resolve({ success: false, error: err.message });
+        });
+        ipcMain.once(`scan:cancel-${scanId}`, () => {
+          cancelled = true;
+          debugLog(`Cancelling GPG scan: ${scanId}`);
+          killProcess(child, scanId);
+          activeProcesses.delete(scanId);
+          resolve({ success: false, cancelled: true });
+        });
+      });
+    }
+  );
+  ipcMain.handle(
+    "scan:gitleaks",
+    async (event, { repoUrl, branch, isQuickScan, githubToken, scanId }) => {
+      debugLog(`[GITLEAKS] Starting scan for ${repoUrl}`);
+      const gitleaksPath = validateTool("gitleaks");
+      if (!gitleaksPath) {
         event.sender.send(`scan-log:${scanId}`, {
-          log: summary,
-          progress: 100
-        });
-        event.sender.send(`scan-complete:${scanId}`, {
-          success: code === 0,
-          totalCommits: commitCount,
-          goodSignatures
-        });
-        resolve({ success: code === 0, totalCommits: commitCount, goodSignatures });
-      });
-      child.on("error", (err) => {
-        activeProcesses.delete(scanId);
-        event.sender.send(`scan-complete:${scanId}`, {
-          success: false,
-          error: err.message
-        });
-        resolve({ success: false, error: err.message });
-      });
-      ipcMain.once(`scan:cancel-${scanId}`, () => {
-        cancelled = true;
-        debugLog(`Cancelling GPG scan: ${scanId}`);
-        killProcess(child, scanId);
-        activeProcesses.delete(scanId);
-        resolve({ success: false, cancelled: true });
-      });
-    });
-  });
-  ipcMain.handle("scan:gitleaks", async (event, { repoUrl, branch, isQuickScan, githubToken, scanId }) => {
-    debugLog(`[GITLEAKS] Starting scan for ${repoUrl}`);
-    const gitleaksPath = validateTool("gitleaks");
-    if (!gitleaksPath) {
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `
+          log: `
 ❌ Gitleaks tool not found
    Expected: ${toolPath("gitleaks")}
 
 `,
-        progress: 0
-      });
-      event.sender.send(`scan-complete:${scanId}`, {
-        success: false,
-        error: "Tool not found"
-      });
-      return { success: false, error: "Tool not found" };
-    }
-    const repoPath = await getRepoPath(event, repoUrl, branch, isQuickScan, githubToken, scanId);
-    if (!repoPath) {
-      event.sender.send(`scan-complete:${scanId}`, {
-        success: false,
-        error: "Repository preparation failed"
-      });
-      return { success: false, error: "Repository preparation failed" };
-    }
-    const reportPath = path.join(repoPath, "gitleaks-report.json");
-    return new Promise((resolve) => {
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `
-${"═".repeat(60)}
-🔐 SECRETS & CREDENTIALS DETECTION
-${"═".repeat(60)}
-
-`,
-        progress: 52
-      });
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `🔍 Scanning for hardcoded secrets and credentials...
-
-`,
-        progress: 55
-      });
-      const spawnOptions = {
-        cwd: repoPath,
-        stdio: ["ignore", "pipe", "pipe"],
-        env: {
-          ...process.env,
-          NO_COLOR: "1"
-          // Removed ANSI colors for cleaner parsing
-        }
-      };
-      if (process.platform === "win32") {
-        spawnOptions.windowsHide = true;
-        spawnOptions.shell = false;
-        spawnOptions.detached = false;
-      } else {
-        spawnOptions.detached = true;
+          progress: 0
+        });
+        event.sender.send(`scan-complete:${scanId}`, {
+          success: false,
+          error: "Tool not found"
+        });
+        return { success: false, error: "Tool not found" };
       }
-      const child = spawn(
-        gitleaksPath,
-        ["detect", "--source", repoPath, "--report-path", reportPath, "--verbose"],
-        spawnOptions
+      const repoPath = await getRepoPath(
+        event,
+        repoUrl,
+        branch,
+        isQuickScan,
+        githubToken,
+        scanId
       );
-      if (process.platform !== "win32") {
-        child.unref();
+      if (!repoPath) {
+        event.sender.send(`scan-complete:${scanId}`, {
+          success: false,
+          error: "Repository preparation failed"
+        });
+        return { success: false, error: "Repository preparation failed" };
       }
-      activeProcesses.set(scanId, child);
-      let cancelled = false;
-      child.stdout?.on("data", (data) => {
-        if (cancelled) return;
+      const reportPath = path.join(repoPath, "gitleaks-report.json");
+      return new Promise((resolve) => {
         event.sender.send(`scan-log:${scanId}`, {
-          log: data.toString(),
-          progress: 70
-        });
-      });
-      child.stderr?.on("data", (data) => {
-        if (cancelled) return;
-        event.sender.send(`scan-log:${scanId}`, {
-          log: data.toString(),
-          progress: 85
-        });
-      });
-      child.on("close", async () => {
-        activeProcesses.delete(scanId);
-        if (cancelled) {
-          resolve({ success: false, cancelled: true });
-          return;
-        }
-        let findings = 0;
-        if (fsSync.existsSync(reportPath)) {
-          try {
-            const report = JSON.parse(await fs.readFile(reportPath, "utf-8"));
-            findings = report.length || 0;
-            if (findings > 0) {
-              event.sender.send(`scan-log:${scanId}`, {
-                log: `
-🔍 DETAILED FINDINGS:
-${"═".repeat(79)}
+          log: `
+${"═".repeat(SEPARATOR_WIDTH)}
+🔐 SECRETS & CREDENTIALS DETECTION
+${"═".repeat(SEPARATOR_WIDTH)}
 
 `,
-                progress: 90
-              });
-              report.forEach((finding, index) => {
-                const secretLog = `
+          progress: 52
+        });
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `🔍 Scanning for hardcoded secrets and credentials...
+
+`,
+          progress: 55
+        });
+        const spawnOptions = {
+          cwd: repoPath,
+          stdio: ["ignore", "pipe", "pipe"],
+          env: {
+            ...process.env,
+            NO_COLOR: "1"
+            // Removed ANSI colors for cleaner parsing
+          }
+        };
+        if (process.platform === "win32") {
+          spawnOptions.windowsHide = true;
+          spawnOptions.shell = false;
+          spawnOptions.detached = false;
+        } else {
+          spawnOptions.detached = true;
+        }
+        const child = spawn(
+          gitleaksPath,
+          [
+            "detect",
+            "--source",
+            repoPath,
+            "--report-path",
+            reportPath,
+            "--verbose"
+          ],
+          spawnOptions
+        );
+        if (process.platform !== "win32") {
+          child.unref();
+        }
+        activeProcesses.set(scanId, child);
+        let cancelled = false;
+        child.stdout?.on("data", (data) => {
+          if (cancelled) return;
+          event.sender.send(`scan-log:${scanId}`, {
+            log: data.toString(),
+            progress: 70
+          });
+        });
+        child.stderr?.on("data", (data) => {
+          if (cancelled) return;
+          event.sender.send(`scan-log:${scanId}`, {
+            log: data.toString(),
+            progress: 85
+          });
+        });
+        child.on("close", async () => {
+          activeProcesses.delete(scanId);
+          if (cancelled) {
+            resolve({ success: false, cancelled: true });
+            return;
+          }
+          let findings = 0;
+          if (fsSync.existsSync(reportPath)) {
+            try {
+              const report = JSON.parse(await fs.readFile(reportPath, "utf-8"));
+              findings = report.length || 0;
+              if (findings > 0) {
+                event.sender.send(`scan-log:${scanId}`, {
+                  log: `
+🔍 DETAILED FINDINGS:
+${"═".repeat(SEPARATOR_WIDTH)}
+
+`,
+                  progress: 90
+                });
+                report.forEach((finding, index) => {
+                  const secretLog = `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🚨 Secret ${index + 1}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -4727,17 +4765,17 @@ Date        : ${finding.Date || "N/A"}
 Match       : ${finding.Match?.substring(0, 80) || "N/A"}${finding.Match?.length > 80 ? "..." : ""}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 `;
-                event.sender.send(`scan-log:${scanId}`, {
-                  log: secretLog,
-                  progress: 90 + Math.floor(index / findings * 5)
+                  event.sender.send(`scan-log:${scanId}`, {
+                    log: secretLog,
+                    progress: 90 + Math.floor(index / findings * 5)
+                  });
                 });
-              });
+              }
+            } catch (err) {
+              debugLog(`Error parsing Gitleaks report: ${err}`);
             }
-          } catch (err) {
-            debugLog(`Error parsing Gitleaks report: ${err}`);
           }
-        }
-        const summary = `
+          const summary = `
 
 ╔═══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                               ║
@@ -4749,39 +4787,44 @@ Potential Secrets : ${findings}
 Status            : ${findings > 0 ? "🚨 SECRETS DETECTED" : "✅ CLEAN"}
 Severity          : ${findings > 0 ? "HIGH - Immediate action required" : "NONE"}
 
-${"═".repeat(79)}
+${"═".repeat(SEPARATOR_WIDTH)}
 `;
-        event.sender.send(`scan-log:${scanId}`, {
-          log: summary,
-          progress: 100
+          event.sender.send(`scan-log:${scanId}`, {
+            log: summary,
+            progress: 100
+          });
+          event.sender.send(`scan-complete:${scanId}`, {
+            success: true,
+            findings
+          });
+          resolve({ success: true, findings });
         });
-        event.sender.send(`scan-complete:${scanId}`, {
-          success: true,
-          findings
+        child.on("error", (err) => {
+          activeProcesses.delete(scanId);
+          event.sender.send(`scan-complete:${scanId}`, {
+            success: false,
+            error: err.message
+          });
+          resolve({ success: false, error: err.message });
         });
-        resolve({ success: true, findings });
-      });
-      child.on("error", (err) => {
-        activeProcesses.delete(scanId);
-        event.sender.send(`scan-complete:${scanId}`, {
-          success: false,
-          error: err.message
+        ipcMain.once(`scan:cancel-${scanId}`, () => {
+          cancelled = true;
+          debugLog(`Cancelling Gitleaks scan: ${scanId}`);
+          killProcess(child, scanId);
+          activeProcesses.delete(scanId);
+          resolve({ success: false, cancelled: true });
         });
-        resolve({ success: false, error: err.message });
       });
-      ipcMain.once(`scan:cancel-${scanId}`, () => {
-        cancelled = true;
-        debugLog(`Cancelling Gitleaks scan: ${scanId}`);
-        killProcess(child, scanId);
-        activeProcesses.delete(scanId);
-        resolve({ success: false, cancelled: true });
-      });
-    });
-  });
+    }
+  );
   function formatSbomReport(results) {
     if (!results.Results || results.Results.length === 0) return "";
-    let report = "\n📦 SOFTWARE BILL OF MATERIALS (SBOM)\n";
-    report += "════════════════════════════════════════════════════════════\n";
+    let report = "\n";
+    report += "╔═══════════════════════════════════════════════════════════════════════════════╗\n";
+    report += "║                                                                               ║\n";
+    report += "║              📦  SOFTWARE BILL OF MATERIALS (SBOM)  📦                        ║\n";
+    report += "║                                                                               ║\n";
+    report += "╚═══════════════════════════════════════════════════════════════════════════════╝\n";
     let totalPkgs = 0;
     results.Results.forEach((target) => {
       const pkgs = target.Packages;
@@ -4813,8 +4856,12 @@ ${"═".repeat(79)}
   }
   function formatVulnReport(results) {
     if (!results.Results || results.Results.length === 0) return "";
-    let report = "\n🔎 DETAILED VULNERABILITY REPORT\n";
-    report += "════════════════════════════════════════════════════════════\n";
+    let report = "\n";
+    report += "╔═══════════════════════════════════════════════════════════════════════════════╗\n";
+    report += "║                                                                               ║\n";
+    report += "║              🚨  DETAILED VULNERABILITY REPORT  🚨                           ║\n";
+    report += "║                                                                               ║\n";
+    report += "╚═══════════════════════════════════════════════════════════════════════════════╝\n";
     results.Results.forEach((target) => {
       if (target.Vulnerabilities && target.Vulnerabilities.length > 0) {
         report += `
@@ -4841,119 +4888,137 @@ ${"═".repeat(79)}
     });
     return report;
   }
-  ipcMain.handle("scan:vulnscan", async (event, { repoUrl, branch, isQuickScan, githubToken, scanId }) => {
-    debugLog(`[VULN-SCAN] Starting SBOM scan for ${repoUrl}`);
-    const vulnScanPath = validateTool("trivy");
-    if (!vulnScanPath) {
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `
+  ipcMain.handle(
+    "scan:vulnscan",
+    async (event, { repoUrl, branch, isQuickScan, githubToken, scanId }) => {
+      debugLog(`[VULN-SCAN] Starting SBOM scan for ${repoUrl}`);
+      const vulnScanPath = validateTool("trivy");
+      if (!vulnScanPath) {
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `
 ❌ Vulnerability scanner tool not found
    Expected: ${toolPath("trivy")}
 
 `,
-        progress: 0
-      });
-      event.sender.send(`scan-complete:${scanId}`, {
-        success: false,
-        error: "Tool not found"
-      });
-      return { success: false, error: "Tool not found" };
-    }
-    const repoPath = await getRepoPath(event, repoUrl, branch, isQuickScan, githubToken, scanId);
-    if (!repoPath) {
-      event.sender.send(`scan-complete:${scanId}`, {
-        success: false,
-        error: "Repository preparation failed"
-      });
-      return { success: false, error: "Repository preparation failed" };
-    }
-    return new Promise((resolve) => {
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `
-${"═".repeat(60)}
+          progress: 0
+        });
+        event.sender.send(`scan-complete:${scanId}`, {
+          success: false,
+          error: "Tool not found"
+        });
+        return { success: false, error: "Tool not found" };
+      }
+      const repoPath = await getRepoPath(
+        event,
+        repoUrl,
+        branch,
+        isQuickScan,
+        githubToken,
+        scanId
+      );
+      if (!repoPath) {
+        event.sender.send(`scan-complete:${scanId}`, {
+          success: false,
+          error: "Repository preparation failed"
+        });
+        return { success: false, error: "Repository preparation failed" };
+      }
+      return new Promise((resolve) => {
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `
+${"═".repeat(SEPARATOR_WIDTH)}
 🚨 SBOM & Vulnerability Scan 🚨
-${"═".repeat(60)}
+${"═".repeat(SEPARATOR_WIDTH)}
 
 `,
-        progress: 52
-      });
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `🔍 Analyzing dependencies and security vulnerabilities...
+          progress: 52
+        });
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `🔍 Analyzing dependencies and security vulnerabilities...
 📦 Building Software Bill of Materials (SBOM)...
 
 `,
-        progress: 55
-      });
-      const child = spawn(
-        vulnScanPath,
-        ["fs", "--scanners", "vuln,secret,misconfig", "--list-all-pkgs", "--skip-version-check", "--format", "json", repoPath],
-        {
-          detached: true,
-          stdio: ["ignore", "pipe", "pipe"],
-          windowsHide: true
-        }
-      );
-      child.unref();
-      activeProcesses.set(scanId, child);
-      let jsonBuffer = "";
-      let cancelled = false;
-      child.stdout?.on("data", (chunk) => {
-        if (cancelled) return;
-        jsonBuffer += chunk.toString();
-        event.sender.send(`scan-log:${scanId}`, {
-          log: "🔍 Analyzing dependencies and vulnerabilities...\n",
-          progress: 70
+          progress: 55
         });
-      });
-      child.stderr?.on("data", (data) => {
-        if (cancelled) return;
-        const msg = data.toString();
-        if (!msg.includes("Update") && !msg.includes("deprecated")) {
+        const child = spawn(
+          vulnScanPath,
+          [
+            "fs",
+            "--scanners",
+            "vuln,secret,misconfig",
+            "--list-all-pkgs",
+            "--skip-version-check",
+            "--format",
+            "json",
+            repoPath
+          ],
+          {
+            detached: true,
+            stdio: ["ignore", "pipe", "pipe"],
+            windowsHide: true
+          }
+        );
+        child.unref();
+        activeProcesses.set(scanId, child);
+        let jsonBuffer = "";
+        let cancelled = false;
+        child.stdout?.on("data", (chunk) => {
+          if (cancelled) return;
+          jsonBuffer += chunk.toString();
           event.sender.send(`scan-log:${scanId}`, {
-            log: msg,
-            progress: 85
+            log: "🔍 Analyzing dependencies and vulnerabilities...\n",
+            progress: 70
           });
-        }
-      });
-      child.on("close", (code) => {
-        activeProcesses.delete(scanId);
-        if (cancelled) {
-          resolve({ success: false, cancelled: true });
-          return;
-        }
-        if (code === 0) {
-          try {
-            const results = JSON.parse(jsonBuffer);
-            let vulns = 0;
-            let critical = 0;
-            let high = 0;
-            let medium = 0;
-            let low = 0;
-            if (results.Results) {
-              for (const r of results.Results) {
-                if (r.Vulnerabilities) {
-                  for (const v of r.Vulnerabilities) {
-                    vulns++;
-                    const sev = (v.Severity || "").toUpperCase();
-                    if (sev === "CRITICAL") critical++;
-                    else if (sev === "HIGH") high++;
-                    else if (sev === "MEDIUM") medium++;
-                    else if (sev === "LOW") low++;
+        });
+        child.stderr?.on("data", (data) => {
+          if (cancelled) return;
+          const msg = data.toString();
+          if (!msg.includes("Update") && !msg.includes("deprecated")) {
+            event.sender.send(`scan-log:${scanId}`, {
+              log: msg,
+              progress: 85
+            });
+          }
+        });
+        child.on("close", (code) => {
+          activeProcesses.delete(scanId);
+          if (cancelled) {
+            resolve({ success: false, cancelled: true });
+            return;
+          }
+          if (code === 0) {
+            try {
+              const results = JSON.parse(jsonBuffer);
+              let vulns = 0;
+              let critical = 0;
+              let high = 0;
+              let medium = 0;
+              let low = 0;
+              if (results.Results) {
+                for (const r of results.Results) {
+                  if (r.Vulnerabilities) {
+                    for (const v of r.Vulnerabilities) {
+                      vulns++;
+                      const sev = (v.Severity || "").toUpperCase();
+                      if (sev === "CRITICAL") critical++;
+                      else if (sev === "HIGH") high++;
+                      else if (sev === "MEDIUM") medium++;
+                      else if (sev === "LOW") low++;
+                    }
                   }
                 }
               }
-            }
-            const sbomReport = formatSbomReport(results);
-            event.sender.send(`scan-log:${scanId}`, {
-              log: sbomReport,
-              progress: 90
-            });
-            const detailedReport = formatVulnReport(results);
-            event.sender.send(`scan-log:${scanId}`, {
-              log: detailedReport,
-              progress: 95
-            });
-            const summary = `
+              const sbomReport = formatSbomReport(results);
+              event.sender.send(`scan-log:${scanId}`, {
+                log: sbomReport,
+                progress: 90
+              });
+              const detailedReport = formatVulnReport(results);
+              event.sender.send(`scan-log:${scanId}`, {
+                log: detailedReport,
+                progress: 95
+              });
+              const summary = `
 
 ╔═══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                               ║
@@ -4969,315 +5034,102 @@ Low             : ${low}
 Status          : ${vulns > 0 ? "🚨 VULNERABILITIES DETECTED" : "✅ NO VULNERABILITIES"}
 Risk Level      : ${critical > 0 ? "CRITICAL" : high > 0 ? "HIGH" : medium > 0 ? "MEDIUM" : low > 0 ? "LOW" : "NONE"}
 
-${"═".repeat(79)}
+${"═".repeat(SEPARATOR_WIDTH)}
 `;
-            event.sender.send(`scan-log:${scanId}`, {
-              log: summary,
-              progress: 100
-            });
-            event.sender.send(`scan-complete:${scanId}`, {
-              success: true,
-              vulnerabilities: vulns,
-              critical,
-              high,
-              medium,
-              low
-            });
-            resolve({ success: true, vulnerabilities: vulns });
-          } catch (err) {
-            console.error("Vulnerability Scan Parse Error:", err);
+              event.sender.send(`scan-log:${scanId}`, {
+                log: summary,
+                progress: 100
+              });
+              event.sender.send(`scan-complete:${scanId}`, {
+                success: true,
+                vulnerabilities: vulns,
+                critical,
+                high,
+                medium,
+                low
+              });
+              resolve({ success: true, vulnerabilities: vulns });
+            } catch (err) {
+              console.error("Vulnerability Scan Parse Error:", err);
+              event.sender.send(`scan-complete:${scanId}`, {
+                success: false,
+                error: "Failed to parse vulnerability scan results"
+              });
+              resolve({
+                success: false,
+                error: "Failed to parse vulnerability scan results"
+              });
+            }
+          } else {
             event.sender.send(`scan-complete:${scanId}`, {
               success: false,
-              error: "Failed to parse vulnerability scan results"
+              error: `Vulnerability scanner exited with code ${code}`
             });
-            resolve({ success: false, error: "Failed to parse vulnerability scan results" });
+            resolve({
+              success: false,
+              error: `Vulnerability scanner exited with code ${code}`
+            });
           }
-        } else {
+        });
+        child.on("error", (err) => {
+          activeProcesses.delete(scanId);
           event.sender.send(`scan-complete:${scanId}`, {
             success: false,
-            error: `Vulnerability scanner exited with code ${code}`
+            error: err.message
           });
-          resolve({ success: false, error: `Vulnerability scanner exited with code ${code}` });
-        }
+          resolve({ success: false, error: err.message });
+        });
+        ipcMain.once(`scan:cancel-${scanId}`, () => {
+          cancelled = true;
+          debugLog(`Cancelling vulnerability scan: ${scanId}`);
+          killProcess(child, scanId);
+          activeProcesses.delete(scanId);
+          resolve({ success: false, cancelled: true });
+        });
       });
-      child.on("error", (err) => {
-        activeProcesses.delete(scanId);
+    }
+  );
+  ipcMain.handle(
+    "release:github-create",
+    async (event, { repoUrl, branch, version: version2, githubToken, scanId }) => {
+      const token = githubToken || getGitHubToken();
+      if (!token) {
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `
+❌ GITHUB TOKEN MISSING
+Provide a token in the UI or set GITHUB_PAT environment variable
+`,
+          progress: 0
+        });
         event.sender.send(`scan-complete:${scanId}`, {
           success: false,
-          error: err.message
+          error: "GitHub token missing"
         });
-        resolve({ success: false, error: err.message });
-      });
-      ipcMain.once(`scan:cancel-${scanId}`, () => {
-        cancelled = true;
-        debugLog(`Cancelling vulnerability scan: ${scanId}`);
-        killProcess(child, scanId);
-        activeProcesses.delete(scanId);
-        resolve({ success: false, cancelled: true });
-      });
-    });
-  });
-  ipcMain.handle("crypto:generate-keys", async (event, { type, size, curve, password, outputDir, scanId }) => {
-    const exePath = validateTool("KeyGenerator");
-    if (!exePath) {
+        return { success: false, error: "GitHub token missing" };
+      }
+      const repoMatch = repoUrl.match(/github\.com[\/:]([^\/]+)\/([^\/\.]+)/);
+      if (!repoMatch) {
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `
+❌ Invalid GitHub URL: ${repoUrl}
+`,
+          progress: 0
+        });
+        return { success: false, error: "Invalid GitHub repository URL" };
+      }
+      const [, owner, repo] = repoMatch;
+      const releaseTag = `${version2}`;
       event.sender.send(`scan-log:${scanId}`, {
         log: `
-❌ TOOL ERROR: KeyGenerator not found!
-Expected: ${toolPath("KeyGenerator")}
-`,
-        progress: 0
-      });
-      return { success: false, error: "Tool not found" };
-    }
-    return new Promise((resolve) => {
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `
-${"═".repeat(65)}
-🔑 KEY GENERATION STARTED
-${"═".repeat(65)}
+${"═".repeat(SEPARATOR_WIDTH)}
+🚀 GITHUB RELEASE CREATION
+${"═".repeat(SEPARATOR_WIDTH)}
 
-🔹 Algorithm: ${type.toUpperCase()}${type === "rsa" ? ` (${size} bits)` : ` (${curve})`}
-🔹 Output: ${outputDir}
-🔹 Security: ${password ? "🔒 Protected" : "⚠️ No Password"}
-
-`,
-        progress: 5
-      });
-      const args = ["generate", type];
-      if (type === "rsa" && size) args.push("-s", `${size}`);
-      if (type === "ecdsa" && curve) args.push("-c", curve);
-      if (password) args.push("-p", password);
-      args.push("-o", outputDir);
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `⏳ Executing...
 `,
         progress: 10
       });
-      const child = spawn(exePath, args, {
-        stdio: ["ignore", "pipe", "pipe"]
-      });
-      activeProcesses.set(scanId, child);
-      let cancelled = false;
-      if (child.stdout) {
-        child.stdout.on("data", (chunk) => {
-          if (cancelled) return;
-          const text = chunk.toString();
-          event.sender.send(`scan-log:${scanId}`, { log: text, progress: 60 });
-        });
-      }
-      if (child.stderr) {
-        child.stderr.on("data", (chunk) => {
-          if (cancelled) return;
-          const text = chunk.toString();
-          event.sender.send(`scan-log:${scanId}`, { log: `
-🔴 [ERROR] ${text.trim()}
-`, progress: 50 });
-        });
-      }
-      child.on("close", (code) => {
-        activeProcesses.delete(scanId);
-        if (cancelled) return;
-        const trueSuccess = code === 0;
-        let finalReport = `╔══════════════════════════════════════════════════════════════════════╗
-`;
-        finalReport += `                    KEY GENERATION REPORT                               
-`;
-        finalReport += `╚══════════════════════════════════════════════════════════════════════╝
-
-`;
-        finalReport += `    RESULT             : ${code === 0 ? "✅ SUCCESS" : "❌ FAILED (" + code + ")"}
-`;
-        finalReport += `    Algorithm         : ${type.toUpperCase()}
-`;
-        finalReport += `    Timestamp      : ${(/* @__PURE__ */ new Date()).toLocaleTimeString()}
-`;
-        if (trueSuccess) {
-          finalReport += `    ✅ KEYS READY FOR SIGNING!
-`;
-        } else {
-          finalReport += `    ⚠️  Check error logs above
-`;
-        }
-        finalReport += `
-${"═".repeat(70)}`;
-        event.sender.send(`scan-log:${scanId}`, { log: finalReport, progress: 100 });
-        event.sender.send(`scan-complete:${scanId}`, { success: trueSuccess });
-        resolve({ success: trueSuccess });
-      });
-      child.on("error", (error) => {
-        activeProcesses.delete(scanId);
-        event.sender.send(`scan-log:${scanId}`, {
-          log: `
-💥 SPAWN ERROR: ${error.message}`,
-          progress: 0
-        });
-        resolve({ success: false, error: error.message });
-      });
-      ipcMain.once(`scan:cancel-${scanId}`, () => {
-        cancelled = true;
-        if (child.pid) process.kill(child.pid, "SIGTERM");
-        event.sender.send(`scan-log:${scanId}`, { log: `
-🛑 CANCELLED
-`, progress: 0 });
-        resolve({ success: false, cancelled: true });
-      });
-    });
-  });
-  ipcMain.handle("crypto:sign-artifact", async (event, { repoUrl, branch, privateKeyPath, password, isQuickScan, githubToken, scanId }) => {
-    const exePath = validateTool("SoftwareSigner");
-    if (!exePath) {
       event.sender.send(`scan-log:${scanId}`, {
-        log: `
-❌ TOOL ERROR: SoftwareSigner not found.
-Expected at: ${toolPath("SoftwareSigner")}
-`,
-        progress: 0
-      });
-      return { success: false, error: "Tool not found" };
-    }
-    const repoPath = await getRepoPath(event, repoUrl, branch, isQuickScan, githubToken, scanId);
-    if (!repoPath) {
-      event.sender.send(`scan-complete:${scanId}`, {
-        success: false,
-        error: "Repository preparation failed"
-      });
-      return { success: false, error: "Repository preparation failed" };
-    }
-    const signerGitDir = path.join(repoPath, ".git");
-    try {
-      await fs.rm(signerGitDir, { recursive: true, force: true });
-    } catch {
-    }
-    return new Promise((resolve) => {
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `
-${"═".repeat(60)}
-🔏 INITIATING CRYPTOGRAPHIC SIGNING
-${"═".repeat(60)}
-
-`,
-        progress: 30
-      });
-      const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").slice(0, 19).replace("T", "-");
-      const tempDir = path.join(
-        app.getPath("temp"),
-        SOFTWARE_DIGITAL_SIGNATURE,
-        timestamp
-      );
-      fsSync.mkdirSync(tempDir, { recursive: true });
-      const outputSigPath = path.join(tempDir, SIGNATURE_FILE_NAME);
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `🔹 Target Repo : ${repoUrl}
-🔹 Branch      : ${branch}
-🔹 Signing Key : ${path.basename(privateKeyPath)}
-🔹 Security    : ${password ? "Password Protected 🔒" : "No Password ⚠️"}
-🔹 Output Path : ${outputSigPath}
-
-`,
-        progress: 35
-      });
-      const args = [
-        "sign",
-        "-c",
-        repoPath,
-        "-k",
-        privateKeyPath,
-        "-o",
-        outputSigPath
-      ];
-      if (password) args.push("-p", password);
-      const child = spawn(exePath, args);
-      activeProcesses.set(scanId, child);
-      let cancelled = false;
-      child.stdout.on("data", (chunk) => {
-        if (cancelled) return;
-        const text = chunk.toString();
-        event.sender.send(`scan-log:${scanId}`, { log: text, progress: 60 });
-      });
-      child.stderr.on("data", (chunk) => {
-        if (cancelled) return;
-        const text = chunk.toString();
-        event.sender.send(`scan-log:${scanId}`, { log: `[STDERR] ${text}`, progress: 60 });
-      });
-      child.on("close", (code) => {
-        activeProcesses.delete(scanId);
-        if (cancelled) return;
-        const success = code === 0;
-        let sigSize = "0 B";
-        if (success && fsSync.existsSync(outputSigPath)) {
-          sigSize = `${fsSync.statSync(outputSigPath).size} bytes`;
-        }
-        const summary = `
-╔══════════════════════════════════════════════════════════════════════╗
-                    DIGITAL SIGNATURE REPORT                            
-╚══════════════════════════════════════════════════════════════════════╝
-
- Status             : ${success ? "✅ SIGNED & VERIFIED" : "❌ SIGNING FAILED"}
- Repository    : ${repoUrl}
- Branch           : ${branch}
- Timestamp   : ${(/* @__PURE__ */ new Date()).toLocaleTimeString()}
-
- 🔏 Signature Details:
- ───────────────────────────────────────────────
- 📄 File             : ${outputSigPath}
- 💾 Size             : ${sigSize}
- 🔑 Key Used   : ${privateKeyPath}
-
-
- ${"═".repeat(70)}
-`;
-        event.sender.send(`scan-log:${scanId}`, { log: summary, progress: 100 });
-        event.sender.send(`scan-complete:${scanId}`, { success });
-        resolve({ success });
-      });
-      ipcMain.once(`scan:cancel-${scanId}`, () => {
-        cancelled = true;
-        if (child.pid) try {
-          process.kill(child.pid);
-        } catch (e) {
-        }
-        activeProcesses.delete(scanId);
-        event.sender.send(`scan-log:${scanId}`, { log: "\n⚠️ PROCESS CANCELLED BY USER\n", progress: 0 });
-        resolve({ success: false, cancelled: true });
-      });
-    });
-  });
-  ipcMain.handle("release:github-create", async (event, { repoUrl, branch, version: version2, scanId }) => {
-    const token = getGitHubToken();
-    if (!token) {
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `
-❌ GITHUB TOKEN MISSING
-Required: GITHUB_PAT environment variable
-`,
-        progress: 0
-      });
-      event.sender.send(`scan-complete:${scanId}`, { success: false, error: "GitHub token missing" });
-      return { success: false, error: "GitHub token missing" };
-    }
-    const repoMatch = repoUrl.match(/github\.com[\/:]([^\/]+)\/([^\/\.]+)/);
-    if (!repoMatch) {
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `
-❌ Invalid GitHub URL: ${repoUrl}
-`,
-        progress: 0
-      });
-      return { success: false, error: "Invalid GitHub repository URL" };
-    }
-    const [, owner, repo] = repoMatch;
-    const releaseTag = `${version2}`;
-    event.sender.send(`scan-log:${scanId}`, {
-      log: `
-${"═".repeat(70)}
-🚀 GITHUB RELEASE CREATION
-${"═".repeat(70)}
-
-`,
-      progress: 10
-    });
-    event.sender.send(`scan-log:${scanId}`, {
-      log: `🔹 Repository  : ${repoUrl}
+        log: `🔹 Repository  : ${repoUrl}
 🔹 Owner/Repo   : ${owner}/${repo}
 🔹 Branch       : ${branch}
 🔹 Version      : ${version2}
@@ -5285,72 +5137,84 @@ ${"═".repeat(70)}
 🔹 Release URL  : https://github.com/${owner}/${repo}/releases/tag/${releaseTag}
 
 `,
-      progress: 20
-    });
-    const sslAgent = new https.Agent({ rejectUnauthorized: false });
-    const octokit = new Octokit2({
-      auth: token,
-      request: { agent: sslAgent }
-    });
-    try {
-      event.sender.send(`scan-log:${scanId}`, { log: `🔍 Checking if tag ${releaseTag} exists...
-`, progress: 30 });
+        progress: 20
+      });
+      const sslAgent = new https.Agent({ rejectUnauthorized: false });
+      const octokit = new Octokit2({
+        auth: token,
+        request: { agent: sslAgent }
+      });
       try {
-        await octokit.rest.git.getRef({
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `🔍 Checking if tag ${releaseTag} exists...
+`,
+          progress: 30
+        });
+        try {
+          await octokit.rest.git.getRef({
+            owner,
+            repo,
+            ref: `tags/${releaseTag}`
+          });
+          event.sender.send(`scan-log:${scanId}`, {
+            log: `⚠️  Tag ${releaseTag} already exists, will update...
+`,
+            progress: 40
+          });
+        } catch (e) {
+          if (e.status !== 404) throw e;
+          event.sender.send(`scan-log:${scanId}`, {
+            log: `✅ Tag ${releaseTag} does not exist, creating new...
+`,
+            progress: 40
+          });
+        }
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `🔍 Fetching ${branch} branch SHA...
+`,
+          progress: 50
+        });
+        const { data: branchRef } = await octokit.rest.git.getRef({
           owner,
           repo,
-          ref: `tags/${releaseTag}`
+          ref: `heads/${branch}`
+        });
+        const branchSha = branchRef.object.sha;
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `🏷️  Creating tag ${releaseTag} on ${branchSha.slice(0, 7)}...
+`,
+          progress: 60
+        });
+        await octokit.rest.git.createRef({
+          owner,
+          repo,
+          ref: `refs/tags/${releaseTag}`,
+          sha: branchSha
         });
         event.sender.send(`scan-log:${scanId}`, {
-          log: `⚠️  Tag ${releaseTag} already exists, will update...
+          log: `📦 Creating release ${releaseTag}...
 `,
-          progress: 40
+          progress: 80
         });
-      } catch (e) {
-        if (e.status !== 404) throw e;
-        event.sender.send(`scan-log:${scanId}`, {
-          log: `✅ Tag ${releaseTag} does not exist, creating new...
-`,
-          progress: 40
-        });
-      }
-      event.sender.send(`scan-log:${scanId}`, { log: `🔍 Fetching ${branch} branch SHA...
-`, progress: 50 });
-      const { data: branchRef } = await octokit.rest.git.getRef({
-        owner,
-        repo,
-        ref: `heads/${branch}`
-      });
-      const branchSha = branchRef.object.sha;
-      event.sender.send(`scan-log:${scanId}`, { log: `🏷️  Creating tag ${releaseTag} on ${branchSha.slice(0, 7)}...
-`, progress: 60 });
-      await octokit.rest.git.createRef({
-        owner,
-        repo,
-        ref: `refs/tags/${releaseTag}`,
-        sha: branchSha
-      });
-      event.sender.send(`scan-log:${scanId}`, { log: `📦 Creating release ${releaseTag}...
-`, progress: 80 });
-      const { data: release } = await octokit.rest.repos.createRelease({
-        owner,
-        repo,
-        tag_name: releaseTag,
-        target_commitish: branch,
-        name: `Release ${version2}`,
-        body: `# Release ${version2}
+        const { data: release } = await octokit.rest.repos.createRelease({
+          owner,
+          repo,
+          tag_name: releaseTag,
+          target_commitish: branch,
+          name: `Release ${version2}`,
+          body: `# Release ${version2}
 
 **Created from ${branch} branch**
 
 - Tag: \`${releaseTag}\`
 - Commit: \`${branchSha.slice(0, 7)}\``,
-        prerelease: version2.includes("-") || version2.includes("rc") || version2.includes("beta"),
-        draft: false
-      });
-      const summary = `
+          prerelease: version2.includes("-") || version2.includes("rc") || version2.includes("beta"),
+          draft: false
+        });
+        const summary = `
 ╔═══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                               ║
-║                              GITHUB RELEASE CREATED                           ║
+║                    🚀  GITHUB RELEASE CREATED  🚀                            ║
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 
@@ -5363,93 +5227,412 @@ Release URL    : ${release.html_url}
 
 📎 Direct Link : ${release.html_url}
 
-${"═".repeat(80)}
+${"═".repeat(SEPARATOR_WIDTH)}
 `;
-      event.sender.send(`scan-log:${scanId}`, { log: summary, progress: 100 });
-      event.sender.send(`scan-complete:${scanId}`, { success: true, release: { id: release.id, url: release.html_url, tag: releaseTag } });
-      return { success: true, release };
-    } catch (error) {
-      const errorMsg = error.status === 422 ? "Release/tag already exists with different content" : error.message || "Unknown error";
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `
+        event.sender.send(`scan-log:${scanId}`, {
+          log: summary,
+          progress: 100
+        });
+        event.sender.send(`scan-complete:${scanId}`, {
+          success: true,
+          release: { id: release.id, url: release.html_url, tag: releaseTag }
+        });
+        return { success: true, release };
+      } catch (error) {
+        const errorMsg = error.status === 422 ? "Release/tag already exists with different content" : error.message || "Unknown error";
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `
 ❌ Release creation failed:
 ${errorMsg}
 
 HTTP ${error.status || "N/A"}
 `,
-        progress: 0
-      });
-      event.sender.send(`scan-complete:${scanId}`, { success: false, error: errorMsg });
-      return { success: false, error: errorMsg };
+          progress: 0
+        });
+        event.sender.send(`scan-complete:${scanId}`, {
+          success: false,
+          error: errorMsg
+        });
+        return { success: false, error: errorMsg };
+      }
     }
-  });
-  ipcMain.handle("verify:signature", async (event, { repoUrl, branch, version: version2, publicKeyPath, signaturePath, isQuickScan, localRepoLocation, githubToken, scanId }) => {
-    const exePath = validateTool("SoftwareVerifier");
-    if (!exePath) {
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `
-❌ TOOL ERROR: SoftwareVerifier not found.
-Expected at: ${toolPath("SoftwareVerifier")}
-`,
-        progress: 0
-      });
-      return { success: false, error: "SoftwareVerifier not found" };
-    }
-    if (!fsSync.existsSync(publicKeyPath)) {
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `
-❌ Public key not found: ${publicKeyPath}
-`,
-        progress: 0
-      });
-      return { success: false, error: "Public key file not found" };
-    }
-    if (!fsSync.existsSync(signaturePath)) {
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `
-❌ Signature file not found: ${signaturePath}
-`,
-        progress: 0
-      });
-      return { success: false, error: "Signature file not found" };
-    }
-    const tagName = `${version2}`;
-    let repoPath;
-    if (isQuickScan && localRepoLocation) {
-      if (!fsSync.existsSync(localRepoLocation)) {
+  );
+  ipcMain.handle(
+    "crypto:generate-keys",
+    async (event, { type, size, curve, password, outputDir, scanId }) => {
+      const exePath = validateTool("KeyGenerator");
+      if (!exePath) {
         event.sender.send(`scan-log:${scanId}`, {
           log: `
-❌ Local repository folder not found: ${localRepoLocation}
+❌ TOOL ERROR: KeyGenerator not found!
+Expected: ${toolPath("KeyGenerator")}
 `,
           progress: 0
         });
-        return { success: false, error: "Local repository folder not found" };
+        return { success: false, error: "Tool not found" };
       }
-      repoPath = localRepoLocation;
-    } else {
-      repoPath = await cloneRepositoryByTag(event, repoUrl, tagName, isQuickScan, githubToken, scanId);
-    }
-    if (!repoPath) {
-      event.sender.send(`scan-complete:${scanId}`, { success: false, error: "Clone failed" });
-      return { success: false, error: `Failed to clone repository at tag ${version2}` };
-    }
-    const verifierGitDir = path.join(repoPath, ".git");
-    try {
-      await fs.rm(verifierGitDir, { recursive: true, force: true });
-    } catch {
-    }
-    return new Promise((resolve) => {
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `
-${"═".repeat(70)}
-🔍 DIGITAL SIGNATURE VERIFICATION
-${"═".repeat(70)}
+      return new Promise((resolve) => {
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `
+${"═".repeat(SEPARATOR_WIDTH)}
+🔑 KEY GENERATION STARTED
+${"═".repeat(SEPARATOR_WIDTH)}
+
+🔹 Algorithm: ${type.toUpperCase()}${type === "rsa" ? ` (${size} bits)` : ` (${curve})`}
+🔹 Output: ${outputDir}
+🔹 Security: ${password ? "🔒 Protected" : "⚠️ No Password"}
 
 `,
-        progress: 30
+          progress: 5
+        });
+        const args = ["generate", type];
+        if (type === "rsa" && size) args.push("-s", `${size}`);
+        if (type === "ecdsa" && curve) args.push("-c", curve);
+        if (password) args.push("-p", password);
+        args.push("-o", outputDir);
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `⏳ Executing...
+`,
+          progress: 10
+        });
+        const child = spawn(exePath, args, {
+          stdio: ["ignore", "pipe", "pipe"]
+        });
+        activeProcesses.set(scanId, child);
+        let cancelled = false;
+        if (child.stdout) {
+          child.stdout.on("data", (chunk) => {
+            if (cancelled) return;
+            const text = chunk.toString();
+            event.sender.send(`scan-log:${scanId}`, {
+              log: text,
+              progress: 60
+            });
+          });
+        }
+        if (child.stderr) {
+          child.stderr.on("data", (chunk) => {
+            if (cancelled) return;
+            const text = chunk.toString();
+            event.sender.send(`scan-log:${scanId}`, {
+              log: `
+🔴 [ERROR] ${text.trim()}
+`,
+              progress: 50
+            });
+          });
+        }
+        child.on("close", (code) => {
+          activeProcesses.delete(scanId);
+          if (cancelled) return;
+          const trueSuccess = code === 0;
+          const finalReport = `
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                                                                               ║
+║              🔑  KEY GENERATION REPORT  🔑                                   ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+RESULT             : ${code === 0 ? "✅ SUCCESS" : "❌ FAILED (" + code + ")"}
+Algorithm          : ${type.toUpperCase()}
+Timestamp          : ${(/* @__PURE__ */ new Date()).toLocaleTimeString()}
+${trueSuccess ? "✅ KEYS READY FOR SIGNING!" : "⚠️  Check error logs above"}
+
+${"═".repeat(SEPARATOR_WIDTH)}
+`;
+          event.sender.send(`scan-log:${scanId}`, {
+            log: finalReport,
+            progress: 100
+          });
+          event.sender.send(`scan-complete:${scanId}`, {
+            success: trueSuccess
+          });
+          resolve({ success: trueSuccess });
+        });
+        child.on("error", (error) => {
+          activeProcesses.delete(scanId);
+          event.sender.send(`scan-log:${scanId}`, {
+            log: `
+💥 SPAWN ERROR: ${error.message}`,
+            progress: 0
+          });
+          resolve({ success: false, error: error.message });
+        });
+        ipcMain.once(`scan:cancel-${scanId}`, () => {
+          cancelled = true;
+          if (child.pid) process.kill(child.pid, "SIGTERM");
+          event.sender.send(`scan-log:${scanId}`, {
+            log: `
+🛑 CANCELLED
+`,
+            progress: 0
+          });
+          resolve({ success: false, cancelled: true });
+        });
       });
-      event.sender.send(`scan-log:${scanId}`, {
-        log: `🔹 Repository  : ${repoUrl}
+    }
+  );
+  ipcMain.handle(
+    "crypto:sign-artifact",
+    async (event, {
+      repoUrl,
+      branch,
+      version: version2,
+      privateKeyPath,
+      password,
+      isQuickScan,
+      localRepoLocation,
+      githubToken,
+      scanId
+    }) => {
+      const exePath = validateTool("SoftwareSigner");
+      if (!exePath) {
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `
+❌ TOOL ERROR: SoftwareSigner not found.
+Expected at: ${toolPath("SoftwareSigner")}
+`,
+          progress: 0
+        });
+        return { success: false, error: "Tool not found" };
+      }
+      let repoPath = null;
+      if (isQuickScan && localRepoLocation) {
+        if (!fsSync.existsSync(localRepoLocation)) {
+          event.sender.send(`scan-log:${scanId}`, {
+            log: `
+❌ Local repository folder not found: ${localRepoLocation}
+`,
+            progress: 0
+          });
+          return { success: false, error: "Local repository folder not found" };
+        }
+        repoPath = localRepoLocation;
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `
+📁 Using local repo: ${localRepoLocation}
+`,
+          progress: 10
+        });
+      } else if (version2) {
+        repoPath = await cloneRepositoryByTag(
+          event,
+          repoUrl,
+          version2,
+          isQuickScan,
+          githubToken,
+          scanId
+        );
+      } else {
+        repoPath = await getRepoPath(
+          event,
+          repoUrl,
+          branch,
+          isQuickScan,
+          githubToken,
+          scanId
+        );
+      }
+      if (!repoPath) {
+        event.sender.send(`scan-complete:${scanId}`, {
+          success: false,
+          error: "Repository preparation failed"
+        });
+        return { success: false, error: "Repository preparation failed" };
+      }
+      return new Promise((resolve) => {
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `
+${"═".repeat(SEPARATOR_WIDTH)}
+✍️ INITIATING CRYPTOGRAPHIC SIGNING
+${"═".repeat(SEPARATOR_WIDTH)}
+
+`,
+          progress: 30
+        });
+        const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").slice(0, 19).replace("T", "-");
+        const tempDir = path.join(
+          app.getPath("temp"),
+          SOFTWARE_DIGITAL_SIGNATURE,
+          timestamp
+        );
+        fsSync.mkdirSync(tempDir, { recursive: true });
+        const outputSigPath = path.join(tempDir, SIGNATURE_FILE_NAME);
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `🔹 Target Repo : ${repoUrl}
+🔹 Branch      : ${branch}
+🔹 Signing Key : ${path.basename(privateKeyPath)}
+🔹 Security    : ${password ? "Password Protected 🔒" : "No Password ⚠️"}
+🔹 Output Path : ${outputSigPath}
+
+`,
+          progress: 35
+        });
+        const args = [
+          "sign",
+          "-c",
+          repoPath,
+          "-k",
+          privateKeyPath,
+          "-o",
+          outputSigPath
+        ];
+        if (password) args.push("-p", password);
+        const child = spawn(exePath, args);
+        activeProcesses.set(scanId, child);
+        let cancelled = false;
+        child.stdout.on("data", (chunk) => {
+          if (cancelled) return;
+          const text = chunk.toString();
+          event.sender.send(`scan-log:${scanId}`, { log: text, progress: 60 });
+        });
+        child.stderr.on("data", (chunk) => {
+          if (cancelled) return;
+          const text = chunk.toString();
+          event.sender.send(`scan-log:${scanId}`, {
+            log: `[STDERR] ${text}`,
+            progress: 60
+          });
+        });
+        child.on("close", (code) => {
+          activeProcesses.delete(scanId);
+          if (cancelled) return;
+          const success = code === 0;
+          let sigSize = "0 B";
+          if (success && fsSync.existsSync(outputSigPath)) {
+            sigSize = `${fsSync.statSync(outputSigPath).size} bytes`;
+          }
+          const summary = `
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                                                                               ║
+║              ✍️  DIGITAL SIGNATURE REPORT  ✍️                                ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+ Status        : ${success ? "✅ SIGNING SUCCESS " : "❌ SIGNING FAILED"}
+ Repository    : ${repoUrl}
+ Branch        : ${branch}
+ Timestamp     : ${(/* @__PURE__ */ new Date()).toLocaleTimeString()}
+
+ ✍️ Signature Details:
+ ───────────────────────────────────────────────
+ 📄 File       : ${outputSigPath}
+ 💾 Size       : ${sigSize}
+ 🔑 Key Used   : ${privateKeyPath}
+
+${"═".repeat(SEPARATOR_WIDTH)}
+`;
+          event.sender.send(`scan-log:${scanId}`, {
+            log: summary,
+            progress: 100
+          });
+          event.sender.send(`scan-complete:${scanId}`, { success });
+          resolve({ success });
+        });
+        ipcMain.once(`scan:cancel-${scanId}`, () => {
+          cancelled = true;
+          if (child.pid)
+            try {
+              process.kill(child.pid);
+            } catch (e) {
+            }
+          activeProcesses.delete(scanId);
+          event.sender.send(`scan-log:${scanId}`, {
+            log: "\n⚠️ PROCESS CANCELLED BY USER\n",
+            progress: 0
+          });
+          resolve({ success: false, cancelled: true });
+        });
+      });
+    }
+  );
+  ipcMain.handle(
+    "verify:signature",
+    async (event, {
+      repoUrl,
+      branch,
+      version: version2,
+      publicKeyPath,
+      signaturePath,
+      isQuickScan,
+      localRepoLocation,
+      githubToken,
+      scanId
+    }) => {
+      const exePath = validateTool("SoftwareVerifier");
+      if (!exePath) {
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `
+❌ TOOL ERROR: SoftwareVerifier not found.
+Expected at: ${toolPath("SoftwareVerifier")}
+`,
+          progress: 0
+        });
+        return { success: false, error: "SoftwareVerifier not found" };
+      }
+      if (!fsSync.existsSync(publicKeyPath)) {
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `
+❌ Public key not found: ${publicKeyPath}
+`,
+          progress: 0
+        });
+        return { success: false, error: "Public key file not found" };
+      }
+      if (!fsSync.existsSync(signaturePath)) {
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `
+❌ Signature file not found: ${signaturePath}
+`,
+          progress: 0
+        });
+        return { success: false, error: "Signature file not found" };
+      }
+      const tagName = `${version2}`;
+      let repoPath;
+      if (isQuickScan && localRepoLocation) {
+        if (!fsSync.existsSync(localRepoLocation)) {
+          event.sender.send(`scan-log:${scanId}`, {
+            log: `
+❌ Local repository folder not found: ${localRepoLocation}
+`,
+            progress: 0
+          });
+          return { success: false, error: "Local repository folder not found" };
+        }
+        repoPath = localRepoLocation;
+      } else {
+        repoPath = await cloneRepositoryByTag(
+          event,
+          repoUrl,
+          tagName,
+          isQuickScan,
+          githubToken,
+          scanId
+        );
+      }
+      if (!repoPath) {
+        event.sender.send(`scan-complete:${scanId}`, {
+          success: false,
+          error: "Clone failed"
+        });
+        return {
+          success: false,
+          error: `Failed to clone repository at tag ${version2}`
+        };
+      }
+      return new Promise((resolve) => {
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `
+${"═".repeat(SEPARATOR_WIDTH)}
+🔍 DIGITAL SIGNATURE VERIFICATION
+${"═".repeat(SEPARATOR_WIDTH)}
+
+`,
+          progress: 30
+        });
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `🔹 Repository  : ${repoUrl}
 🔹 Release Tag : ${version2}
 🔹 Branch      : ${branch}
 🔹 Public Key  : ${publicKeyPath}
@@ -5457,83 +5640,104 @@ ${"═".repeat(70)}
 🔹 Content Path: ${repoPath}
 
 `,
-        progress: 40
-      });
-      const args = [
-        "verify",
-        "-c",
-        repoPath,
-        "-k",
-        publicKeyPath,
-        "-s",
-        signaturePath
-      ];
-      const child = spawn(exePath, args, {
-        stdio: ["ignore", "pipe", "pipe"],
-        detached: true,
-        shell: false
-      });
-      activeProcesses.set(scanId, child);
-      let buffer = "";
-      let stderrBuffer = "";
-      let cancelled = false;
-      child.stdout?.on("data", (chunk) => {
-        if (cancelled) return;
-        const text = chunk.toString();
-        buffer += text;
-        event.sender.send(`scan-log:${scanId}`, { log: text, progress: 70 });
-      });
-      child.stderr?.on("data", (chunk) => {
-        if (cancelled) return;
-        const text = chunk.toString();
-        stderrBuffer += text;
-        event.sender.send(`scan-log:${scanId}`, { log: `[STDERR] ${text}`, progress: 70 });
-      });
-      child.on("close", (code) => {
-        activeProcesses.delete(scanId);
-        if (cancelled) {
-          resolve({ success: false, verified: false, cancelled: true });
-          return;
-        }
-        const verified = code === 0;
-        const fullOutput = buffer + stderrBuffer;
-        const summary = `
-╔══════════════════════════════════════════════════════════════════════╗
-                     🔍 DIGITAL SIGNATURE VERIFICATION REPORT                            
-╚══════════════════════════════════════════════════════════════════════╝
+          progress: 40
+        });
+        const args = [
+          "verify",
+          "-c",
+          repoPath,
+          "-k",
+          publicKeyPath,
+          "-s",
+          signaturePath
+        ];
+        const child = spawn(exePath, args, {
+          stdio: ["ignore", "pipe", "pipe"],
+          detached: true,
+          shell: false
+        });
+        activeProcesses.set(scanId, child);
+        let buffer = "";
+        let stderrBuffer = "";
+        let cancelled = false;
+        child.stdout?.on("data", (chunk) => {
+          if (cancelled) return;
+          const text = chunk.toString();
+          buffer += text;
+          event.sender.send(`scan-log:${scanId}`, { log: text, progress: 70 });
+        });
+        child.stderr?.on("data", (chunk) => {
+          if (cancelled) return;
+          const text = chunk.toString();
+          stderrBuffer += text;
+          event.sender.send(`scan-log:${scanId}`, {
+            log: `[STDERR] ${text}`,
+            progress: 70
+          });
+        });
+        child.on("close", (code) => {
+          activeProcesses.delete(scanId);
+          if (cancelled) {
+            resolve({ success: false, verified: false, cancelled: true });
+            return;
+          }
+          const verified = code === 0;
+          const fullOutput = buffer + stderrBuffer;
+          const summary = `
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                                                                               ║
+║           🔍  DIGITAL SIGNATURE VERIFICATION REPORT  🔍                      ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
 
 Repository     : ${repoUrl}
 Release Tag    : ${version2}
-Status            : ${verified ? "✅ SIGNATURE VALID" : "❌ SIGNATURE INVALID"}
-Exit Code        : ${code}
+Status         : ${verified ? "✅ SIGNATURE VALID" : "❌ SIGNATURE INVALID"}
+Exit Code      : ${code}
 Output Size    : ${Buffer.byteLength(fullOutput, "utf8")} bytes
 
 ${verified ? "🔓 Signature matches public key and content!" : "🔒 Signature verification failed!"}
 
-${"═".repeat(80)}
+${"═".repeat(SEPARATOR_WIDTH)}
 `;
-        event.sender.send(`scan-log:${scanId}`, { log: summary, progress: 100 });
-        event.sender.send(`scan-complete:${scanId}`, { success: true, verified });
-        resolve({ success: true, verified });
-      });
-      child.on("error", (err) => {
-        activeProcesses.delete(scanId);
-        event.sender.send(`scan-log:${scanId}`, { log: `
+          event.sender.send(`scan-log:${scanId}`, {
+            log: summary,
+            progress: 100
+          });
+          event.sender.send(`scan-complete:${scanId}`, {
+            success: true,
+            verified
+          });
+          resolve({ success: true, verified });
+        });
+        child.on("error", (err) => {
+          activeProcesses.delete(scanId);
+          event.sender.send(`scan-log:${scanId}`, {
+            log: `
 ❌ Verification error: ${err.message}
-`, progress: 0 });
-        event.sender.send(`scan-complete:${scanId}`, { success: false, error: err.message });
-        resolve({ success: false, verified: false, error: err.message });
+`,
+            progress: 0
+          });
+          event.sender.send(`scan-complete:${scanId}`, {
+            success: false,
+            error: err.message
+          });
+          resolve({ success: false, verified: false, error: err.message });
+        });
+        ipcMain.once(`scan:cancel-${scanId}`, () => {
+          cancelled = true;
+          debugLog(`Cancelling signature verification: ${scanId}`);
+          killProcess(child, scanId);
+          activeProcesses.delete(scanId);
+          event.sender.send(`scan-log:${scanId}`, {
+            log: "\n⚠️ VERIFICATION CANCELLED\n",
+            progress: 0
+          });
+          resolve({ success: false, verified: false, cancelled: true });
+        });
       });
-      ipcMain.once(`scan:cancel-${scanId}`, () => {
-        cancelled = true;
-        debugLog(`Cancelling signature verification: ${scanId}`);
-        killProcess(child, scanId);
-        activeProcesses.delete(scanId);
-        event.sender.send(`scan-log:${scanId}`, { log: "\n⚠️ VERIFICATION CANCELLED\n", progress: 0 });
-        resolve({ success: false, verified: false, cancelled: true });
-      });
-    });
-  });
+    }
+  );
   ipcMain.handle("dialog:select-folder", async (event) => {
     const win2 = BrowserWindow.fromWebContents(event.sender);
     if (!win2) return null;

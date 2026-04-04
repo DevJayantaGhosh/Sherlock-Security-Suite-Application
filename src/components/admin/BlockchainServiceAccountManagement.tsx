@@ -284,7 +284,7 @@ export default function BlockchainServiceAccountManagement({ user }: { user: App
         }}
       >
         <AccountBalanceWalletIcon sx={{ color: "#7b5cff", fontSize: 20 }} />
-        <Typography variant="body2" sx={{ color: "#7b5cff", fontFamily: "monospace" }}>
+        <Typography variant="body2" sx={{ color: "#7b5cff", fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace" }}>
           Connected: {walletAddress}
         </Typography>
         <IconButton
@@ -314,7 +314,7 @@ export default function BlockchainServiceAccountManagement({ user }: { user: App
         >
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             <LinkIcon sx={{ color: "#5ce1e6", fontSize: 18 }} />
-            <Typography variant="body2" sx={{ color: "#5ce1e6", fontFamily: "monospace" }}>
+            <Typography variant="body2" sx={{ color: "#5ce1e6", fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace" }}>
               Last Tx: {lastTx.hash.slice(0, 16)}…{lastTx.hash.slice(-8)}
             </Typography>
           </Box>
@@ -424,7 +424,7 @@ export default function BlockchainServiceAccountManagement({ user }: { user: App
                           <Typography
                             sx={{
                               color: "white",
-                              fontFamily: "monospace",
+                              fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
                               fontSize: "0.875rem",
                               fontWeight: 500,
                             }}
@@ -483,7 +483,7 @@ export default function BlockchainServiceAccountManagement({ user }: { user: App
                                   color: "#5ce1e6",
                                   textTransform: "none",
                                   fontSize: "0.75rem",
-                                  fontFamily: "monospace",
+                                  fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
                                   minWidth: 0,
                                   p: 0.5,
                                 }}
@@ -549,7 +549,7 @@ export default function BlockchainServiceAccountManagement({ user }: { user: App
               size="small"
               placeholder="0x0000000000000000000000000000000000000000"
               sx={{ mt: 2 }}
-              inputProps={{ style: { fontFamily: "monospace" } }}
+              inputProps={{ style: { fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace" } }}
             />
           </Box>
         </DialogContent>
@@ -593,7 +593,7 @@ export default function BlockchainServiceAccountManagement({ user }: { user: App
           <Typography
             sx={{
               color: "#9ca3af",
-              fontFamily: "monospace",
+              fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
               fontSize: "0.85rem",
               mt: 1,
               wordBreak: "break-all",

@@ -56,7 +56,7 @@ const STEPS = ["Preparing…", "Broadcasting to Hedera…", "Confirming block…
 function R({ l, v }: { l: string; v: React.ReactNode }) {
   return (
     <TableRow>
-      <TableCell sx={{ fontWeight: 700, width: 155, fontFamily: "monospace", py: .4, border: "none", fontSize: ".82rem" }}>{l}</TableCell>
+      <TableCell sx={{ fontWeight: 700, width: 155, fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace", py: .4, border: "none", fontSize: ".82rem" }}>{l}</TableCell>
       <TableCell sx={{ py: .4, border: "none", fontSize: ".82rem" }}>{v}</TableCell>
     </TableRow>
   );
@@ -211,7 +211,7 @@ export default function BlockchainInscriptionCard({ variants, product, disabled,
         </Box>
         <Stack direction="row" spacing={1} alignItems="center">
           <HubIcon sx={{ fontSize: 28, color: cfg.color }} />
-          <Typography variant="h5" fontWeight={700} sx={{ color: cfg.color, fontFamily: "monospace" }}>Blockchain Transaction</Typography>
+          <Typography variant="h5" fontWeight={700} sx={{ color: cfg.color, fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace" }}>Blockchain Transaction</Typography>
         </Stack>
         <Typography color="grey.400">{STEPS[step]}</Typography>
         <CircularProgress size={32} sx={{ color: cfg.color }} />
@@ -233,7 +233,7 @@ export default function BlockchainInscriptionCard({ variants, product, disabled,
             </Stack>
             <Stack direction="row" spacing={1} alignItems="center" mb={2}>
               <LinkIcon sx={{ fontSize: 18, color: cfg.color }} />
-              <Link href={url} target="_blank" rel="noopener" sx={{ fontFamily: "monospace", fontSize: ".85rem", color: cfg.color }}>{url}</Link>
+              <Link href={url} target="_blank" rel="noopener" sx={{ fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace", fontSize: ".85rem", color: cfg.color }}>{url}</Link>
               <IconButton size="small" href={url} target="_blank"><OpenInNewIcon sx={{ fontSize: 16 }} /></IconButton>
             </Stack>
             <Button size="small" variant="outlined" onClick={toggleChain} endIcon={showChain ? <ExpandLessIcon /> : <ExpandMoreIcon />} sx={{ mb: 1, borderColor: cfg.color, color: cfg.color }}>
@@ -252,12 +252,12 @@ export default function BlockchainInscriptionCard({ variants, product, disabled,
                           <Stack direction="row" spacing={1} alignItems="center" mb={1.5}>
                             <Chip label={getStageName(s.stage)} size="small" sx={{ bgcolor: s.stage === 0 ? "#ff9800" : s.stage === 1 ? "#00e5ff" : "#7b5cff", color: "#000", fontWeight: 700 }} />
                             <Chip label={s.status} size="small" color={s.status === "Rejected" ? "error" : "success"} />
-                            <Typography variant="caption" sx={{ fontFamily: "monospace" }}>{formatBlockchainTimestamp(s.timestamp)}</Typography>
+                            <Typography variant="caption" sx={{ fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace" }}>{formatBlockchainTimestamp(s.timestamp)}</Typography>
                           </Stack>
 
                           <SH icon={<InventoryIcon sx={{ fontSize: 16, color: cfg.color }} />} label="Product" color={cfg.color} />
                           <Table size="small" sx={{ mb: 1 }}><TableBody>
-                            <R l="Product ID" v={<span style={{ fontFamily: "monospace", fontSize: ".78rem" }}>{s.productId}</span>} />
+                            <R l="Product ID" v={<span style={{ fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace", fontSize: ".78rem" }}>{s.productId}</span>} />
                             <R l="Name" v={s.name} /><R l="Version" v={s.version} />
                             <R l="Open Source" v={s.isOpenSource ? "Yes" : "No"} />
                             <R l="Description" v={s.description || "—"} /><R l="Status" v={s.status} />
@@ -275,7 +275,7 @@ export default function BlockchainInscriptionCard({ variants, product, disabled,
                           <SH icon={<FolderIcon sx={{ fontSize: 16, color: cfg.color }} />} label={`Repositories (${repos.length})`} color={cfg.color} />
                           {repos.length > 0 ? repos.map((rp: any, ri: number) => (
                             <Paper key={ri} sx={{ p: 1.5, mb: 1, bgcolor: "rgba(255,255,255,.02)", border: "1px solid rgba(255,255,255,.06)" }}>
-                              <Typography variant="body2" fontWeight={600} sx={{ fontFamily: "monospace", fontSize: ".8rem" }}>{rp.repoUrl || rp.url || "—"}</Typography>
+                              <Typography variant="body2" fontWeight={600} sx={{ fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace", fontSize: ".8rem" }}>{rp.repoUrl || rp.url || "—"}</Typography>
                               <Typography variant="caption" color="text.secondary">Branch: <strong>{rp.branch || "—"}</strong></Typography>
                               <ScanLines scans={rp.scans} />
                             </Paper>
@@ -297,7 +297,7 @@ export default function BlockchainInscriptionCard({ variants, product, disabled,
                           <Divider sx={{ my: 1, borderColor: "rgba(255,255,255,.08)" }} />
                           <SH icon={<TokenIcon sx={{ fontSize: 16, color: cfg.color }} />} label="Blockchain Metadata" color={cfg.color} />
                           <Table size="small"><TableBody>
-                            <R l="Recorded By" v={<span style={{ fontFamily: "monospace" }}>{shortenAddress(s.recordedBy)}</span>} />
+                            <R l="Recorded By" v={<span style={{ fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace" }}>{shortenAddress(s.recordedBy)}</span>} />
                             <R l="Created By" v={s.createdBy} />
                             <R l="Timestamp" v={formatBlockchainTimestamp(s.timestamp)} />
                             <R l="Remark" v={s.remark || "—"} />
@@ -318,7 +318,7 @@ export default function BlockchainInscriptionCard({ variants, product, disabled,
                   <AccountBalanceWalletIcon sx={{ fontSize: 30, color: wallet ? "#4caf50" : cfg.color }} />
                   <Box>
                     <Typography fontWeight={600}>{wallet ? "Connected" : "Connect Wallet"}</Typography>
-                    {wallet && <Typography variant="caption" sx={{ fontFamily: "monospace" }}>{shortenAddress(wallet)}</Typography>}
+                    {wallet && <Typography variant="caption" sx={{ fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace" }}>{shortenAddress(wallet)}</Typography>}
                   </Box>
                 </Box>
                 <Tooltip title={disabled ? toolTip : ""}><span>
@@ -360,7 +360,7 @@ export default function BlockchainInscriptionCard({ variants, product, disabled,
           {/* ── Product ── */}
           <SH icon={<InventoryIcon sx={{ fontSize: 16, color: cfg.color }} />} label="Product" color={cfg.color} />
           <Table size="small" sx={{ mb: 1.5 }}><TableBody>
-            <R l="ID" v={<span style={{ fontFamily: "monospace" }}>{product.id}</span>} />
+            <R l="ID" v={<span style={{ fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace" }}>{product.id}</span>} />
             <R l="Name" v={product.name} />
             <R l="Version" v={product.version} />
             <R l="Open Source" v={product.isOpenSource ? "Yes" : "No"} />
@@ -380,7 +380,7 @@ export default function BlockchainInscriptionCard({ variants, product, disabled,
           <SH icon={<FolderIcon sx={{ fontSize: 16, color: cfg.color }} />} label={`Repositories (${product.repos?.length || 0})`} color={cfg.color} />
           {product.repos?.map((r, i) => (
             <Paper key={i} sx={{ p: 1.5, mb: 1, bgcolor: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.08)" }}>
-              <Typography variant="body2" fontWeight={600} sx={{ fontFamily: "monospace" }}>{r.repoUrl}</Typography>
+              <Typography variant="body2" fontWeight={600} sx={{ fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace" }}>{r.repoUrl}</Typography>
               <Typography variant="caption" color="text.secondary">Branch: <strong>{r.branch}</strong></Typography>
               <ScanLines scans={r.scans} />
             </Paper>
@@ -408,7 +408,7 @@ export default function BlockchainInscriptionCard({ variants, product, disabled,
           <Table size="small" sx={{ mb: 2 }}><TableBody>
             <R l="Stage" v={stage} />
             <R l="Decision" v={<Chip label={status} size="small" color={status === "Rejected" ? "error" : "success"} />} />
-            <R l="Wallet" v={<span style={{ fontFamily: "monospace" }}>{shortenAddress(wallet)}</span>} />
+            <R l="Wallet" v={<span style={{ fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace" }}>{shortenAddress(wallet)}</span>} />
             <R l="Network" v={HEDERA_TESTNET.name} />
             <R l="By" v={user?.name || user?.email || "unknown"} />
           </TableBody></Table>
