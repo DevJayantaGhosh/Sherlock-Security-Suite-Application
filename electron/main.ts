@@ -53,7 +53,7 @@ const repoCache = new Map<string, string>();
 function debugLog(msg: string) {
   console.log(`[ELECTRON][${new Date().toISOString()}] ${msg}`);
 }
-/** Single source of truth for separator / box-banner width in verify logs. */
+/** log heading separator constant  */
 const SEPARATOR_WIDTH = 80;
 
 /* ============================================================
@@ -1092,7 +1092,7 @@ ${"═".repeat(SEPARATOR_WIDTH)}
     let report = "\n";
     report += "╔═══════════════════════════════════════════════════════════════════════════════╗\n";
     report += "║                                                                               ║\n";
-    report += "║              📦  SOFTWARE BILL OF MATERIALS (SBOM)  📦                        ║\n";
+    report += "║              📦  SOFTWARE BILL OF MATERIALS (SBOM)  📦                       ║\n";
     report += "║                                                                               ║\n";
     report += "╚═══════════════════════════════════════════════════════════════════════════════╝\n";
 
@@ -1652,7 +1652,7 @@ ${"═".repeat(SEPARATOR_WIDTH)}
           const finalReport = `
 ╔═══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                               ║
-║              🔑  KEY GENERATION REPORT  🔑                                   ║
+║                     🔑  KEY GENERATION REPORT  🔑                            ║
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 
@@ -1847,7 +1847,7 @@ ${"═".repeat(SEPARATOR_WIDTH)}
           const summary = `
 ╔═══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                               ║
-║              ✍️  DIGITAL SIGNATURE REPORT  ✍️                                ║
+║                   ✍️  DIGITAL SIGNATURE REPORT  ✍️                           ║
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 
@@ -2032,7 +2032,7 @@ ${"═".repeat(SEPARATOR_WIDTH)}
           const summary = `
 ╔═══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                               ║
-║           🔍  DIGITAL SIGNATURE VERIFICATION REPORT  🔍                      ║
+║              🔍  DIGITAL SIGNATURE VERIFICATION REPORT  🔍                   ║
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 

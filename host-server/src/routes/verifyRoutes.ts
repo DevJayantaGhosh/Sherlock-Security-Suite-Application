@@ -152,7 +152,7 @@ async function runVerification(params: {
       const summary = `
 ╔═══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                               ║
-║            🔍   DIGITAL SIGNATURE VERIFICATION REPORT  🔍                    ║
+║                🔍   DIGITAL SIGNATURE VERIFICATION REPORT  🔍                ║
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 

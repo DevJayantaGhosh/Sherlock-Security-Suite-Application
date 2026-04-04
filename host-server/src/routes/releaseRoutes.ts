@@ -142,7 +142,7 @@ async function runCreateRelease(params: {
     const summary = `
 ╔═══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                               ║
-║                    🚀  GITHUB RELEASE CREATED  🚀                            ║
+║                        🚀  GITHUB RELEASE CREATED  🚀                        ║
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 
