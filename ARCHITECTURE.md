@@ -1,7 +1,17 @@
-# Sherlock Security Suite — Architecture
+
+
+<h1 align="center">🛡️ Sherlock Security Suite 🛡️</h1>
+
+<p align="center">
+  <strong>Enterprise-grade security platform that safeguards software supply chain integrity using cryptography and blockchain technology.
+</strong>
+</p>
+
+---
+
 
 > **Author:** Jayanta Ghosh (CS23M513, IIT Madras)  
-> **Repo:** [Sherlock-Security-Suite-Application](https://github.com/DevJayantaGhosh/Sherlock-Security-Suite-Application)
+
 
 ---
 
@@ -30,8 +40,8 @@ Both modes share the **same React frontend**. A platform abstraction layer auto-
 │  │  │   Pages   │  │ Components │  │ Services │  │  Store   │   │  │
 │  │  │           │  │            │  │  (API)   │  │ (Zustand)│   │  │
 │  │  └─────┬─────┘  └──────┬─────┘  └────┬─────┘  └──────────┘   │  │
-│  │        │               │              │                      │  │
-│  │        └───────────────┴──────────────┘                      │  │
+│  │        │               │             │                       │  │
+│  │        └───────────────┴─────────────┘                       │  │
 │  │                        │                                     │  │
 │  │               ┌────────▼─────────┐                           │  │
 │  │               │ Platform Bridge  │                           │  │

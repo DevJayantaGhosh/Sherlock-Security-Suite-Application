@@ -195,4 +195,4 @@ host-server/
 └── ...
 ```
 
-This directory can be deployed to any server — no monorepo dependency needed.
+
