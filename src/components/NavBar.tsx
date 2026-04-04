@@ -18,7 +18,8 @@ import {
   useMediaQuery
 } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
-import HelpOutlineIcon from "@mui/icons-material/HelpOutline"; 
+import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
+import SmartToyIcon from "@mui/icons-material/SmartToy";
 import MinimizeIcon from "@mui/icons-material/HorizontalRuleRounded";
 import MaximizeIcon from "@mui/icons-material/CheckBoxOutlineBlankRounded";
 import CloseIcon from "@mui/icons-material/CloseRounded";
@@ -29,6 +30,8 @@ import { useTheme } from "@mui/material/styles";
 
 import { logout } from "../services/userService";
 import { useUserStore } from "../store/userStore";
+import { useLLMStore } from "../store/llmStore";
+import LLMConfigDialog from "./llm/LLMConfigDialog";
 
 export default function NavBar() {
   const navigate = useNavigate();
@@ -40,6 +43,8 @@ export default function NavBar() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const openUserMenu = Boolean(anchorEl);
+  const [llmConfigOpen, setLlmConfigOpen] = useState(false);
+  const llmReady = useLLMStore((s) => s.isConfigured());
 
   const commonLinks = [
     { label: "Home", path: "/" },
@@ -143,21 +148,41 @@ export default function NavBar() {
               WebkitAppRegion: "no-drag"
             }}
           >
-            {/* 🆕 HELP BUTTON - Right side before user menu */}
-            <IconButton
-              onClick={() => navigate("/user-guide")}
-              title="User Guide & Help"
-              sx={{
-                color: "rgba(255,255,255,0.7)",
-                "&:hover": {
-                  bgcolor: "rgba(255,255,255,0.12)",
-                  color: "white",
-                  transform: "scale(1.1)",
-                },
-              }}
-            >
-              <HelpOutlineIcon />
-            </IconButton>
+            {/* AI CONFIG BUTTON — only when logged in */}
+            {user && (
+              <IconButton
+                onClick={() => setLlmConfigOpen(true)}
+                title="AI Configuration"
+                sx={{
+                  color: llmReady ? "rgba(92,225,230,0.85)" : "rgba(255,255,255,0.5)",
+                  "&:hover": {
+                    bgcolor: "rgba(255,255,255,0.12)",
+                    color: llmReady ? "#5ce1e6" : "white",
+                    transform: "scale(1.1)",
+                  },
+                }}
+              >
+                <SmartToyIcon />
+              </IconButton>
+            )}
+
+            {/* HELP BUTTON — only when logged in */}
+            {user && (
+              <IconButton
+                onClick={() => navigate("/user-guide")}
+                title="User Guide & Help"
+                sx={{
+                  color: "rgba(255,255,255,0.7)",
+                  "&:hover": {
+                    bgcolor: "rgba(255,255,255,0.12)",
+                    color: "white",
+                    transform: "scale(1.1)",
+                  },
+                }}
+              >
+                <HelpOutlineIcon />
+              </IconButton>
+            )}
 
             {!user ? (
               <Button component={Link} to="/login" color="inherit">
@@ -243,6 +268,9 @@ export default function NavBar() {
           )}
         </List>
       </Drawer>
+
+      {/* LLM CONFIG DIALOG */}
+      <LLMConfigDialog open={llmConfigOpen} onClose={() => setLlmConfigOpen(false)} />
 
       {/* USER MENU */}
       <Menu

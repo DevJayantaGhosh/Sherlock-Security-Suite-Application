@@ -1,9 +1,15 @@
 // src/App.tsx
+import { useState } from "react";
 import { HashRouter as Router, Routes, Route } from "react-router-dom";
-import { Box } from "@mui/material";
+import { Box, Fab, Drawer, IconButton, Typography, Stack } from "@mui/material";
+import SmartToyIcon from "@mui/icons-material/SmartToy";
+import CloseIcon from "@mui/icons-material/Close";
+import OpenInFullIcon from "@mui/icons-material/OpenInFull";
 
 import NavBar from "./components/NavBar";
 import Footer from "./components/Footer";
+import LLMChatPanel from "./components/llm/LLMChatPanel";
+import { useUserStore } from "./store/userStore";
 
 import Home from "./pages/HomePage";
 import About from "./pages/AboutPage";
@@ -23,8 +29,12 @@ import QuickCryptoSigningPage from "./pages/QuickCryptoSigningPage";
 import QuickSignatureVerificationPage from "./pages/QuickSignatureVerificationPage";
 import QuickReleasePage from "./pages/QuickReleasePage";
 import UserGuidePage from "./pages/UserGuidePage";
+import SecurityDiscussionPage from "./pages/SecurityDiscussionPage";
 
 export default function App() {
+  const [chatOpen, setChatOpen] = useState(false);
+  const user = useUserStore((s) => s.user);
+
   return (
     <Router>
       <NavBar />
@@ -132,6 +142,15 @@ export default function App() {
           />
 
           <Route
+            path="/security-discussion"
+            element={
+              <ProtectedRoute>
+                <SecurityDiscussionPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
             path="/admin"
             element={
               <ProtectedRoute allowedRoles={["Admin"]}>
@@ -143,6 +162,64 @@ export default function App() {
       </Box>
 
       <Footer />
+
+      {/* Floating AI Chat Button — only when logged in */}
+      {user && (
+        <Fab
+          color="primary"
+          onClick={() => setChatOpen(true)}
+          sx={{
+            position: "fixed",
+            bottom: 24,
+            right: 24,
+            zIndex: 1200,
+            background: "linear-gradient(135deg,#7b5cff,#5ce1e6)",
+            "&:hover": { background: "linear-gradient(135deg,#6a4cee,#4cd1d6)" },
+          }}
+          title="Sherlock AI Chat"
+        >
+          <SmartToyIcon />
+        </Fab>
+      )}
+
+      {/* AI Chat Drawer */}
+      <Drawer
+        anchor="right"
+        open={chatOpen}
+        onClose={() => setChatOpen(false)}
+        PaperProps={{
+          sx: { width: { xs: "100%", sm: 460 }, p: 0 },
+        }}
+      >
+        <Stack
+          direction="row"
+          alignItems="center"
+          justifyContent="space-between"
+          sx={{ px: 2, py: 1.5, borderBottom: "1px solid", borderColor: "divider" }}
+        >
+          <Typography fontWeight={700} variant="subtitle1">
+            🔍 Sherlock AI
+          </Typography>
+          <Stack direction="row" spacing={0.5}>
+            <IconButton
+              size="small"
+              title="Expand to full page"
+              onClick={() => {
+                setChatOpen(false);
+                window.location.hash = "#/security-discussion";
+              }}
+            >
+              <OpenInFullIcon fontSize="small" />
+            </IconButton>
+            <IconButton size="small" onClick={() => setChatOpen(false)}>
+              <CloseIcon />
+            </IconButton>
+          </Stack>
+        </Stack>
+        <Box sx={{ flex: 1, overflow: "hidden" }}>
+          <LLMChatPanel height="calc(100vh - 56px)" hideSidebar />
+        </Box>
+      </Drawer>
     </Router>
   );
 }

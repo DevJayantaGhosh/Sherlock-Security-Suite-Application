@@ -5,6 +5,7 @@ import {
   ResetPasswordRequest, LoginResponse, UpdateUserRequest,
 } from "../models/User";
 import { useUserStore } from "../store/userStore";
+import { useLLMStore } from "../store/llmStore";
 import { API_URLS } from "../config/userManagementApiUrls";
 import { ApiError } from "../config/ApiError";
 
@@ -161,6 +162,7 @@ export async function register(name: string, email: string, password: string): P
 
 export async function logout(): Promise<{ error: ApiError | null }> {
   useUserStore.getState().clearUser();
+  useLLMStore.getState().clearAllSessions();
   return { error: null };
 }
 

@@ -19,6 +19,7 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 
 import { platform } from "../../platform";
+import CopyLogButton from "../CopyLogButton";
 import { TagBasedRepoDetails } from "../repoconfig/TagBasedRepoConfig";
 
 type ScanStatus = "idle" | "running" | "success" | "failed" | "valid" | "invalid";
@@ -353,12 +354,14 @@ export default function SignatureVerificationCard({
                     backgroundColor: "#1a1a1a",
                     border: "1px solid #333",
                     p: 2,
+                    position: "relative",
                     "&::-webkit-scrollbar": { width: "8px" },
                     "&::-webkit-scrollbar-track": { background: "#2d2d2d" },
                     "&::-webkit-scrollbar-thumb": { background: "#555", borderRadius: "4px" },
                     "&::-webkit-scrollbar-thumb:hover": { background: "#777" },
                   }}
                 >
+                  <CopyLogButton text={logs} />
                   <Box
                     sx={{
                       fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",

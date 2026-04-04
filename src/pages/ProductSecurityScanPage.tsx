@@ -12,7 +12,6 @@ import { useToast } from "../components/ToastProvider";
 import { useUserStore } from "../store/userStore";
 import { authorizeApprove, getProductById, updateProduct } from "../services/productService";
 import RepoScanAccordion from "../components/security/RepoScanAccordion";
-import DependencyAudit from "../components/security/DependencyAudit";
 import BlockchainInscriptionCard from "../components/blockchain/BlockchainInscriptionCard";
 import ProductWorkflowNav from "../components/products/ProductWorkflowNav";
 import { Product, RepoDetails } from "../models/Product";
@@ -279,13 +278,7 @@ if (isViewOnlyMode) {
             ))}
           </Stack>
 
-          {/* Dependency Audit */}
-          <motion.div variants={itemVariants}>
-            <DependencyAudit
-              product={product}
-              dependencies={product.dependencies ?? []}
-            />
-          </motion.div>
+
 
           {/* Blockchain Inscription — SCAN Stage */}
           <motion.div variants={itemVariants}>

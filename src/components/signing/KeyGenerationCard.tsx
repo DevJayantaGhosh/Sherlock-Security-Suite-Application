@@ -18,6 +18,7 @@ import DownloadIcon from "@mui/icons-material/Download";
 import CloseIcon from "@mui/icons-material/Close";
 
 import { platform } from "../../platform";
+import CopyLogButton from "../CopyLogButton";
 
 type ScanStatus = "idle" | "running" | "success" | "failed";
 
@@ -379,12 +380,14 @@ export default function KeyGenerationCard({
                     backgroundColor: "#1a1a1a",
                     border: "1px solid #333",
                     p: 2,
+                    position: "relative",
                     "&::-webkit-scrollbar": { width: "8px" },
                     "&::-webkit-scrollbar-track": { background: "#2d2d2d" },
                     "&::-webkit-scrollbar-thumb": { background: "#555", borderRadius: "4px" },
                     "&::-webkit-scrollbar-thumb:hover": { background: "#777" },
                   }}
                 >
+                  <CopyLogButton text={logs} />
                   <Box
                     sx={{
                       fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",

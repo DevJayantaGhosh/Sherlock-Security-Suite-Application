@@ -30,6 +30,7 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
 
 import { Product, RepoDetails, RepoScanResults, SignatureVerificationResult,SecretLeakDetectionResult ,VulnerabilityScanResult, SBOMGenerationResult} from "../../models/Product";
+import CopyLogButton from "../CopyLogButton";
 import { useUserStore } from "../../store/userStore";
 import { authorizeApprove } from "../../services/productService";
 import { platform } from "../../platform";
@@ -432,6 +433,7 @@ function GPGVerificationPanel({
                       backgroundColor: "#1a1a1a",
                       border: "1px solid #333",
                       p: 2,
+                      position: "relative",
                       "&::-webkit-scrollbar": {
                         width: "8px",
                       },
@@ -447,6 +449,7 @@ function GPGVerificationPanel({
                       },
                     }}
                   >
+                    <CopyLogButton text={logs} />
                     <Box
                       sx={{
                         fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
@@ -948,6 +951,7 @@ function GitleaksPanel({
                       backgroundColor: "#1a1a1a",
                       border: "1px solid #333",
                       p: 2,
+                      position: "relative",
                       "&::-webkit-scrollbar": {
                         width: "8px",
                       },
@@ -963,6 +967,7 @@ function GitleaksPanel({
                       },
                     }}
                   >
+                    <CopyLogButton text={logs} />
                     <Box
                       sx={{
                         fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
@@ -1402,12 +1407,14 @@ function SBOMGenerationPanel({
                     sx={{
                       mt: 2, maxHeight: "400px", overflow: "auto",
                       backgroundColor: "#1a1a1a", border: "1px solid #333", p: 2,
+                      position: "relative",
                       "&::-webkit-scrollbar": { width: "8px" },
                       "&::-webkit-scrollbar-track": { background: "#2d2d2d" },
                       "&::-webkit-scrollbar-thumb": { background: "#555", borderRadius: "4px" },
                       "&::-webkit-scrollbar-thumb:hover": { background: "#777" },
                     }}
                   >
+                    <CopyLogButton text={logs} />
                     <Box sx={{
                       fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
                       fontSize: 12, lineHeight: 1.6, color: "#e0e0e0",
@@ -1836,6 +1843,7 @@ function VulnerabilityScanPanel({
                       backgroundColor: "#1a1a1a",
                       border: "1px solid #333",
                       p: 2,
+                      position: "relative",
                       "&::-webkit-scrollbar": {
                         width: "8px",
                       },
@@ -1851,6 +1859,7 @@ function VulnerabilityScanPanel({
                       },
                     }}
                   >
+                    <CopyLogButton text={logs} />
                     <Box
                       sx={{
                         fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",

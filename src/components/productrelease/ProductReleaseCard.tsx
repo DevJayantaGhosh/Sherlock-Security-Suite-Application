@@ -27,6 +27,7 @@ import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 
 import { Product } from "../../models/Product";
 import { platform } from "../../platform";
+import CopyLogButton from "../CopyLogButton";
 import { updateProduct } from "../../services/productService";
 
 type ReleaseStatus = "idle" | "running" | "success" | "failed";
@@ -360,12 +361,14 @@ export default function ProductReleaseCard({
                     backgroundColor: "#1a1a1a",
                     border: "1px solid #333",
                     p: 2,
+                    position: "relative",
                     "&::-webkit-scrollbar": { width: "8px" },
                     "&::-webkit-scrollbar-track": { background: "#2d2d2d" },
                     "&::-webkit-scrollbar-thumb": { background: "#555", borderRadius: "4px" },
                     "&::-webkit-scrollbar-thumb:hover": { background: "#777" },
                   }}
                 >
+                  <CopyLogButton text={logs} />
                   <Box
                     sx={{
                       fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
