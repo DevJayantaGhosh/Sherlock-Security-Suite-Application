@@ -1,9 +1,7 @@
-
-
 <h1 align="center">🛡️ Sherlock Security Suite 🛡️</h1>
 
 <p align="center">
-  <strong>Enterprise-grade security platform that safeguards software supply chain integrity using cryptography and blockchain technology.
+  <strong>Enterprise-grade security platform that safeguards software supply chain integrity using cryptography, blockchain, and AI driven technology.
 </strong>
 </p>
 
@@ -29,66 +27,66 @@ Both modes share the **same React frontend**. A platform abstraction layer auto-
 ## High-Level Architecture
 
 ```
-┌────────────────────────────────────────────────────────────────────┐
-│                      SHERLOCK SECURITY SUITE                       │
-├────────────────────────────────────────────────────────────────────┤
-│                                                                    │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │                     React Frontend (SPA)                     │  │
-│  │                                                              │  │
-│  │  ┌───────────┐  ┌────────────┐  ┌──────────┐  ┌──────────┐   │  │
-│  │  │   Pages   │  │ Components │  │ Services │  │  Store   │   │  │
-│  │  │           │  │            │  │  (API)   │  │ (Zustand)│   │  │
-│  │  └─────┬─────┘  └──────┬─────┘  └────┬─────┘  └──────────┘   │  │
-│  │        │               │             │                       │  │
-│  │        └───────────────┴─────────────┘                       │  │
-│  │                        │                                     │  │
-│  │               ┌────────▼─────────┐                           │  │
-│  │               │ Platform Bridge  │                           │  │
-│  │               │  (auto-detect)   │                           │  │
-│  │               └───────┬──┬───────┘                           │  │
-│  │                       │  │                                   │  │
-│  └───────────────────────┼──┼───────────────────────────────────┘  │
-│                          │  │                                      │
-│           ┌──────────────┘  └──────────────┐                       │
-│           ▼                                ▼                       │
-│  ┌─────────────────────┐      ┌──────────────────────────┐         │
-│  │    DESKTOP MODE     │      │         WEB MODE         │         │
-│  │                     │      │                          │         │
-│  │  ┌───────────────┐  │      │  ┌────────────────────┐  │         │
-│  │  │   Electron    │  │      │  │    Host-Server     │  │         │
-│  │  │   Main Proc   │  │      │  │    (Express.js)    │  │         │
-│  │  │     (IPC)     │  │      │  │    REST & SSE      │  │         │
-│  │  └───────┬───────┘  │      │  └──────────┬─────────┘  │         │
-│  │          │          │      │             │            │         │
-│  └──────────┼──────────┘      └─────────────┼────────────┘         │
-│             │                               │                      │
-│             └───────────────┬───────────────┘                      │
-│                             ▼                                      │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │                    Security Tools (CLI)                      │  │
-│  │                                                              │  │
-│  │  ┌────────────────────────────┐  ┌────────────────────────┐  │  │
-│  │  │ GPG Signed Commit Verifier │  │        GitLeaks        │  │  │
-│  │  └────────────────────────────┘  └────────────────────────┘  │  │
-│  │  ┌────────────────────────────┐  ┌────────────────────────┐  │  │
-│  │  │   VulnerabilityScanner     │  │         KeyGen         │  │  │
-│  │  └────────────────────────────┘  └────────────────────────┘  │  │
-│  │  ┌────────────────────────────┐  ┌────────────────────────┐  │  │
-│  │  │     SoftwareSigner         │  │    SoftwareVerifier    │  │  │
-│  │  └────────────────────────────┘  └────────────────────────┘  │  │
-│  │                                                              │  │
-│  └──────────────────────────────────────────────────────────────┘  │
-│                                                                    │
-├────────────────────────────────────────────────────────────────────┤
-│                       External Services                            │
-│                                                                    │
-│  ┌──────────────────┐  ┌────────────────────┐  ┌───────────────┐   │
-│  │ User Management  │  │ Product Management │  │  Blockchain   │   │
-│  │   Microservice   │  │   Microservice     │  │   (Hedera)    │   │
-│  └──────────────────┘  └────────────────────┘  └───────────────┘   │
-│                                                                    │
-└────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                    SHERLOCK SECURITY SUITE                                 │
+├────────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                            │
+│  ┌──────────────────────────────────────────────────────────────────────────────────────┐  │
+│  │                              React Frontend (SPA)                                    │  │
+│  │                                                                                      │  │
+│  │  ┌───────────┐  ┌────────────┐  ┌──────────┐  ┌──────────┐                           │  │
+│  │  │   Pages   │  │ Components │  │ Services │  │  Store   │                           │  │
+│  │  │           │  │            │  │  (API)   │  │ (Zustand)│                           │  │
+│  │  └─────┬─────┘  └──────┬─────┘  └────┬─────┘  └──────────┘                           │  │
+│  │        │               │             │                                               │  │
+│  │        └───────────────┴─────────────┘                                               │  │
+│  │                        │                                                             │  │
+│  │               ┌────────▼─────────┐                                                   │  │
+│  │               │ Platform Bridge  │                                                   │  │
+│  │               │  (auto-detect)   │                                                   │  │
+│  │               └───────┬──┬───────┘                                                   │  │
+│  │                       │  │                                                           │  │
+│  └───────────────────────┼──┼───────────────────────────────────────────────────────────┘  │
+│                          │  │                                                              │
+│           ┌──────────────┘  └──────────────┐                                               │
+│           ▼                                ▼                                               │
+│  ┌─────────────────────┐      ┌──────────────────────────┐                                 │
+│  │    DESKTOP MODE     │      │         WEB MODE         │                                 │
+│  │                     │      │                          │                                 │
+│  │  ┌───────────────┐  │      │  ┌────────────────────┐  │                                 │
+│  │  │   Electron    │  │      │  │    Host-Server     │  │                                 │
+│  │  │   Main Proc   │  │      │  │    (Express.js)    │  │                                 │
+│  │  │     (IPC)     │  │      │  │    REST & SSE      │  │                                 │
+│  │  └───────┬───────┘  │      │  └──────────┬─────────┘  │                                 │
+│  │          │          │      │             │            │                                 │
+│  └──────────┼──────────┘      └─────────────┼────────────┘                                 │
+│             │                               │                                              │
+│             └───────────────┬───────────────┘                                              │
+│                             ▼                                                              │
+│  ┌───────────────────────────────────────────────────────────────────────────────────────┐ │
+│  │                              Security Tools (CLI)                                     │ │
+│  │                                                                                       │ │
+│  │  ┌────────────────────────────┐  ┌────────────────────────┐                           │ │
+│  │  │ GPG Signed Commit Verifier │  │        GitLeaks        │                           │ │
+│  │  └────────────────────────────┘  └────────────────────────┘                           │ │
+│  │  ┌────────────────────────────┐  ┌────────────────────────┐                           │ │
+│  │  │   VulnerabilityScanner     │  │         KeyGen         │                           │ │
+│  │  └────────────────────────────┘  └────────────────────────┘                           │ │
+│  │  ┌────────────────────────────┐  ┌────────────────────────┐                           │ │
+│  │  │     SoftwareSigner         │  │    SoftwareVerifier    │                           │ │
+│  │  └────────────────────────────┘  └────────────────────────┘                           │ │
+│  │                                                                                       │ │
+│  └───────────────────────────────────────────────────────────────────────────────────────┘ │
+│                                                                                            │
+├────────────────────────────────────────────────────────────────────────────────────────────┤
+│                                     External Services                                      │
+│                                                                                            │
+│  ┌──────────────────┐ ┌──────────────────┐ ┌──────────────┐ ┌────────────────────────────┐ │
+│  │ User Management  │ │    Product       │ │  Blockchain  │ │ AI Driven Security         │ │
+│  │   Microservice   │ │   Management     │ │   (Hedera)   │ │ Scanning & Analysis (LLM)  │ │
+│  └──────────────────┘ └──────────────────┘ └──────────────┘ └────────────────────────────┘ │
+│                                                                                            │
+└────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -108,6 +106,7 @@ Both modes share the **same React frontend**. A platform abstraction layer auto-
 | **IPFS Archival** | Upload signed artifacts to IPFS via Storacha (web3.storage) |
 | **Blockchain Archival** | Record artifact hashes on Hedera for tamper-proofing |
 | **Admin Dashboard** | User management, product approvals, analytics |
+| **AI Driven Security Scanning & Analysis** | LLM-powered chat for security analysis — supports OpenAI, Gemini, Ollama, Azure, LiteLLM |
 
 ---
 
@@ -214,7 +213,7 @@ UI components call `platform.*` — they never know which mode is active.
      │                     │    buffer & emit    │
      │                     │                     │
      │  6. SSE connected   │                     │
-     │◄─ ─ ─ ─ ─ ─ ─ ─ ─ ─ │                     │
+     │◄─ ─ ─ ─ ─ ─ ─ ─ ─  ─│                     │
      │   Replay buffered   │                     │
      │   logs (early ones) │                     │
      │                     │                     │
@@ -229,6 +228,27 @@ UI components call `platform.*` — they never know which mode is active.
 ```
 
 **Key:** Early logs (steps 4-5) are buffered by `sseManager` and replayed when SSE connects (step 6), ensuring no log loss — matching Electron's behavior.
+
+---
+
+## AI Driven Security Scanning & Analysis
+
+The suite includes an embedded AI chat assistant specialized in software supply-chain security. It uses a streaming API so it works with multiple LLM providers.
+
+### Architecture
+
+```
+┌──────────────────────┐       ┌──────────────────────┐       ┌──────────────────────┐
+│   Sherlock Suite App │       │    LLM Provider      │       │      LLM Model       │
+│                      │       │                      │       │                      │
+│  User sends security │       │  e.g. LiteLLM Proxy  │       │  e.g. GPT-4o,        │
+│  question via chat   │──────►│  OpenAI, Gemini,     │──────►│  Gemini 2.0 Flash,   │
+│  panel (streaming)   │       │  Ollama, Azure       │       │  Llama 3, Mistral    │
+│                      │◄──────│                      │◄──────│                      │
+│  Renders markdown    │  SSE  │  OpenAI-compatible   │  LLM  │  Generates security  │
+│  response in UI      │ stream│  /chat/completions   │ output│  analysis response   │
+└──────────────────────┘       └──────────────────────┘       └──────────────────────┘
+```
 
 ---
 
@@ -337,4 +357,3 @@ Platform-specific binaries are bundled under `tools/`:
 | **SoftwareVerifier** | Signature verification | Win, macOS, Linux |
 
 ---
-
