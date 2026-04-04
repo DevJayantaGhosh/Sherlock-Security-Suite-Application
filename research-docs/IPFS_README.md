@@ -2,8 +2,6 @@
 
 > A research-grade explanation of the IPFS protocol: content addressing, Merkle DAGs,  
 > Kademlia DHT, Bitswap parallel transfer, and the mathematics that make it all work.  
-> **Written so that a 12th-class science student can follow every step.**  
-> Pinata is just the storage/pinning layer — this document is about the **protocol**.
 
 ---
 
@@ -21,8 +19,8 @@
 10. [libp2p — The Networking Layer That Connects Everything](#10-libp2p--the-networking-layer-that-connects-everything)
 11. [The Complete Journey — How a File is PUT and GET](#11-the-complete-journey-how-a-file-is-put-and-get)
 12. [Why "InterPlanetary"? — The Name Explained](#12-why-interplanetary-the-name-explained)
-13. [The Persistence Problem — Why Pinata Exists](#13-the-persistence-problem--why-pinata-exists)
-14. [How Sherlock Uses IPFS (with Pinata as Storage)](#14-how-sherlock-uses-ipfs-with-pinata-as-storage)
+13. [The Persistence Problem — Pinning and Storage](#13-the-persistence-problem--pinning-and-storage)
+14. [How Sherlock Uses IPFS (with IPFS Desktop Kubo Node)](#14-how-sherlock-uses-ipfs-with-local-kubo-node)
 15. [References](#15-references)
 
 ---
@@ -2131,13 +2129,13 @@ THREE SOLUTIONS TO PERSISTENCE
      ❌ Your electricity bill, your hardware, your maintenance
      ❌ If your machine dies, files are gone
 
-  2. PINNING SERVICE (like Pinata)
-     Pay a company to run IPFS nodes that pin YOUR files.
+  2. PINNING SERVICE (remote pinning)
+     Pay a service to run IPFS nodes that pin YOUR files.
      ✅ They're online 24/7 (professional servers)
      ✅ Simple API (just upload, they handle everything)
      ✅ Your files are always available via any IPFS gateway
-     ❌ You trust the company to keep running
-     ❌ Centralized (Pinata is one company)
+     ❌ You trust the service to keep running
+     ❌ Centralized (single provider)
 
   3. FILECOIN (decentralized storage)
      Pay storage providers using cryptocurrency.
@@ -2145,32 +2143,32 @@ THREE SOLUTIONS TO PERSISTENCE
      ❌ Complex, expensive, requires crypto
 
 ═══════════════════════════════════════════════════════════════
-WHAT PINATA ACTUALLY DOES
+WHAT A PINNING SERVICE ACTUALLY DOES
 ═══════════════════════════════════════════════════════════════
 
-  Pinata is like a 24/7 librarian for IPFS.
+  A pinning service is like a 24/7 librarian for IPFS.
 
-  Without Pinata:
+  Without a pinning service:
     You (the author) must be online for anyone to get your file.
     You go to sleep → file unavailable.
 
-  With Pinata:
-    You upload file to Pinata → they pin it on their IPFS nodes
-    You go to sleep → Pinata's servers are still online
+  With a pinning service:
+    You upload file → they pin it on their IPFS nodes
+    You go to sleep → their servers are still online
     Anyone can still download the file via the CID
 
   CRITICAL POINT:
-    Pinata doesn't change HOW IPFS works!
+    A pinning service doesn't change HOW IPFS works!
     The CID is still computed by SHA-256.
     The file is still verified by hash comparison.
-    Pinata just keeps the data AVAILABLE.
+    The service just keeps the data AVAILABLE.
 
-    Pinata = AVAILABILITY layer
-    IPFS   = INTEGRITY + VERIFICATION layer
+    Pinning service = AVAILABILITY layer
+    IPFS            = INTEGRITY + VERIFICATION layer
 
-  If Pinata sent you fake data:
+  If the service sent you fake data:
     SHA-256(fake_data) ≠ CID → you'd instantly detect it
-    Pinata CANNOT tamper with files — the math catches it
+    No pinning service CAN tamper with files — the math catches it
 ```
 
 ---
@@ -2231,13 +2229,13 @@ VIEWING UPLOADED FILES
     • Any IPFS-compatible tool using the CID
 
 ═══════════════════════════════════════════════════════════════
-LOCAL NODE vs PINATA: Key Differences
+LOCAL NODE vs REMOTE PINNING SERVICE: Key Differences
 ═══════════════════════════════════════════════════════════════
 
   ┌─────────────────────┬─────────────────────┬─────────────────────┐
-  │ Feature             │ Pinata (cloud)      │ Local Kubo Node     │
+  │ Feature             │ Cloud pin service   │ Local Kubo Node     │
   ├─────────────────────┼─────────────────────┼─────────────────────┤
-  │ Storage location    │ Pinata's servers    │ Your machine        │
+  │ Storage location    │ Provider's servers  │ Your machine        │
   │ Availability        │ Always online       │ When IPFS Desktop   │
   │                     │ (managed service)   │ is running          │
   │ Cost                │ Free tier / paid    │ Free (your disk)    │
@@ -2303,8 +2301,7 @@ THE TRUST MODEL
 2. Maymounkov, P. & Mazières, D. (2002). "Kademlia: A Peer-to-peer Information System Based on the XOR Metric." *IPTPS 2002*
 3. Merkle, R. (1987). "A Digital Signature Based on a Conventional Encryption Function." *CRYPTO 1987*
 4. NIST. (2015). "SHA-256: Secure Hash Standard." *FIPS PUB 180-4*
-5. Pinata. (2026). "Pinata Documentation." *https://docs.pinata.cloud*
-6. Protocol Labs. (2026). "IPFS Documentation." *https://docs.ipfs.tech*
+5. Protocol Labs. (2026). "IPFS Documentation." *https://docs.ipfs.tech*
 
 ---
 

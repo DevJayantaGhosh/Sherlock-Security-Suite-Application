@@ -1,5 +1,5 @@
 /**
- * IPFSUploadCard — Uploads signature & public-key files to IPFS via Pinata,
+ * IPFSUploadCard — Uploads signature & public-key files to IPFS (Kubo),
  * then persists the resulting CIDs on the Product record.
  *
  */
@@ -93,7 +93,7 @@ export default function IPFSUploadCard({
     if (f) { setSigFile(f); toast(`Selected: ${f.name}`, "success"); }
   }, [disabled, toolTip, toast]);
 
-  /* ── Upload to Pinata + save CID to DB ── */
+  /* ── Upload to IPFS & save CID to DB ── */
   const uploadAndSave = useCallback(async (
     file: File,
     type: "publickey" | "signature",
@@ -152,7 +152,7 @@ export default function IPFSUploadCard({
           IPFS Artifact Upload
         </Typography>
         <Typography variant="body2" color="text.secondary" mb={3}>
-          Upload the signing artifacts (public key &amp; signature) to IPFS via Pinata for immutable storage.
+          Upload the signing artifacts (public key &amp; signature) to IPFS for immutable storage.
           These CIDs will be inscribed on the blockchain in the next step.
         </Typography>
 
