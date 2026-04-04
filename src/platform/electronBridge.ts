@@ -14,6 +14,7 @@ import type {
   ScanCompleteData,
   GPGResult,
   GitleaksResult,
+  SBOMResult,
   VulnScanResult,
   GenericResult,
   VerifyResult,
@@ -29,6 +30,10 @@ export const electronBridge: PlatformBridge = {
 
   runGitleaks(payload: ScanPayload): Promise<GitleaksResult> {
     return window.electronAPI.runGitleaks(payload);
+  },
+
+  generateSBOM(payload: ScanPayload): Promise<SBOMResult> {
+    return window.electronAPI.generateSBOM(payload);
   },
 
   runVulnScan(payload: ScanPayload): Promise<VulnScanResult> {

@@ -106,6 +106,12 @@ function ScanLines({ scans }: { scans: any }) {
           {leakSummary ? ` — ${leakSummary.findings} findings` : ""}
         </Typography>
       )}
+      {scans.sbomGeneration && (
+        <Typography variant="caption" display="block" sx={{ ml: 1, color: scans.sbomGeneration.status === "success" ? "#4caf50" : "#f44336" }}>
+          {"• SBOM Generation: "}<strong>{scans.sbomGeneration.status}</strong>
+          {scans.sbomGeneration.summary ? ` — ${scans.sbomGeneration.summary.totalPackages} packages` : ""}
+        </Typography>
+      )}
       {scans.vulnerabilityScan && (
         <Typography variant="caption" display="block" sx={{ ml: 1, color: vulnOk ? "#4caf50" : "#f44336" }}>
           {"• Vulnerability Scan: "}<strong>{scans.vulnerabilityScan.status}</strong>

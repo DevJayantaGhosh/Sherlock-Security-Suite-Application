@@ -48,12 +48,18 @@ export interface VulnerabilityScanResult extends BaseScanResult {
   };
 }
 
-
+// 4. SBOM Generation (Tool: Trivy — Software Bill of Materials)
+export interface SBOMGenerationResult extends BaseScanResult {
+  summary?: {
+    totalPackages: number;
+  };
+}
 
 // Container for all scans on a single repo
 export interface RepoScanResults {
   signatureVerification?: SignatureVerificationResult; 
   secretLeakDetection?: SecretLeakDetectionResult;             
+  sbomGeneration?: SBOMGenerationResult;
   vulnerabilityScan?: VulnerabilityScanResult;         
              
 }
@@ -100,8 +106,8 @@ export interface Product {
   status: ProductStatus;
   remark?: string;
   securityScanReportPath?:string;
-  signingReportPath?:string;
   releaseReportPath?:string;
+  signingReportPath?:string;
   signatureFilePath?:string;
   publicKeyFilePath?:string;
 }

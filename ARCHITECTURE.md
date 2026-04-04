@@ -99,7 +99,8 @@ Both modes share the **same React frontend**. A platform abstraction layer auto-
 |---|---|
 | **GPG Commit Verification** | Verify signed commits across a repository's history |
 | **Secret Leak Detection** | Scan repos for exposed credentials using Gitleaks |
-| **Vulnerability Scanning** | SBOM generation & CVE detection |
+| **Software Bill of Materials (SBOM) - Generation** | SBOM generation|
+| **Vulnerability Scanning** | Vulnerability & CVE detection |
 | **Key Generation** | RSA/ECDSA key pair generation for signing |
 | **Digital Signing** | Cryptographically sign software artifacts |
 | **Signature Verification** | Verify artifact signatures with public keys |

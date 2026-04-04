@@ -247,6 +247,9 @@ function trimReposForChain(repos: Product["repos"]): string {
           secretLeakDetection: r.scans.secretLeakDetection
             ? { status: r.scans.secretLeakDetection.status, summary: r.scans.secretLeakDetection.summary }
             : undefined,
+          sbomGeneration: r.scans.sbomGeneration
+            ? { status: r.scans.sbomGeneration.status, summary: r.scans.sbomGeneration.summary }
+            : undefined,
           vulnerabilityScan: r.scans.vulnerabilityScan
             ? { status: r.scans.vulnerabilityScan.status, summary: r.scans.vulnerabilityScan.summary }
             : undefined,

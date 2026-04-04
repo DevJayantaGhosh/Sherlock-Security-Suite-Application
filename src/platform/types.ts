@@ -75,12 +75,20 @@ export interface GitleaksResult {
   findings?: number;
 }
 
+export interface SBOMResult {
+  success: boolean;
+  cancelled?: boolean;
+  error?: string;
+  totalPackages?: number;
+}
+
 export interface VulnScanResult {
   success: boolean;
   cancelled?: boolean;
   error?: string;
   vulnerabilities?: number;
 }
+
 
 export interface GenericResult {
   success: boolean;
@@ -106,6 +114,7 @@ export interface ScanCompleteData {
   goodSignatures?: number;
   findings?: number;
   vulnerabilities?: number;
+  totalPackages?: number;
   critical?: number;
   high?: number;
   medium?: number;
@@ -129,6 +138,7 @@ export interface PlatformBridge {
   // Security scans
   verifyGPG(payload: ScanPayload): Promise<GPGResult>;
   runGitleaks(payload: ScanPayload): Promise<GitleaksResult>;
+  generateSBOM(payload: ScanPayload): Promise<SBOMResult>;
   runVulnScan(payload: ScanPayload): Promise<VulnScanResult>;
 
   // File dialogs

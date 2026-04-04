@@ -14,6 +14,7 @@ import type {
   ScanCompleteData,
   GPGResult,
   GitleaksResult,
+  SBOMResult,
   VulnScanResult,
   GenericResult,
   VerifyResult,
@@ -84,6 +85,10 @@ export const hostServerBridge: PlatformBridge = {
 
   runGitleaks(payload: ScanPayload): Promise<GitleaksResult> {
     return post<GitleaksResult>("/api/scan/secrets", payload);
+  },
+
+  generateSBOM(payload: ScanPayload): Promise<SBOMResult> {
+    return post<SBOMResult>("/api/scan/sbom", payload);
   },
 
   runVulnScan(payload: ScanPayload): Promise<VulnScanResult> {

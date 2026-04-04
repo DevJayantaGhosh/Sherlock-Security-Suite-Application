@@ -18,9 +18,10 @@ process.env.APP_ROOT = path.join(__dirname, "..");
 export const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
 export const MAIN_DIST = path.join(process.env.APP_ROOT, "dist-electron");
 export const RENDERER_DIST = path.join(process.env.APP_ROOT, "dist");
-export const SOFTWARE_DIGITAL_SIGNATURE = "software-digital-Signature";
+export const SOFTWARE_DIGITAL_SIGNATURE = "software-digital-signature";
 export const SIGNATURE_FILE_NAME = "signature.sig";
 export const SOFTWARE_SECURITY_SCAN = "software-security-scans";
+export const SOFTWARE_BILL_OF_MATERIALS = "software-bill-of-materials";
 
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
   ? path.join(process.env.APP_ROOT, "public")
@@ -1085,9 +1086,10 @@ ${"═".repeat(SEPARATOR_WIDTH)}
   /* ============================================================
      HELPER: Format Vulnerability Scan Results into a Table
   ============================================================ */
-  /* Format SBOM (Software Bill of Materials) */
-  function formatSbomReport(results: any): string {
-    if (!results.Results || results.Results.length === 0) return "";
+  /* Format SBOM (Software Bill of Materials) from CycloneDX JSON */
+  function formatSbomReport(cdx: any): string {
+    const components: any[] = cdx.components || [];
+    if (components.length === 0) return "\n   No packages detected.\n";
 
     let report = "\n";
     report += "╔═══════════════════════════════════════════════════════════════════════════════╗\n";
@@ -1095,35 +1097,36 @@ ${"═".repeat(SEPARATOR_WIDTH)}
     report += "║              📦  SOFTWARE BILL OF MATERIALS (SBOM)  📦                       ║\n";
     report += "║                                                                               ║\n";
     report += "╚═══════════════════════════════════════════════════════════════════════════════╝\n";
+    report += `\n   Format     : CycloneDX ${cdx.specVersion || ""}`;
+    report += `\n   Serial No. : ${cdx.serialNumber || "N/A"}\n`;
 
-    let totalPkgs = 0;
-
-    results.Results.forEach((target: any) => {
-      const pkgs = target.Packages;
-      if (pkgs && pkgs.length > 0) {
-        report += `\n📂 Target: ${target.Target}\n`;
-        report += `   Type:   ${target.Type || "N/A"}    Packages: ${pkgs.length}\n`;
-        report +=
-          "   ────────────────────────────────────────────────────────\n";
-
-        pkgs.forEach((pkg: any) => {
-          report += `   📦 ${pkg.Name}  v${pkg.Version || "N/A"}`;
-          if (pkg.Licenses && pkg.Licenses.length > 0) {
-            report += `  [${pkg.Licenses.join(", ")}]`;
-          }
-          report += "\n";
-        });
-
-        totalPkgs += pkgs.length;
-      }
-    });
-
-    if (totalPkgs === 0) {
-      report += "\n   No packages detected.\n";
-    } else {
-      report += `\n   ── Total Packages: ${totalPkgs} ──\n`;
+    // Group components by type (library, framework, application, etc.)
+    const grouped: Record<string, any[]> = {};
+    for (const comp of components) {
+      const t = comp.type || "unknown";
+      if (!grouped[t]) grouped[t] = [];
+      grouped[t].push(comp);
     }
 
+    for (const [type, comps] of Object.entries(grouped)) {
+      report += `\n📂 Type: ${type}    Components: ${comps.length}\n`;
+      report += "   ────────────────────────────────────────────────────────\n";
+
+      for (const comp of comps) {
+        report += `   📦 ${comp.name}  v${comp.version || "N/A"}`;
+        // Extract licenses from CycloneDX format
+        if (comp.licenses && comp.licenses.length > 0) {
+          const licIds = comp.licenses
+            .map((l: any) => l.license?.id || l.license?.name || l.expression || "")
+            .filter(Boolean);
+          if (licIds.length > 0) report += `  [${licIds.join(", ")}]`;
+        }
+        if (comp.purl) report += `\n         purl: ${comp.purl}`;
+        report += "\n";
+      }
+    }
+
+    report += `\n   ── Total Packages: ${components.length} ──\n`;
     return report;
   }
 
@@ -1171,12 +1174,220 @@ ${"═".repeat(SEPARATOR_WIDTH)}
   }
 
   /* ============================================================
+     SBOM GENERATION HANDLER
+  ============================================================ */
+  ipcMain.handle(
+    "scan:sbom",
+    async (event, { repoUrl, branch, isQuickScan, githubToken, scanId }) => {
+      debugLog(`[SBOM] Starting Software Bill of Materials (SBOM) - Generation for ${repoUrl}`);
+
+      const trivyPath = validateTool("trivy");
+      if (!trivyPath) {
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `\n❌ SBOM generator tool not found\n   Expected: ${toolPath("trivy")}\n\n`,
+          progress: 0,
+        });
+
+        event.sender.send(`scan-complete:${scanId}`, {
+          success: false,
+          error: "Tool not found",
+        });
+
+        return { success: false, error: "Tool not found" };
+      }
+
+      // Clone repo first
+      const repoPath = await getRepoPath(
+        event,
+        repoUrl,
+        branch,
+        isQuickScan,
+        githubToken,
+        scanId,
+      );
+      if (!repoPath) {
+        event.sender.send(`scan-complete:${scanId}`, {
+          success: false,
+          error: "Repository preparation failed",
+        });
+        return { success: false, error: "Repository preparation failed" };
+      }
+
+      // Prepare CycloneDX SBOM output directory (same pattern as digital signature)
+      const sbomTimestamp = new Date()
+        .toISOString()
+        .replace(/[:.]/g, "-")
+        .slice(0, 19)
+        .replace("T", "-");
+      const sbomDir = path.join(
+        app.getPath("temp"),
+        SOFTWARE_BILL_OF_MATERIALS,
+        sbomTimestamp,
+      );
+      fsSync.mkdirSync(sbomDir, { recursive: true });
+      const sbomFilePath = path.join(sbomDir, "sbom-cyclonedx.json");
+
+      return new Promise((resolve) => {
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `\n${"═".repeat(SEPARATOR_WIDTH)}\n📦 SOFTWARE BILL OF MATERIALS (SBOM) GENERATION 📦\n${"═".repeat(SEPARATOR_WIDTH)}\n\n`,
+          progress: 52,
+        });
+
+        event.sender.send(`scan-log:${scanId}`, {
+          log: `🔍 Analyzing project dependencies...\n📦 Generating CycloneDX SBOM...\n📁 Output: ${sbomFilePath}\n\n`,
+          progress: 55,
+        });
+
+        // Single Trivy invocation — CycloneDX format produces industry-standard SBOM
+        const child = spawn(
+          trivyPath,
+          [
+            "fs",
+            "--format", "cyclonedx",
+            "--skip-version-check",
+            repoPath,
+          ],
+          {
+            detached: true,
+            stdio: ["ignore", "pipe", "pipe"],
+            windowsHide: true,
+          },
+        );
+
+        child.unref();
+        activeProcesses.set(scanId, child);
+
+        let jsonBuffer = "";
+        let cancelled = false;
+
+        child.stdout?.on("data", (chunk) => {
+          if (cancelled) return;
+          jsonBuffer += chunk.toString();
+          event.sender.send(`scan-log:${scanId}`, {
+            log: "📦 Enumerating packages and licenses...\n",
+            progress: 70,
+          });
+        });
+
+        child.stderr?.on("data", (data) => {
+          if (cancelled) return;
+          const msg = data.toString();
+          if (!msg.includes("Update") && !msg.includes("deprecated")) {
+            event.sender.send(`scan-log:${scanId}`, {
+              log: msg,
+              progress: 85,
+            });
+          }
+        });
+
+        child.on("close", (code) => {
+          activeProcesses.delete(scanId);
+
+          if (cancelled) {
+            resolve({ success: false, cancelled: true });
+            return;
+          }
+
+          if (code === 0) {
+            try {
+              const cdxJson = JSON.parse(jsonBuffer);
+              const totalPackages = (cdxJson.components || []).length;
+
+              // Write CycloneDX SBOM file to temp directory
+              fsSync.writeFileSync(sbomFilePath, jsonBuffer, "utf-8");
+              const sbomFileSize = fsSync.statSync(sbomFilePath).size;
+
+              // Generate text report from CycloneDX data
+              const sbomReport = formatSbomReport(cdxJson);
+              event.sender.send(`scan-log:${scanId}`, {
+                log: sbomReport,
+                progress: 92,
+              });
+
+              // Summary
+              const summary = `
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                                                                               ║
+║                       📦  SBOM GENERATION SUMMARY  📦                        ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+Total Packages   : ${totalPackages}
+Status           : ${totalPackages > 0 ? "✅ SBOM GENERATED SUCCESSFULLY" : "⚠️ NO PACKAGES DETECTED"}
+
+ 📄 CycloneDX SBOM File:
+ ───────────────────────────────────────────────
+  📁 Path   : ${sbomFilePath}
+  💾 Size   : ${sbomFileSize} bytes
+  📋 Format : CycloneDX ${cdxJson.specVersion || ""} (JSON)
+
+${"═".repeat(SEPARATOR_WIDTH)}
+`;
+
+              event.sender.send(`scan-log:${scanId}`, {
+                log: summary,
+                progress: 100,
+              });
+
+              event.sender.send(`scan-complete:${scanId}`, {
+                success: true,
+                totalPackages,
+                sbomFilePath,
+              });
+
+              resolve({ success: true, totalPackages, sbomFilePath });
+            } catch (err: any) {
+              console.error("SBOM Parse Error:", err);
+              event.sender.send(`scan-complete:${scanId}`, {
+                success: false,
+                error: "Failed to parse SBOM results",
+              });
+              resolve({
+                success: false,
+                error: "Failed to parse SBOM results",
+              });
+            }
+          } else {
+            event.sender.send(`scan-complete:${scanId}`, {
+              success: false,
+              error: `SBOM generator exited with code ${code}`,
+            });
+            resolve({
+              success: false,
+              error: `SBOM generator exited with code ${code}`,
+            });
+          }
+        });
+
+        child.on("error", (err) => {
+          activeProcesses.delete(scanId);
+          event.sender.send(`scan-complete:${scanId}`, {
+            success: false,
+            error: err.message,
+          });
+          resolve({ success: false, error: err.message });
+        });
+
+        // Cancel Handler
+        ipcMain.once(`scan:cancel-${scanId}`, () => {
+          cancelled = true;
+          debugLog(`Cancelling SBOM generation: ${scanId}`);
+          killProcess(child, scanId);
+          activeProcesses.delete(scanId);
+          resolve({ success: false, cancelled: true });
+        });
+      });
+    },
+  );
+
+  /* ============================================================
      TRIVY SCAN HANDLER
   ============================================================ */
   ipcMain.handle(
     "scan:vulnscan",
     async (event, { repoUrl, branch, isQuickScan, githubToken, scanId }) => {
-      debugLog(`[VULN-SCAN] Starting SBOM scan for ${repoUrl}`);
+      debugLog(`[VULN-SCAN] Starting vulnerability scan for ${repoUrl}`);
 
       const vulnScanPath = validateTool("trivy");
       if (!vulnScanPath) {
@@ -1212,12 +1423,12 @@ ${"═".repeat(SEPARATOR_WIDTH)}
 
       return new Promise((resolve) => {
         event.sender.send(`scan-log:${scanId}`, {
-          log: `\n${"═".repeat(SEPARATOR_WIDTH)}\n🚨 SBOM & Vulnerability Scan 🚨\n${"═".repeat(SEPARATOR_WIDTH)}\n\n`,
+          log: `\n${"═".repeat(SEPARATOR_WIDTH)}\n🚨 Vulnerability Scan 🚨\n${"═".repeat(SEPARATOR_WIDTH)}\n\n`,
           progress: 52,
         });
 
         event.sender.send(`scan-log:${scanId}`, {
-          log: `🔍 Analyzing dependencies and security vulnerabilities...\n📦 Building Software Bill of Materials (SBOM)...\n\n`,
+          log: `🔍 Analyzing dependencies and security vulnerabilities...\n\n`,
           progress: 55,
         });
 
@@ -1229,7 +1440,6 @@ ${"═".repeat(SEPARATOR_WIDTH)}
             "fs",
             "--scanners",
             "vuln,secret,misconfig",
-            "--list-all-pkgs",
             "--skip-version-check",
             "--format",
             "json",
@@ -1307,13 +1517,6 @@ ${"═".repeat(SEPARATOR_WIDTH)}
                 }
               }
 
-              // Generate SBOM Report
-              const sbomReport = formatSbomReport(results);
-              event.sender.send(`scan-log:${scanId}`, {
-                log: sbomReport,
-                progress: 90,
-              });
-
               // Generate Detailed Vulnerability Report
               const detailedReport = formatVulnReport(results);
               event.sender.send(`scan-log:${scanId}`, {
@@ -1326,7 +1529,7 @@ ${"═".repeat(SEPARATOR_WIDTH)}
 
 ╔═══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                               ║
-║                 🚨  SBOM & VULNERABILITY SCAN SUMMARY  🚨                    ║
+║                 🚨  VULNERABILITY SCAN SUMMARY  🚨                           ║
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 

@@ -17,6 +17,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   runGitleaks: (payload: { repoUrl: string; branch: string; isQuickScan: boolean; githubToken : string; scanId: string }) =>
     ipcRenderer.invoke("scan:gitleaks", payload),
   
+  // SBOM Generation
+  generateSBOM: (payload: { repoUrl: string; branch: string; isQuickScan: boolean; githubToken: string; scanId: string }) =>
+    ipcRenderer.invoke("scan:sbom", payload),
+
   // Vulnerability Scan
   runVulnScan: (payload: { repoUrl: string; branch: string; isQuickScan: boolean; githubToken : string; scanId: string }) =>
     ipcRenderer.invoke("scan:vulnscan", payload),

@@ -43,6 +43,19 @@ interface Window {
       findings?: number;
     }>;
 
+    generateSBOM(payload: {
+      repoUrl: string;
+      branch: string;
+      isQuickScan: boolean;
+      githubToken: string;
+      scanId: string;
+    }): Promise<{
+      success: boolean;
+      cancelled?: boolean;
+      error?: string;
+      totalPackages?: number;
+    }>;
+
     runVulnScan(payload: {
       repoUrl: string;
       branch: string;
@@ -130,6 +143,7 @@ interface Window {
         goodSignatures?: number;
         findings?: number;
         vulnerabilities?: number;
+        totalPackages?: number;
         critical?: number;
         high?: number;
         medium?: number;

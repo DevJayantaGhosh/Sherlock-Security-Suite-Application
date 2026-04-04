@@ -37,6 +37,7 @@ import {
 } from "../../services/blockchainService";
 import { getGatewayUrl, fetchBytesFromIPFS } from "../../services/ipfsService";
 import { ContractStage, getHashScanAccountUrl } from "../../config/blockchainConfig";
+import LinkIcon from "@mui/icons-material/Link";
 
 /* ── Props ── */
 export interface ProvenanceChainCardProps {
@@ -47,9 +48,9 @@ export interface ProvenanceChainCardProps {
 
 /* ── Stage config ── */
 const STAGES = [
-  { key: "SCAN", label: "Security Scan", contractStage: ContractStage.SCAN, color: "#ff9800", icon: <SecurityIcon sx={{ fontSize: 20 }} /> },
-  { key: "RELEASE", label: "Release", contractStage: ContractStage.RELEASE, color: "#7b5cff", icon: <RocketLaunchIcon sx={{ fontSize: 20 }} /> },
-  { key: "SIGN", label: "Digital Signing", contractStage: ContractStage.SIGN, color: "#00e5ff", icon: <FingerprintIcon sx={{ fontSize: 20 }} /> },
+  { key: "SCAN", label: "Security Scan", contractStage: ContractStage.SCAN, color: "#ff9800", icon: <SecurityIcon sx={{ fontSize: 20 }} />, reportField: "securityScanReportPath" as keyof Product },
+  { key: "RELEASE", label: "Release", contractStage: ContractStage.RELEASE, color: "#7b5cff", icon: <RocketLaunchIcon sx={{ fontSize: 20 }} />, reportField: "releaseReportPath" as keyof Product },
+  { key: "SIGN", label: "Digital Signing", contractStage: ContractStage.SIGN, color: "#00e5ff", icon: <FingerprintIcon sx={{ fontSize: 20 }} />, reportField: "signingReportPath" as keyof Product },
 ] as const;
 
 const glow = keyframes`0%,100%{box-shadow:0 0 8px rgba(76,175,80,.3)}50%{box-shadow:0 0 20px rgba(76,175,80,.6)}`;
@@ -310,6 +311,46 @@ export default function ProvenanceChainCard({ variants, product, borderColor = "
                         <SH icon={<TokenIcon sx={{ fontSize: 16, color: cfg.color }} />} label="Blockchain Metadata" color={cfg.color} />
                         <Table size="small">
                           <TableBody>
+                            {/* Transaction HashScan URL (stored as full URL in MongoDB) */}
+                            {(() => {
+                              const txUrl = product[cfg.reportField] as string | undefined;
+                              if (!txUrl) return null;
+                              // Extract txHash from the stored full URL for display label
+                              const txHash = txUrl.split("/").pop() || txUrl;
+                              return (
+                                <R l="Transaction" v={
+                                  <Stack direction="row" spacing={0.5} alignItems="center">
+                                    <LinkIcon sx={{ fontSize: 14, color: cfg.color }} />
+                                    <Typography
+                                      component="a"
+                                      href={txUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      variant="caption"
+                                      sx={{
+                                        fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
+                                        fontSize: ".78rem",
+                                        color: cfg.color,
+                                        textDecoration: "none",
+                                        "&:hover": { textDecoration: "underline" },
+                                      }}
+                                    >
+                                      {txHash.length > 20 ? `${txHash.slice(0, 10)}…${txHash.slice(-8)}` : txHash}
+                                    </Typography>
+                                    <IconButton
+                                      size="small"
+                                      href={txUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      title="View transaction on HashScan"
+                                      sx={{ p: 0.25 }}
+                                    >
+                                      <OpenInNewIcon sx={{ fontSize: 14, color: cfg.color }} />
+                                    </IconButton>
+                                  </Stack>
+                                } />
+                              );
+                            })()}
                             <R l="Recorded By" v={
                               snap.recordedBy ? (
                                 <Stack direction="row" spacing={0.5} alignItems="center">

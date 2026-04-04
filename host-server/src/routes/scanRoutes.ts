@@ -3,7 +3,8 @@
  *
  * POST /api/scan/verify-gpg      — GPG commit signature verification
  * POST /api/scan/secrets         — Secrets & credential detection (gitleaks)
- * POST /api/scan/vulnerability   — SBOM & vulnerability scan
+ * POST /api/scan/sbom`           - SBOM Generation
+ * POST /api/scan/vulnerability   — Vulnerability scan
  * POST /api/scan/cancel          — Cancel a running scan
  */
 
@@ -296,7 +297,128 @@ ${"═".repeat(SEPARATOR_WIDTH)}
 }
 
 /* ================================================================
-   Vulnerability Scan — SBOM & Vulnerability Scan
+   SBOM Generation (standalone)
+   Payload: { repoUrl, branch, isQuickScan, githubToken, scanId }
+================================================================ */
+
+scanRouter.post("/sbom", (req: Request, res: Response) => {
+  const { repoUrl, branch, isQuickScan, githubToken } = req.body;
+  const scanId = req.body.scanId || uuid();
+
+  runSbomGeneration({ repoUrl, branch, isQuickScan, githubToken, scanId });
+
+  res.json({ scanId, started: true });
+});
+
+async function runSbomGeneration(params: {
+  repoUrl: string; branch: string; isQuickScan: boolean; githubToken: string; scanId: string;
+}) {
+  const { repoUrl, branch, isQuickScan, githubToken, scanId } = params;
+
+  emitLog(scanId, `\n${"═".repeat(60)}\n📦 SBOM GENERATION\n${"═".repeat(60)}\n\n`, 2);
+  emitLog(scanId, `🔹 Repository : ${repoUrl || "N/A"}\n🔹 Branch     : ${branch || "N/A"}\n\n`, 3);
+
+  const trivyPath = validateTool("trivy");
+  if (!trivyPath) {
+    emitComplete(scanId, { success: false, error: "SBOM generator (trivy) not found" });
+    return;
+  }
+
+  emitLog(scanId, `⏳ Preparing repository...\n\n`, 4);
+
+  const repoPath = await getRepoPath(repoUrl, branch, isQuickScan, githubToken, scanId);
+  if (!repoPath) {
+    emitComplete(scanId, { success: false, error: "Repository preparation failed" });
+    return;
+  }
+
+  emitLog(scanId, `\n${"═".repeat(60)}\n📦 SOFTWARE BILL OF MATERIALS (SBOM) GENERATION 📦\n${"═".repeat(60)}\n\n`, 52);
+  emitLog(scanId, `🔍 Analyzing project dependencies...\n📦 Building Software Bill of Materials (SBOM)...\n\n`, 55);
+
+  const child = spawn(
+    trivyPath,
+    ["fs", "--scanners", "", "--list-all-pkgs", "--skip-version-check", "--format", "json", repoPath],
+    {
+      detached: process.platform !== "win32",
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
+    }
+  );
+  if (process.platform !== "win32") child.unref();
+  proc.register(scanId, child);
+
+  let jsonBuffer = "";
+  let cancelled = false;
+
+  child.stdout?.on("data", (c) => {
+    if (cancelled) return;
+    jsonBuffer += c.toString();
+    emitLog(scanId, "📦 Enumerating packages and licenses...\n", 70);
+  });
+
+  child.stderr?.on("data", (d) => {
+    if (cancelled) return;
+    const msg = d.toString();
+    if (!msg.includes("Update") && !msg.includes("deprecated")) {
+      emitLog(scanId, msg, 85);
+    }
+  });
+
+  child.on("close", (code) => {
+    proc.unregister(scanId);
+    if (cancelled) return;
+
+    if (code === 0) {
+      try {
+        const results = JSON.parse(jsonBuffer);
+
+        let totalPackages = 0;
+        if (results.Results) {
+          for (const r of results.Results) {
+            if (r.Packages) totalPackages += r.Packages.length;
+          }
+        }
+
+        const sbomReport = formatSbomReport(results);
+        emitLog(scanId, sbomReport, 92);
+
+        const summary = `
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                                                                               ║
+║                      📦  SBOM GENERATION SUMMARY  📦                         ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+Total Packages   : ${totalPackages}
+Status           : ${totalPackages > 0 ? "✅ SBOM GENERATED SUCCESSFULLY" : "⚠️ NO PACKAGES DETECTED"}
+
+${"═".repeat(SEPARATOR_WIDTH)}
+`;
+
+        emitLog(scanId, summary, 100);
+        emitComplete(scanId, { success: true, totalPackages });
+      } catch {
+        emitComplete(scanId, { success: false, error: "Failed to parse SBOM results" });
+      }
+    } else {
+      emitComplete(scanId, { success: false, error: `SBOM generator exited with code ${code}` });
+    }
+  });
+
+  child.on("error", (err) => {
+    proc.unregister(scanId);
+    emitComplete(scanId, { success: false, error: err.message });
+  });
+
+  sseEvents.once(`cancel:${scanId}`, () => {
+    cancelled = true;
+    proc.killProcess(child, scanId);
+  });
+}
+
+/* ================================================================
+   Vulnerability Scan
    Payload: { repoUrl, branch, isQuickScan, githubToken, scanId }
 ================================================================ */
 
@@ -385,7 +507,7 @@ async function runVulnerabilityScan(params: {
 }) {
   const { repoUrl, branch, isQuickScan, githubToken, scanId } = params;
 
-  emitLog(scanId, `\n${"═".repeat(60)}\n🚨 SBOM & Vulnerability Scan 🚨\n${"═".repeat(60)}\n\n`, 2);
+  emitLog(scanId, `\n${"═".repeat(60)}\n🚨 Vulnerability Scan 🚨\n${"═".repeat(60)}\n\n`, 2);
   emitLog(scanId, `🔹 Repository : ${repoUrl || "N/A"}\n🔹 Branch     : ${branch || "N/A"}\n\n`, 3);
 
   const vulnScanPath = validateTool("trivy");
@@ -402,12 +524,12 @@ async function runVulnerabilityScan(params: {
     return;
   }
 
-  emitLog(scanId, `\n${"═".repeat(60)}\n🚨 SBOM & Vulnerability Scan 🚨\n${"═".repeat(60)}\n\n`, 52);
-  emitLog(scanId, `🔍 Analyzing dependencies and security vulnerabilities...\n📦 Building Software Bill of Materials (SBOM)...\n\n`, 55);
+  emitLog(scanId, `\n${"═".repeat(60)}\n🚨 Vulnerability Scan 🚨\n${"═".repeat(60)}\n\n`, 52);
+  emitLog(scanId, `🔍 Analyzing dependencies and security vulnerabilities...\n\n`, 55);
 
   const child = spawn(
     vulnScanPath,
-    ["fs", "--scanners", "vuln,secret,misconfig", "--list-all-pkgs", "--skip-version-check", "--format", "json", repoPath],
+    ["fs", "--scanners", "vuln,secret,misconfig", "--skip-version-check", "--format", "json", repoPath],
     {
       detached: process.platform !== "win32",
       stdio: ["ignore", "pipe", "pipe"],
@@ -463,10 +585,6 @@ async function runVulnerabilityScan(params: {
           }
         }
 
-        // SBOM report
-        const sbomReport = formatSbomReport(results);
-        emitLog(scanId, sbomReport, 90);
-
         // detailed vulnerability report
         const detailedReport = formatVulnReport(results);
         emitLog(scanId, detailedReport, 95);
@@ -475,7 +593,7 @@ async function runVulnerabilityScan(params: {
 
 ╔═══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                               ║
-║                 🚨  SBOM & VULNERABILITY SCAN SUMMARY  🚨                    ║
+║                 🚨  VULNERABILITY SCAN SUMMARY  🚨                           ║
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 

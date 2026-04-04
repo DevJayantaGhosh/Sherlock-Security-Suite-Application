@@ -81,7 +81,8 @@ Clones repositories into OS temp directories. Supports:
 |----------|------|-------------|
 | `POST /api/scan/verify-gpg` | `git log --show-signature` | GPG commit signature check |
 | `POST /api/scan/secrets` | gitleaks | Secrets & credential detection |
-| `POST /api/scan/vulnerability` | trivy | SBOM & vulnerability scan |
+| `POST /api/scan/sbom` | trivy | SBOM generation |
+| `POST /api/scan/vulnerability` | trivy | Vulnerability scan |
 | `POST /api/scan/cancel` | — | Cancel a running scan by `scanId` |
 
 ### `src/routes/cryptoRoutes.ts`
