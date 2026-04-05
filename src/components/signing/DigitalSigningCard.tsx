@@ -19,6 +19,7 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 
 import { platform } from "../../platform";
 import CopyLogButton from "../CopyLogButton";
+import AnalyzeLogButton from "../AnalyzeLogButton";
 import { RepoDetails } from "../../models/Product";
 import { TagBasedRepoDetails } from "../repoconfig/TagBasedRepoConfig";
 
@@ -378,6 +379,7 @@ export default function DigitalSigningCard({
                   }}
                 >
                   <CopyLogButton text={logs} />
+                  <AnalyzeLogButton text={logs} />
                   <Box
                     sx={{
                       fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",

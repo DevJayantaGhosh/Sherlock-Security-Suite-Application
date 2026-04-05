@@ -67,7 +67,6 @@ export const useLLMStore = create<LLMState>((set, get) => ({
   config: defaultConfig(),
   sessions: [],
   activeSessionId: null,
-
   /* ── Config ── */
   setConfig: (cfg) => set({ config: cfg }),
   updateConfig: (partial) =>

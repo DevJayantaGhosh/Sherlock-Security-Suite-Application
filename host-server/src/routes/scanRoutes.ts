@@ -487,7 +487,9 @@ function formatVulnReport(results: any): string {
           vuln.Severity === "HIGH" ? "🟠" :
           vuln.Severity === "MEDIUM" ? "🟡" : "🔵";
 
+        const nvdBaseUrl = process.env.VITE_NVD_BASE_URL || "https://nvd.nist.gov/vuln/detail/";
         report += `   ${severityIcon} [${vuln.Severity}] ${vuln.VulnerabilityID}\n`;
+        report += `      🔗 ${nvdBaseUrl}${vuln.VulnerabilityID}\n`;
         report += `      📦 Package: ${vuln.PkgName} (${vuln.InstalledVersion})\n`;
         report += `      ⚠️ Title:   ${vuln.Title || "N/A"}\n`;
 

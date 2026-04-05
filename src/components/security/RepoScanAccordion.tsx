@@ -31,6 +31,7 @@ import ErrorIcon from "@mui/icons-material/Error";
 
 import { Product, RepoDetails, RepoScanResults, SignatureVerificationResult,SecretLeakDetectionResult ,VulnerabilityScanResult, SBOMGenerationResult} from "../../models/Product";
 import CopyLogButton from "../CopyLogButton";
+import AnalyzeLogButton from "../AnalyzeLogButton";
 import { useUserStore } from "../../store/userStore";
 import { authorizeApprove } from "../../services/productService";
 import { platform } from "../../platform";
@@ -450,6 +451,7 @@ function GPGVerificationPanel({
                     }}
                   >
                     <CopyLogButton text={logs} />
+                    <AnalyzeLogButton text={logs} />
                     <Box
                       sx={{
                         fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
@@ -968,6 +970,7 @@ function GitleaksPanel({
                     }}
                   >
                     <CopyLogButton text={logs} />
+                    <AnalyzeLogButton text={logs} />
                     <Box
                       sx={{
                         fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
@@ -1415,6 +1418,7 @@ function SBOMGenerationPanel({
                     }}
                   >
                     <CopyLogButton text={logs} />
+                    <AnalyzeLogButton text={logs} />
                     <Box sx={{
                       fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
                       fontSize: 12, lineHeight: 1.6, color: "#e0e0e0",
@@ -1860,6 +1864,7 @@ function VulnerabilityScanPanel({
                     }}
                   >
                     <CopyLogButton text={logs} />
+                    <AnalyzeLogButton text={logs} />
                     <Box
                       sx={{
                         fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",

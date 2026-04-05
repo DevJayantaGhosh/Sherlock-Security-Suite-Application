@@ -20,6 +20,7 @@ import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 
 import { platform } from "../../platform";
 import CopyLogButton from "../CopyLogButton";
+import AnalyzeLogButton from "../AnalyzeLogButton";
 import { TagBasedRepoDetails } from "../repoconfig/TagBasedRepoConfig";
 
 type ScanStatus = "idle" | "running" | "success" | "failed" | "valid" | "invalid";
@@ -362,6 +363,7 @@ export default function SignatureVerificationCard({
                   }}
                 >
                   <CopyLogButton text={logs} />
+                  <AnalyzeLogButton text={logs} />
                   <Box
                     sx={{
                       fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",

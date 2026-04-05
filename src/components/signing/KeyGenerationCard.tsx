@@ -19,6 +19,7 @@ import CloseIcon from "@mui/icons-material/Close";
 
 import { platform } from "../../platform";
 import CopyLogButton from "../CopyLogButton";
+import AnalyzeLogButton from "../AnalyzeLogButton";
 
 type ScanStatus = "idle" | "running" | "success" | "failed";
 
@@ -388,6 +389,7 @@ export default function KeyGenerationCard({
                   }}
                 >
                   <CopyLogButton text={logs} />
+                  <AnalyzeLogButton text={logs} />
                   <Box
                     sx={{
                       fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",

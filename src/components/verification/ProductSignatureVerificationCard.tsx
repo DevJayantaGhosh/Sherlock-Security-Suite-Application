@@ -20,6 +20,7 @@ import ErrorIcon from "@mui/icons-material/Error";
 import { toast } from "react-hot-toast";
 import { platform } from "../../platform";
 import CopyLogButton from "../CopyLogButton";
+import AnalyzeLogButton from "../AnalyzeLogButton";
 
 type ScanStatus = "idle" | "running" | "success" | "failed" | "valid" | "invalid";
 
@@ -426,6 +427,7 @@ export default function ProductSignatureVerificationCard({
                   }}
                 >
                   <CopyLogButton text={logs} />
+                  <AnalyzeLogButton text={logs} />
                   <Box
                     sx={{
                       fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",

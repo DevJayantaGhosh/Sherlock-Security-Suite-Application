@@ -1,10 +1,11 @@
 // src/App.tsx
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { HashRouter as Router, Routes, Route } from "react-router-dom";
 import { Box, Fab, Drawer, IconButton, Typography, Stack } from "@mui/material";
 import SmartToyIcon from "@mui/icons-material/SmartToy";
 import CloseIcon from "@mui/icons-material/Close";
 import OpenInFullIcon from "@mui/icons-material/OpenInFull";
+import MinimizeIcon from "@mui/icons-material/Minimize";
 
 import NavBar from "./components/NavBar";
 import Footer from "./components/Footer";
@@ -29,11 +30,18 @@ import QuickCryptoSigningPage from "./pages/QuickCryptoSigningPage";
 import QuickSignatureVerificationPage from "./pages/QuickSignatureVerificationPage";
 import QuickReleasePage from "./pages/QuickReleasePage";
 import UserGuidePage from "./pages/UserGuidePage";
-import SecurityDiscussionPage from "./pages/SecurityDiscussionPage";
 
 export default function App() {
   const [chatOpen, setChatOpen] = useState(false);
+  const [chatExpanded, setChatExpanded] = useState(false);
   const user = useUserStore((s) => s.user);
+
+  // Listen for "analyze-with-sherlock" events dispatched by AnalyzeLogButton
+  const openChat = useCallback(() => setChatOpen(true), []);
+  useEffect(() => {
+    window.addEventListener("analyze-with-sherlock", openChat);
+    return () => window.removeEventListener("analyze-with-sherlock", openChat);
+  }, [openChat]);
 
   return (
     <Router>
@@ -142,15 +150,6 @@ export default function App() {
           />
 
           <Route
-            path="/security-discussion"
-            element={
-              <ProtectedRoute>
-                <SecurityDiscussionPage />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
             path="/admin"
             element={
               <ProtectedRoute allowedRoles={["Admin"]}>
@@ -186,9 +185,17 @@ export default function App() {
       <Drawer
         anchor="right"
         open={chatOpen}
-        onClose={() => setChatOpen(false)}
+        onClose={() => { setChatOpen(false); setChatExpanded(false); }}
+        ModalProps={{ keepMounted: true }}
         PaperProps={{
-          sx: { width: { xs: "100%", sm: 460 }, p: 0 },
+          sx: {
+            width: chatExpanded
+              ? { xs: "100%", sm: "90vw" }
+              : { xs: "100%", sm: 460 },
+            maxWidth: "100vw",
+            transition: "width 0.3s ease",
+            p: 0,
+          },
         }}
       >
         <Stack
@@ -201,23 +208,34 @@ export default function App() {
             🔍 Sherlock AI
           </Typography>
           <Stack direction="row" spacing={0.5}>
+            {/* Expand to full */}
             <IconButton
               size="small"
-              title="Expand to full page"
-              onClick={() => {
-                setChatOpen(false);
-                window.location.hash = "#/security-discussion";
-              }}
+              title="Expand panel"
+              onClick={() => setChatExpanded(true)}
             >
               <OpenInFullIcon fontSize="small" />
             </IconButton>
-            <IconButton size="small" onClick={() => setChatOpen(false)}>
-              <CloseIcon />
+            {/* Minimize — shrink back to small drawer */}
+            <IconButton
+              size="small"
+              title="Minimize panel"
+              onClick={() => setChatExpanded(false)}
+            >
+              <MinimizeIcon fontSize="small" />
+            </IconButton>
+            {/* Close */}
+            <IconButton
+              size="small"
+              title="Close chat"
+              onClick={() => { setChatOpen(false); setChatExpanded(false); }}
+            >
+              <CloseIcon fontSize="small" />
             </IconButton>
           </Stack>
         </Stack>
         <Box sx={{ flex: 1, overflow: "hidden" }}>
-          <LLMChatPanel height="calc(100vh - 56px)" hideSidebar />
+          <LLMChatPanel height="calc(100vh - 56px)" hideSidebar={!chatExpanded} />
         </Box>
       </Drawer>
     </Router>

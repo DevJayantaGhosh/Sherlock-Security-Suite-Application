@@ -4877,7 +4877,10 @@ ${"═".repeat(SEPARATOR_WIDTH)}
         report += "   ────────────────────────────────────────────────────────\n";
         target.Vulnerabilities.forEach((vuln) => {
           const severityIcon = vuln.Severity === "CRITICAL" ? "🔴" : vuln.Severity === "HIGH" ? "🟠" : vuln.Severity === "MEDIUM" ? "🟡" : "🔵";
+          const nvdBaseUrl = process.env.VITE_NVD_BASE_URL || "https://nvd.nist.gov/vuln/detail/";
           report += `   ${severityIcon} [${vuln.Severity}] ${vuln.VulnerabilityID}
+`;
+          report += `      🔗 ${nvdBaseUrl}${vuln.VulnerabilityID}
 `;
           report += `      📦 Package: ${vuln.PkgName} (${vuln.InstalledVersion})
 `;

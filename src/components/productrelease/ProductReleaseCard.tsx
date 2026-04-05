@@ -28,6 +28,7 @@ import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import { Product } from "../../models/Product";
 import { platform } from "../../platform";
 import CopyLogButton from "../CopyLogButton";
+import AnalyzeLogButton from "../AnalyzeLogButton";
 import { updateProduct } from "../../services/productService";
 
 type ReleaseStatus = "idle" | "running" | "success" | "failed";
@@ -369,6 +370,7 @@ export default function ProductReleaseCard({
                   }}
                 >
                   <CopyLogButton text={logs} />
+                  <AnalyzeLogButton text={logs} />
                   <Box
                     sx={{
                       fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
