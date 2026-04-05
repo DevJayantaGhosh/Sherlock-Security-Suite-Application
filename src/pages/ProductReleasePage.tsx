@@ -128,7 +128,7 @@ export default function ProductReleasePage() {
             disabled={!canInscribe || loading}
             variants={itemVariants}
             toolTip={blockchainTooltip}
-            stage="RELEASE"
+            step="RELEASE"
             onStatusDecision={() => loadProduct()}
           />
 

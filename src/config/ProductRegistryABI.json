@@ -15,8 +15,8 @@
       },
       {
         "indexed": false,
-        "internalType": "enum ProductRegistry.Stage",
-        "name": "stage",
+        "internalType": "enum ProductRegistry.Step",
+        "name": "step",
         "type": "uint8"
       },
       {
@@ -166,8 +166,8 @@
             "type": "string"
           },
           {
-            "internalType": "enum ProductRegistry.Stage",
-            "name": "stage",
+            "internalType": "enum ProductRegistry.Step",
+            "name": "step",
             "type": "uint8"
           },
           {
@@ -295,8 +295,8 @@
             "type": "string"
           },
           {
-            "internalType": "enum ProductRegistry.Stage",
-            "name": "stage",
+            "internalType": "enum ProductRegistry.Step",
+            "name": "step",
             "type": "uint8"
           },
           {
@@ -430,8 +430,8 @@
             "type": "string"
           },
           {
-            "internalType": "enum ProductRegistry.Stage",
-            "name": "stage",
+            "internalType": "enum ProductRegistry.Step",
+            "name": "step",
             "type": "uint8"
           },
           {

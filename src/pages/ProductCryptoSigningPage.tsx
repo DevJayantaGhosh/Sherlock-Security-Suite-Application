@@ -84,7 +84,7 @@ if (isViewOnlyMode) {
     tooltip = `Product is "${product?.status}". No further actions allowed.`;
   } else {
     // !isReleased (e.g. Pending, Approved, Signed — anything but Released)
-    tooltip = `Product is "${product?.status}". Signing actions are not allowed at this stage.`;
+    tooltip = `Product is "${product?.status}". Signing actions are not allowed at this step.`;
   }
 }
 
@@ -169,7 +169,7 @@ if (isViewOnlyMode) {
               disabled={!canSign || loading}
               variants={itemVariants}
               toolTip={tooltip}
-              stage="SIGN"
+              step="SIGN"
               onStatusDecision={() => loadProduct()}
             />
 

@@ -22,17 +22,17 @@ export const HEDERA_TESTNET = {
   rpcUrl: HEDERA_RPC_URL || "https://testnet.hashio.io/api",
 };
 
-// ── Stage Enum (mirrors Solidity) ───────────────────────
-export enum ContractStage {
+// ── Step Enum (mirrors Solidity) ───────────────────────
+export enum ContractStep {
   SCAN = 0,
   RELEASE = 1,
   SIGN = 2,
 }
 
-// ── Stage Display Config ────────────────────────────────
-export const STAGE_CONFIG = {
+// ── Step Display Config ────────────────────────────────
+export const STEP_CONFIG = {
   SCAN: {
-    contractStage: ContractStage.SCAN,
+    contractStep: ContractStep.SCAN,
     icon: "🔶",
     title: "Scan Provenance — Blockchain Inscription",
     color: "#ff9800",
@@ -41,7 +41,7 @@ export const STAGE_CONFIG = {
     reportField: "securityScanReportPath" as const,
   },
   RELEASE: {
-    contractStage: ContractStage.RELEASE,
+    contractStep: ContractStep.RELEASE,
     icon: "🟣",
     title: "Release Provenance — Blockchain Inscription",
     color: "#7b5cff",
@@ -50,7 +50,7 @@ export const STAGE_CONFIG = {
     reportField: "releaseReportPath" as const,
   },
   SIGN: {
-    contractStage: ContractStage.SIGN,
+    contractStep: ContractStep.SIGN,
     icon: "🔷",
     title: "Signing Provenance — Blockchain Inscription",
     color: "#00e5ff",

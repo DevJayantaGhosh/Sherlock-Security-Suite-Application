@@ -14,7 +14,7 @@ import {
   HEDERA_RPC_URL,
   SERVICE_PRIVATE_KEY,
   PRODUCT_REGISTRY_ABI,
-  ContractStage,
+  ContractStep,
   getHashScanTxUrl,
 } from "../config/blockchainConfig";
 import { Product } from "../models/Product";
@@ -35,7 +35,7 @@ export interface ProductSnapshot {
   dependencies: string;
   status: string;
   remark: string;
-  stage: number;
+  step: number;
   signatureFileIPFS: string;
   publicKeyFileIPFS: string;
   createdBy: string;
@@ -262,7 +262,7 @@ function trimReposForChain(repos: Product["repos"]): string {
 
 export function buildProductSnapshot(
   product: Product,
-  stage: ContractStage,
+  step: ContractStep,
   status: string,
   createdBy: string,
   remark?: string,
@@ -286,7 +286,7 @@ export function buildProductSnapshot(
       : "",
     status,
     remark: (remark || "").slice(0, 500),
-    stage,
+    step,
     signatureFileIPFS: signatureFileIPFS || "",
     publicKeyFileIPFS: publicKeyFileIPFS || "",
     createdBy,
@@ -311,7 +311,7 @@ export async function inscribeOnLedger(
     const walletAddress = await wallet.getAddress();
 
     console.log(
-      `[Blockchain] Inscribing product "${snapshot.name}" (stage=${snapshot.stage}, status=${snapshot.status})`,
+      `[Blockchain] Inscribing product "${snapshot.name}" (step=${snapshot.step}, status=${snapshot.status})`,
     );
 
     // ── Pre-flight validation ──────────────────────────
@@ -336,55 +336,55 @@ export async function inscribeOnLedger(
           if (firstSnap.status === "Rejected") {
             return {
               data: {} as InscriptionResult,
-              error: { message: "This product was previously rejected at the SCAN stage. No further blockchain inscriptions are allowed." },
+              error: { message: "This product was previously rejected at the SCAN step. No further blockchain inscriptions are allowed." },
             };
           }
         } catch { /* ignore read error, let the contract enforce */ }
       }
 
-      // R5: Stage ordering — count 0→SCAN, 1→RELEASE, 2→SIGN
-      const expectedStage = currentCount; // 0=SCAN, 1=RELEASE, 2=SIGN
-      const stageNames = ["SCAN", "RELEASE", "SIGN"];
-      if (snapshot.stage !== expectedStage) {
-        const expected = stageNames[expectedStage] || `stage ${expectedStage}`;
-        const actual = stageNames[snapshot.stage] || `stage ${snapshot.stage}`;
+      // R5: Step ordering — count 0→SCAN, 1→RELEASE, 2→SIGN
+      const expectedStep = currentCount; // 0=SCAN, 1=RELEASE, 2=SIGN
+      const stepNames = ["SCAN", "RELEASE", "SIGN"];
+      if (snapshot.step !== expectedStep) {
+        const expected = stepNames[expectedStep] || `step ${expectedStep}`;
+        const actual = stepNames[snapshot.step] || `step ${snapshot.step}`;
         return {
           data: {} as InscriptionResult,
           error: {
-            message: `Stage mismatch: This product has ${currentCount} record(s) on-chain, so the next inscription must be ${expected} (stage ${expectedStage}), but you are trying to inscribe ${actual} (stage ${snapshot.stage}).`,
+            message: `Step mismatch: This product has ${currentCount} record(s) on-chain, so the next inscription must be ${expected} (step ${expectedStep}), but you are trying to inscribe ${actual} (step ${snapshot.step}).`,
           },
         };
       }
 
-      // R8: Status must match stage
+      // R8: Status must match step
       const validStatuses: Record<number, string[]> = {
         0: ["Approved", "Rejected"],
         1: ["Released"],
         2: ["Signed"],
       };
-      const allowed = validStatuses[snapshot.stage];
+      const allowed = validStatuses[snapshot.step];
       if (allowed && !allowed.includes(snapshot.status)) {
         return {
           data: {} as InscriptionResult,
           error: {
-            message: `Invalid status "${snapshot.status}" for ${stageNames[snapshot.stage]} stage. Allowed: ${allowed.join(", ")}.`,
+            message: `Invalid status "${snapshot.status}" for ${stepNames[snapshot.step]} step. Allowed: ${allowed.join(", ")}.`,
           },
         };
       }
 
       // R6/R7: IPFS file rules
-      if (snapshot.stage === 2) {
+      if (snapshot.step === 2) {
         if (!snapshot.signatureFileIPFS || !snapshot.publicKeyFileIPFS) {
           return {
             data: {} as InscriptionResult,
-            error: { message: "SIGN stage requires both signatureFileIPFS and publicKeyFileIPFS." },
+            error: { message: "SIGN step requires both signatureFileIPFS and publicKeyFileIPFS." },
           };
         }
       } else {
         if (snapshot.signatureFileIPFS || snapshot.publicKeyFileIPFS) {
           return {
             data: {} as InscriptionResult,
-            error: { message: `${stageNames[snapshot.stage]} stage must NOT include IPFS signing artifacts.` },
+            error: { message: `${stepNames[snapshot.step]} step must NOT include IPFS signing artifacts.` },
           };
         }
       }
@@ -426,7 +426,7 @@ export async function inscribeOnLedger(
       snapshot.dependencies,
       snapshot.status,
       snapshot.remark,
-      snapshot.stage,
+      snapshot.step,
       snapshot.signatureFileIPFS,
       snapshot.publicKeyFileIPFS,
       snapshot.createdBy,
@@ -494,7 +494,7 @@ export async function getProductSnapshots(
       dependencies: s.dependencies,
       status: s.status,
       remark: s.remark,
-      stage: Number(s.stage),
+      step: Number(s.step),
       signatureFileIPFS: s.signatureFileIPFS,
       publicKeyFileIPFS: s.publicKeyFileIPFS,
       createdBy: s.createdBy,
@@ -547,7 +547,7 @@ export async function getSnapshot(
         dependencies: s.dependencies,
         status: s.status,
         remark: s.remark,
-        stage: Number(s.stage),
+        step: Number(s.step),
         signatureFileIPFS: s.signatureFileIPFS,
         publicKeyFileIPFS: s.publicKeyFileIPFS,
         createdBy: s.createdBy,
@@ -735,10 +735,10 @@ export function shortenAddress(address: string): string {
 }
 
 /**
- * Map stage number to stage name.
+ * Map step number to step name.
  */
-export function getStageName(stage: number): string {
-  switch (stage) {
+export function getStepName(step: number): string {
+  switch (step) {
     case 0:
       return "SCAN";
     case 1:
@@ -746,6 +746,6 @@ export function getStageName(stage: number): string {
     case 2:
       return "SIGN";
     default:
-      return `UNKNOWN(${stage})`;
+      return `UNKNOWN(${step})`;
   }
 }

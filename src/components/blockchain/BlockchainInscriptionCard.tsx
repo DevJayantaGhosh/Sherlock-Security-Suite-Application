@@ -23,11 +23,11 @@ import HubIcon from "@mui/icons-material/Hub";
 import { Product } from "../../models/Product";
 import { useToast } from "../ToastProvider";
 import { useUserStore } from "../../store/userStore";
-import { STAGE_CONFIG, HEDERA_TESTNET, ContractStage } from "../../config/blockchainConfig";
+import { STEP_CONFIG, HEDERA_TESTNET, ContractStep } from "../../config/blockchainConfig";
 import {
   connectServiceWallet, buildProductSnapshot, inscribeOnLedger,
   getProductSnapshots, formatBlockchainTimestamp, shortenAddress,
-  getStageName, ProductSnapshot,
+  getStepName, ProductSnapshot,
 } from "../../services/blockchainService";
 import { updateProduct } from "../../services/productService";
 
@@ -39,7 +39,7 @@ export interface BlockchainInscriptionProps {
   product: Product;
   disabled: boolean;
   toolTip: string;
-  stage: "SCAN" | "SIGN" | "RELEASE";
+  step: "SCAN" | "SIGN" | "RELEASE";
   onStatusDecision?: (status: "Approved" | "Rejected", remark: string) => void;
 }
 
@@ -125,15 +125,15 @@ function ScanLines({ scans }: { scans: any }) {
 /* ════════════════════════════════════════════════════════════
  *  Main Component
  * ════════════════════════════════════════════════════════════ */
-export default function BlockchainInscriptionCard({ variants, product, disabled, toolTip, stage, onStatusDecision }: BlockchainInscriptionProps) {
+export default function BlockchainInscriptionCard({ variants, product, disabled, toolTip, step, onStatusDecision }: BlockchainInscriptionProps) {
   const toast = useToast();
   const user = useUserStore((s) => s.user);
-  const cfg = STAGE_CONFIG[stage];
+  const cfg = STEP_CONFIG[step];
 
   const [wallet, setWallet] = useState("");
   const [connecting, setConnecting] = useState(false);
   const [inscribing, setInscribing] = useState(false);
-  const [step, setStep] = useState(0);
+  const [txStep, setTxStep] = useState(0);
   const [err, setErr] = useState<string | null>(null);
   const [preview, setPreview] = useState(false);
   const [status, setStatus] = useState<"Approved" | "Rejected" | "Signed" | "Released">("Approved");
@@ -166,17 +166,17 @@ export default function BlockchainInscriptionCard({ variants, product, disabled,
 
   /* Confirm & inscribe */
   const confirm = async () => {
-    setPreview(false); setInscribing(true); setStep(0); setErr(null);
+    setPreview(false); setInscribing(true); setTxStep(0); setErr(null);
     try {
-      const cs = stage === "SCAN" ? ContractStage.SCAN : stage === "SIGN" ? ContractStage.SIGN : ContractStage.RELEASE;
-      const auto = `${stage}: ${status} by ${user?.name || user?.email || "unknown"}`;
+      const cs = step === "SCAN" ? ContractStep.SCAN : step === "SIGN" ? ContractStep.SIGN : ContractStep.RELEASE;
+      const auto = `${step}: ${status} by ${user?.name || user?.email || "unknown"}`;
       const rmk = remark.trim() ? `${remark.trim()} | ${auto}` : auto;
       const snap = buildProductSnapshot(product, cs, status, user?.email || user?.name || "unknown", rmk,
-        stage === "SIGN" ? product.signatureFilePath || "" : "", stage === "SIGN" ? product.publicKeyFilePath || "" : "");
-      setStep(1);
+        step === "SIGN" ? product.signatureFilePath || "" : "", step === "SIGN" ? product.publicKeyFilePath || "" : "");
+      setTxStep(1);
       const { data: res, error } = await inscribeOnLedger(snap);
       if (error) { setErr(error.message); setInscribing(false); toast(error.message, "error"); return; }
-      setStep(2); setStep(3);
+      setTxStep(2); setTxStep(3);
       const upd = {
         ...product,
         status: status as any,
@@ -185,12 +185,12 @@ export default function BlockchainInscriptionCard({ variants, product, disabled,
       };
       const { error: de } = await updateProduct(upd);
       if (de) toast(`Chain OK, DB failed: ${de.message}`, "warning");
-      setStep(4); toast(`Inscribed! Tx: ${res.txHash.slice(0, 16)}…`, "success");
+      setTxStep(4); toast(`Inscribed! Tx: ${res.txHash.slice(0, 16)}…`, "success");
       setDone(true); setUrl(res.hashScanUrl);
       try { const { data: sn } = await getProductSnapshots(product.id); setChain(sn); setShowChain(true); } catch { }
       if (onStatusDecision) onStatusDecision(status as "Approved" | "Rejected", rmk);
     } catch (e: any) { const m = e.message || "Failed"; setErr(m); toast(m, "error"); }
-    finally { setInscribing(false); setStep(0); }
+    finally { setInscribing(false); setTxStep(0); }
   };
 
   /* Toggle chain data */
@@ -210,8 +210,8 @@ export default function BlockchainInscriptionCard({ variants, product, disabled,
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
           {[0,1,2,3,4].map(i => (
             <Box key={i} sx={{ display: "flex", alignItems: "center" }}>
-              <Box sx={{ width: 28, height: 28, borderRadius: "6px", bgcolor: i <= step ? cfg.color : "rgba(255,255,255,.15)", animation: i === step ? `${pulse} 1s infinite` : "none", transition: "background-color .5s", boxShadow: i <= step ? `0 0 12px ${cfg.color}50` : "none" }} />
-              {i < 4 && <Box sx={{ width: 32, height: 3, mx: .5, bgcolor: i < step ? cfg.color : "rgba(255,255,255,.1)", borderRadius: 1, position: "relative", overflow: "hidden", "&::after": i === step ? { content: '""', position: "absolute", width: 10, height: "100%", bgcolor: cfg.color, animation: `${slide} 1s infinite` } : {} }} />}
+              <Box sx={{ width: 28, height: 28, borderRadius: "6px", bgcolor: i <= txStep ? cfg.color : "rgba(255,255,255,.15)", animation: i === txStep ? `${pulse} 1s infinite` : "none", transition: "background-color .5s", boxShadow: i <= txStep ? `0 0 12px ${cfg.color}50` : "none" }} />
+              {i < 4 && <Box sx={{ width: 32, height: 3, mx: .5, bgcolor: i < txStep ? cfg.color : "rgba(255,255,255,.1)", borderRadius: 1, position: "relative", overflow: "hidden", "&::after": i === txStep ? { content: '""', position: "absolute", width: 10, height: "100%", bgcolor: cfg.color, animation: `${slide} 1s infinite` } : {} }} />}
             </Box>
           ))}
         </Box>
@@ -219,7 +219,7 @@ export default function BlockchainInscriptionCard({ variants, product, disabled,
           <HubIcon sx={{ fontSize: 28, color: cfg.color }} />
           <Typography variant="h5" fontWeight={700} sx={{ color: cfg.color, fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace" }}>Blockchain Transaction</Typography>
         </Stack>
-        <Typography color="grey.400">{STEPS[step]}</Typography>
+        <Typography color="grey.400">{STEPS[txStep]}</Typography>
         <CircularProgress size={32} sx={{ color: cfg.color }} />
         <Typography variant="caption" color="grey.600">Do not close. May take 10-30 s.</Typography>
       </Backdrop>
@@ -227,7 +227,7 @@ export default function BlockchainInscriptionCard({ variants, product, disabled,
       {/* ── Main Card ── */}
       <Paper sx={{ p: 3, borderLeft: `4px solid ${cfg.color}`, borderRadius: 1, mb: 3 }}>
         <Typography variant="h6" fontWeight={700} gutterBottom>{cfg.icon} {cfg.title}</Typography>
-        <Typography variant="body2" color="text.secondary" mb={3}>Record your {stage.toLowerCase()} decision permanently on Hedera Hashgraph.</Typography>
+        <Typography variant="body2" color="text.secondary" mb={3}>Record your {step.toLowerCase()} decision permanently on Hedera Hashgraph.</Typography>
 
         {err && <Alert severity="error" icon={<ErrorOutlineIcon />} sx={{ mb: 2 }} onClose={() => setErr(null)}>{err}</Alert>}
 
@@ -250,13 +250,13 @@ export default function BlockchainInscriptionCard({ variants, product, disabled,
             <Collapse in={showChain}>
               <Box mt={1.5}>
                 {loadChain ? <Box textAlign="center" py={3}><CircularProgress size={24} sx={{ color: cfg.color }} /></Box>
-                  : chain.filter(s => s.stage === cfg.contractStage).length > 0
-                    ? chain.filter(s => s.stage === cfg.contractStage).map((s, i) => {
+                  : chain.filter(s => s.step === cfg.contractStep).length > 0
+                    ? chain.filter(s => s.step === cfg.contractStep).map((s, i) => {
                       let repos: any[] = []; try { repos = JSON.parse(s.reposJson || "[]"); } catch {}
                       return (
                         <Paper key={i} sx={{ p: 2.5, mb: 1.5, bgcolor: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.08)" }}>
                           <Stack direction="row" spacing={1} alignItems="center" mb={1.5}>
-                            <Chip label={getStageName(s.stage)} size="small" sx={{ bgcolor: s.stage === 0 ? "#ff9800" : s.stage === 1 ? "#00e5ff" : "#7b5cff", color: "#000", fontWeight: 700 }} />
+                            <Chip label={getStepName(s.step)} size="small" sx={{ bgcolor: s.step === 0 ? "#ff9800" : s.step === 1 ? "#00e5ff" : "#7b5cff", color: "#000", fontWeight: 700 }} />
                             <Chip label={s.status} size="small" color={s.status === "Rejected" ? "error" : "success"} />
                             <Typography variant="caption" sx={{ fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace" }}>{formatBlockchainTimestamp(s.timestamp)}</Typography>
                           </Stack>
@@ -340,10 +340,10 @@ export default function BlockchainInscriptionCard({ variants, product, disabled,
               <Stack direction="row" spacing={2}>
                 <Tooltip title={disabled ? toolTip : ""}><span>
                   <Button variant="contained" size="large" disabled={disabled} startIcon={<HubIcon />}
-                    onClick={() => openPreview(stage === "SCAN" ? "Approved" : stage === "SIGN" ? "Signed" : "Released")}
+                    onClick={() => openPreview(step === "SCAN" ? "Approved" : step === "SIGN" ? "Signed" : "Released")}
                     sx={{ bgcolor: cfg.color, color: "#000", fontWeight: 700, px: 3 }}>{cfg.approveButton}</Button>
                 </span></Tooltip>
-                {stage === "SCAN" && cfg.rejectButton && (
+                {step === "SCAN" && cfg.rejectButton && (
                   <Tooltip title={disabled ? toolTip : ""}><span>
                     <Button variant="outlined" size="large" color="error" disabled={disabled}
                       onClick={() => openPreview("Rejected")} sx={{ fontWeight: 700, px: 3 }}>{cfg.rejectButton}</Button>
@@ -400,7 +400,7 @@ export default function BlockchainInscriptionCard({ variants, product, disabled,
             </Stack>
           ) : <Typography variant="body2" color="text.secondary" mb={1}>None</Typography>}
 
-          {stage === "SIGN" && (<>
+          {step === "SIGN" && (<>
             <Divider sx={{ my: 1 }} />
             <SH icon={<VpnKeyIcon sx={{ fontSize: 16, color: cfg.color }} />} label="Signing Artifacts" color={cfg.color} />
             <Table size="small"><TableBody>
@@ -412,7 +412,7 @@ export default function BlockchainInscriptionCard({ variants, product, disabled,
           <Divider sx={{ my: 1 }} />
           <SH icon={<HubIcon sx={{ fontSize: 16, color: cfg.color }} />} label="Inscription" color={cfg.color} />
           <Table size="small" sx={{ mb: 2 }}><TableBody>
-            <R l="Stage" v={stage} />
+            <R l="Step" v={step} />
             <R l="Decision" v={<Chip label={status} size="small" color={status === "Rejected" ? "error" : "success"} />} />
             <R l="Wallet" v={<span style={{ fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace" }}>{shortenAddress(wallet)}</span>} />
             <R l="Network" v={HEDERA_TESTNET.name} />

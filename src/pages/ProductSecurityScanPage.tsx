@@ -280,7 +280,7 @@ if (isViewOnlyMode) {
 
 
 
-          {/* Blockchain Inscription — SCAN Stage */}
+          {/* Blockchain Inscription — SCAN Step */}
           <motion.div variants={itemVariants}>
             <Box sx={{ mt: 4 }}>
               <BlockchainInscriptionCard
@@ -288,7 +288,7 @@ if (isViewOnlyMode) {
                 product={product}
                 disabled={isViewOnlyMode || saving}
                 toolTip={tooltip}
-                stage="SCAN"
+                step="SCAN"
                 onStatusDecision={handleBlockchainDecision}
               />
             </Box>

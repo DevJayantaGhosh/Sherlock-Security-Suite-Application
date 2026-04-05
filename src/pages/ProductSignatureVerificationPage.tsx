@@ -96,7 +96,7 @@ export default function ProductSignatureVerificationPage() {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
           <ProductHeader product={product} pageType="verify" />
 
-          {/* Provenance Chain — shows all 3 blockchain stages */}
+          {/* Provenance Chain — shows all 3 blockchain steps */}
           <ProvenanceChainCard product={product} variants={itemVariants} borderColor="#4caf50" />
 
           <ProductSignatureVerificationCard

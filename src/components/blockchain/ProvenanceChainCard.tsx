@@ -1,7 +1,7 @@
 /**
- * ProvenanceChainCard — Displays the full 3-stage provenance chain
+ * ProvenanceChainCard — Displays the full 3-step provenance chain
  * (SCAN -> RELEASE -> SIGN) in a blockchain-like visual flow.
- * Each stage block is expandable. Includes IPFS artifact downloads.
+ * Each step block is expandable. Includes IPFS artifact downloads.
  */
 import { useState, useEffect } from "react";
 import {
@@ -36,7 +36,7 @@ import {
   ProductSnapshot,
 } from "../../services/blockchainService";
 import { getGatewayUrl, fetchBytesFromIPFS } from "../../services/ipfsService";
-import { ContractStage, getHashScanAccountUrl } from "../../config/blockchainConfig";
+import { ContractStep, getHashScanAccountUrl } from "../../config/blockchainConfig";
 import LinkIcon from "@mui/icons-material/Link";
 
 /* ── Props ── */
@@ -46,11 +46,11 @@ export interface ProvenanceChainCardProps {
   borderColor?: string;
 }
 
-/* ── Stage config ── */
-const STAGES = [
-  { key: "SCAN", label: "Security Scan", contractStage: ContractStage.SCAN, color: "#ff9800", icon: <SecurityIcon sx={{ fontSize: 20 }} />, reportField: "securityScanReportPath" as keyof Product },
-  { key: "RELEASE", label: "Release", contractStage: ContractStage.RELEASE, color: "#7b5cff", icon: <RocketLaunchIcon sx={{ fontSize: 20 }} />, reportField: "releaseReportPath" as keyof Product },
-  { key: "SIGN", label: "Digital Signing", contractStage: ContractStage.SIGN, color: "#00e5ff", icon: <FingerprintIcon sx={{ fontSize: 20 }} />, reportField: "signingReportPath" as keyof Product },
+/* ── Step config ── */
+const CHAIN_STEPS = [
+  { key: "SCAN", label: "Security Scan", contractStep: ContractStep.SCAN, color: "#ff9800", icon: <SecurityIcon sx={{ fontSize: 20 }} />, reportField: "securityScanReportPath" as keyof Product },
+  { key: "RELEASE", label: "Release", contractStep: ContractStep.RELEASE, color: "#7b5cff", icon: <RocketLaunchIcon sx={{ fontSize: 20 }} />, reportField: "releaseReportPath" as keyof Product },
+  { key: "SIGN", label: "Digital Signing", contractStep: ContractStep.SIGN, color: "#00e5ff", icon: <FingerprintIcon sx={{ fontSize: 20 }} />, reportField: "signingReportPath" as keyof Product },
 ] as const;
 
 const glow = keyframes`0%,100%{box-shadow:0 0 8px rgba(76,175,80,.3)}50%{box-shadow:0 0 20px rgba(76,175,80,.6)}`;
@@ -134,13 +134,13 @@ export default function ProvenanceChainCard({ variants, product, borderColor = "
     })();
   }, [product.id, showToast]);
 
-  const toggle = (stage: number) => setExpanded((prev) => ({ ...prev, [stage]: !prev[stage] }));
-  const snapByStage = (cs: number) => chain.find((s) => s.stage === cs) || null;
-  const completedCount = STAGES.filter((s) => snapByStage(s.contractStage)).length;
+  const toggle = (step: number) => setExpanded((prev) => ({ ...prev, [step]: !prev[step] }));
+  const snapByStep = (cs: number) => chain.find((s) => s.step === cs) || null;
+  const completedCount = CHAIN_STEPS.filter((s) => snapByStep(s.contractStep)).length;
   const isComplete = completedCount === 3;
 
   // IPFS artifacts
-  const signSnap = snapByStage(ContractStage.SIGN);
+  const signSnap = snapByStep(ContractStep.SIGN);
   const sigIPFS = signSnap?.signatureFileIPFS || product.signatureFilePath || "";
   const pkIPFS = signSnap?.publicKeyFileIPFS || product.publicKeyFilePath || "";
 
@@ -183,7 +183,7 @@ export default function ProvenanceChainCard({ variants, product, borderColor = "
             <strong>{product.name}</strong> v{product.version}
           </Typography>
           <Chip
-            label={isComplete ? `✅ COMPLETE (${completedCount}/3)` : `${completedCount}/3 stages`}
+            label={isComplete ? `✅ COMPLETE (${completedCount}/3)` : `${completedCount}/3 steps`}
             size="small"
             sx={{
               bgcolor: isComplete ? "rgba(76,175,80,.15)" : "rgba(255,152,0,.15)",
@@ -203,18 +203,18 @@ export default function ProvenanceChainCard({ variants, product, borderColor = "
           </Box>
         ) : (
           <Box>
-            {/* Stage Blocks */}
-            {STAGES.map((cfg, idx) => {
-              const snap = snapByStage(cfg.contractStage);
+            {/* Step Blocks */}
+            {CHAIN_STEPS.map((cfg, idx) => {
+              const snap = snapByStep(cfg.contractStep);
               const exists = !!snap;
-              const isExp = !!expanded[cfg.contractStage];
+              const isExp = !!expanded[cfg.contractStep];
               let repos: any[] = [];
               if (snap) { try { repos = JSON.parse(snap.reposJson || "[]"); } catch { /* */ } }
 
               return (
                 <Box key={cfg.key}>
                   <Paper
-                    onClick={() => exists && toggle(cfg.contractStage)}
+                    onClick={() => exists && toggle(cfg.contractStep)}
                     sx={{
                       p: 2, cursor: exists ? "pointer" : "default",
                       border: `2px solid ${exists ? cfg.color : "rgba(255,255,255,.1)"}`,
@@ -234,7 +234,7 @@ export default function ProvenanceChainCard({ variants, product, borderColor = "
                           <Stack direction="row" spacing={1} alignItems="center">
                             <Box sx={{ color: cfg.color }}>{cfg.icon}</Box>
                             <Typography fontWeight={700} sx={{ color: exists ? cfg.color : "text.disabled" }}>
-                              Stage {idx + 1}: {cfg.label}
+                              Step {idx + 1}: {cfg.label}
                             </Typography>
                             {snap && (
                               <Chip label={snap.status} size="small" color={snap.status === "Rejected" ? "error" : "success"} sx={{ fontWeight: 700, ml: 1 }} />
@@ -378,11 +378,11 @@ export default function ProvenanceChainCard({ variants, product, borderColor = "
                   </Collapse>
 
                   {/* Connector arrow */}
-                  {idx < STAGES.length - 1 && (
+                  {idx < CHAIN_STEPS.length - 1 && (
                     <Box sx={{ display: "flex", justifyContent: "center", py: 1 }}>
                       <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                        <Box sx={{ width: 3, height: 20, bgcolor: exists && snapByStage(STAGES[idx + 1].contractStage) ? cfg.color : "rgba(255,255,255,.12)", borderRadius: 1 }} />
-                        <ArrowDownwardIcon sx={{ fontSize: 18, color: exists && snapByStage(STAGES[idx + 1].contractStage) ? cfg.color : "rgba(255,255,255,.15)" }} />
+                        <Box sx={{ width: 3, height: 20, bgcolor: exists && snapByStep(CHAIN_STEPS[idx + 1].contractStep) ? cfg.color : "rgba(255,255,255,.12)", borderRadius: 1 }} />
+                        <ArrowDownwardIcon sx={{ fontSize: 18, color: exists && snapByStep(CHAIN_STEPS[idx + 1].contractStep) ? cfg.color : "rgba(255,255,255,.15)" }} />
                       </Box>
                     </Box>
                   )}
@@ -399,11 +399,11 @@ export default function ProvenanceChainCard({ variants, product, borderColor = "
                 </Typography>
               </Stack>
               <Typography variant="caption" color="text.secondary" display="block">
-                Stages recorded: {completedCount}/3
+                Steps recorded: {completedCount}/3
                 {(() => {
-                  const scanS = snapByStage(ContractStage.SCAN);
-                  const signS = snapByStage(ContractStage.SIGN);
-                  const releaseS = snapByStage(ContractStage.RELEASE);
+                  const scanS = snapByStep(ContractStep.SCAN);
+                  const signS = snapByStep(ContractStep.SIGN);
+                  const releaseS = snapByStep(ContractStep.RELEASE);
                   const parts: string[] = [];
                   if (scanS && releaseS) parts.push(`Scan → Release: ${timeDiff(scanS.timestamp, releaseS.timestamp)}`);
                   if (releaseS && signS) parts.push(`Release → Sign: ${timeDiff(releaseS.timestamp, signS.timestamp)}`);
@@ -418,7 +418,7 @@ export default function ProvenanceChainCard({ variants, product, borderColor = "
               <Paper sx={{ p: 2.5, mt: 2, border: "1px solid rgba(0,229,255,.2)", borderRadius: 2, bgcolor: "rgba(0,229,255,.04)" }}>
                 <SH icon={<DownloadIcon sx={{ fontSize: 18, color: "#00e5ff" }} />} label="Download Signing Artifacts (from IPFS)" color="#00e5ff" />
                 <Typography variant="caption" color="text.secondary" display="block" mb={2}>
-                  These files were uploaded to IPFS during the signing stage and are permanently stored.
+                  These files were uploaded to IPFS during the signing step and are permanently stored.
                 </Typography>
                 <Stack spacing={1.5}>
                   {sigIPFS && (
