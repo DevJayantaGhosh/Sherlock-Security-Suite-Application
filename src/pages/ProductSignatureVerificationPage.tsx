@@ -1,0 +1,121 @@
+// src/pages/ProductSignatureVerificationPage.tsx
+import { useState, useCallback, useEffect } from "react";
+import { Box, Container, CircularProgress, Paper, Typography, Button } from "@mui/material";
+import { motion, Variants } from "framer-motion";
+import ProductHeader from "../components/products/ProductHeader";
+import ProvenanceChainCard from "../components/blockchain/ProvenanceChainCard";
+import ProductSignatureVerificationCard from "../components/verification/ProductSignatureVerificationCard";
+import ProductWorkflowNav from "../components/products/ProductWorkflowNav";
+import { getProductById } from "../services/productService";
+import { Product } from "../models/Product";
+import { toast } from "react-hot-toast";
+import { useParams, useNavigate } from "react-router-dom";
+
+const itemVariants: Variants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
+};
+
+interface ProductRepoDetails {
+  repoUrl: string;
+  branch: string;
+  releaseTag?: string;
+  isLocal: false;
+}
+
+export default function ProductSignatureVerificationPage() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+
+  const [product, setProduct] = useState<Product | null>(null);
+  const [repoDetailsList, setRepoDetailsList] = useState<ProductRepoDetails[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadProduct = useCallback(async () => {
+    if (!id) {
+      toast.error("Invalid product ID");
+      navigate("/products");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const result = await getProductById(id);
+      if (result.error || !result.data) {
+        toast.error("Product not found");
+        navigate("/products");
+        return;
+      }
+
+      const productData = result.data;
+      setProduct(productData);
+
+      // Transform product.repos → ProductRepoDetails[]
+      const detailsList: ProductRepoDetails[] = productData.repos.map((repo: any) => ({
+        repoUrl: repo.repoUrl,
+        branch: repo.branch,
+        releaseTag: productData.version,
+        isLocal: false
+      }));
+
+      setRepoDetailsList(detailsList);
+    } catch (error) {
+      toast.error("Failed to load product");
+      navigate("/products");
+    } finally {
+      setLoading(false);
+    }
+  }, [id, navigate]);
+
+  useEffect(() => {
+    loadProduct();
+  }, [loadProduct]);
+
+  if (loading) {
+    return (
+      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "50vh" }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (!product || repoDetailsList.length === 0) {
+    return (
+      <Container maxWidth="lg" sx={{ pt: 10, minHeight: "50vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Paper sx={{ p: 4, textAlign: "center" }}>
+          <Typography color="text.secondary" mb={2}>Product not found</Typography>
+          <Button variant="contained" onClick={() => navigate("/products")}>Go to Products</Button>
+        </Paper>
+      </Container>
+    );
+  }
+
+  return (
+    <Box sx={{ pt: 10, pb: 8, minHeight: "100vh", bgcolor: "background.default" }}>
+      <Container maxWidth="lg">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          <ProductHeader product={product} pageType="verify" />
+
+          {/* Provenance Chain — shows all 3 blockchain steps */}
+          <ProvenanceChainCard product={product} variants={itemVariants} borderColor="#4caf50" />
+
+          <ProductSignatureVerificationCard
+            repoDetailsList={repoDetailsList}
+            productName={product.name}  // ✅ Add this
+            productVersion={product.version}
+            githubToken=""
+            borderColor="#4caf50"
+          />
+
+          {/* Workflow Navigation */}
+          <ProductWorkflowNav
+            currentStep="signature-verify"
+            product={product}
+            accentColor="#4caf50"
+          />
+
+        </motion.div>
+      </Container>
+    </Box>
+  );
+}

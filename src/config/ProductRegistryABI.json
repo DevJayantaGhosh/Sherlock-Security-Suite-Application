@@ -1,0 +1,524 @@
+[
+  {
+    "inputs": [],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "string",
+        "name": "productId",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "enum ProductRegistry.Step",
+        "name": "step",
+        "type": "uint8"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "status",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "recordedBy",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "timestamp",
+        "type": "uint256"
+      }
+    ],
+    "name": "ProductRecorded",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "ServiceAccountAdded",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "ServiceAccountRemoved",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_account",
+        "type": "address"
+      }
+    ],
+    "name": "addServiceAccount",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getAllServiceAccounts",
+    "outputs": [
+      {
+        "internalType": "address[]",
+        "name": "",
+        "type": "address[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "productId",
+        "type": "string"
+      }
+    ],
+    "name": "getAllSnapshotsByProductId",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "string",
+            "name": "productId",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "version",
+            "type": "string"
+          },
+          {
+            "internalType": "bool",
+            "name": "isOpenSource",
+            "type": "bool"
+          },
+          {
+            "internalType": "string",
+            "name": "description",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "productDirector",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "securityHead",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "releaseEngineers",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "reposJson",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "dependencies",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "status",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "remark",
+            "type": "string"
+          },
+          {
+            "internalType": "enum ProductRegistry.Step",
+            "name": "step",
+            "type": "uint8"
+          },
+          {
+            "internalType": "string",
+            "name": "signatureFileIPFS",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "publicKeyFileIPFS",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "createdBy",
+            "type": "string"
+          },
+          {
+            "internalType": "uint256",
+            "name": "timestamp",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "recordedBy",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct ProductRegistry.ProductSnapshot[]",
+        "name": "",
+        "type": "tuple[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getServiceAccountCount",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "productId",
+        "type": "string"
+      },
+      {
+        "internalType": "uint256",
+        "name": "index",
+        "type": "uint256"
+      }
+    ],
+    "name": "getSnapshot",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "string",
+            "name": "productId",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "version",
+            "type": "string"
+          },
+          {
+            "internalType": "bool",
+            "name": "isOpenSource",
+            "type": "bool"
+          },
+          {
+            "internalType": "string",
+            "name": "description",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "productDirector",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "securityHead",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "releaseEngineers",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "reposJson",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "dependencies",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "status",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "remark",
+            "type": "string"
+          },
+          {
+            "internalType": "enum ProductRegistry.Step",
+            "name": "step",
+            "type": "uint8"
+          },
+          {
+            "internalType": "string",
+            "name": "signatureFileIPFS",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "publicKeyFileIPFS",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "createdBy",
+            "type": "string"
+          },
+          {
+            "internalType": "uint256",
+            "name": "timestamp",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "recordedBy",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct ProductRegistry.ProductSnapshot",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "productId",
+        "type": "string"
+      }
+    ],
+    "name": "getSnapshotCount",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "owner",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "string",
+            "name": "productId",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "version",
+            "type": "string"
+          },
+          {
+            "internalType": "bool",
+            "name": "isOpenSource",
+            "type": "bool"
+          },
+          {
+            "internalType": "string",
+            "name": "description",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "productDirector",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "securityHead",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "releaseEngineers",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "reposJson",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "dependencies",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "status",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "remark",
+            "type": "string"
+          },
+          {
+            "internalType": "enum ProductRegistry.Step",
+            "name": "step",
+            "type": "uint8"
+          },
+          {
+            "internalType": "string",
+            "name": "signatureFileIPFS",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "publicKeyFileIPFS",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "createdBy",
+            "type": "string"
+          },
+          {
+            "internalType": "uint256",
+            "name": "timestamp",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "recordedBy",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct ProductRegistry.ProductSnapshot",
+        "name": "metadata",
+        "type": "tuple"
+      }
+    ],
+    "name": "recordProduct",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_account",
+        "type": "address"
+      }
+    ],
+    "name": "removeServiceAccount",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "serviceAccounts",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "name": "snapshotCount",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]
