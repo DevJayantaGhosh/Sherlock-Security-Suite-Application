@@ -130,21 +130,7 @@ License activation is required to access the proprietary product distribution pi
                   >
                     📱 UPI Pay
                   </Button>
-                  <Button
-                    variant="contained"
-                    size="small"
-                    sx={{
-                      py: 0.5,
-                      fontSize: "0.7rem",
-                      height: 28,
-                      minWidth: 44,
-                      background: "#f59e0b",
-                      "&:hover": { background: "#d97706" }
-                    }}
-                    onClick={() => window.open("https://nowpayments.io", "_blank")}
-                  >
-                    🪙 CryptoPay
-                  </Button>
+
                 </Box>
               </Paper>
             </Box>

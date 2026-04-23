@@ -174,21 +174,7 @@ export default function RegisterPage() {
                   >
                     📱 UPI Pay
                   </Button>
-                  <Button 
-                    variant="contained" 
-                    size="small"
-                    sx={{ 
-                      flex: 1, 
-                      fontSize: "0.75rem",
-                      py: 0.75,
-                      background: "#f59e0b",
-                      color: "white",
-                      "&:hover": { background: "#d97706" }
-                    }}
-                    onClick={() => window.open("https://nowpayments.io", "_blank")}
-                  >
-                    🪙 CryptoPay
-                  </Button>
+
                 </Box>
               </Paper>
 
