@@ -38,6 +38,7 @@ import {
 import { getGatewayUrl, fetchBytesFromIPFS } from "../../services/ipfsService";
 import { ContractStep, getHashScanAccountUrl } from "../../config/blockchainConfig";
 import LinkIcon from "@mui/icons-material/Link";
+import IPFSLogViewer from "../ipfs/IPFSLogViewer";
 
 /* ── Props ── */
 export interface ProvenanceChainCardProps {
@@ -74,30 +75,50 @@ function SH({ icon, label, color }: { icon: React.ReactNode; label: string; colo
   );
 }
 
+
 function ScanLines({ scans }: { scans: any }) {
   if (!scans) return null;
   const gpgS = scans.signatureVerification?.summary;
   const leakS = scans.secretLeakDetection?.summary;
   const vulnS = scans.vulnerabilityScan?.summary;
+  const sbomS = scans.sbomGeneration?.summary;
   return (
     <Box mt={0.5}>
       {scans.signatureVerification && (
-        <Typography variant="caption" display="block" sx={{ ml: 1, color: gpgS && gpgS.goodSignatures === gpgS.totalCommits ? "#4caf50" : "#f44336" }}>
-          {"• GPG: "}<strong>{scans.signatureVerification.status}</strong>
-          {gpgS ? ` — ${gpgS.goodSignatures}/${gpgS.totalCommits} verified` : ""}
-        </Typography>
+        <Box>
+          <Typography variant="caption" display="block" sx={{ ml: 1, color: gpgS && gpgS.goodSignatures === gpgS.totalCommits ? "#4caf50" : "#f44336" }}>
+            {"• GPG: "}<strong>{scans.signatureVerification.status}</strong>
+            {gpgS ? ` — ${gpgS.goodSignatures}/${gpgS.totalCommits} verified` : ""}
+          </Typography>
+          <IPFSLogViewer cid={scans.signatureVerification.logsCID} label="GPG" />
+        </Box>
       )}
       {scans.secretLeakDetection && (
-        <Typography variant="caption" display="block" sx={{ ml: 1, color: leakS && leakS.findings === 0 ? "#4caf50" : "#f44336" }}>
-          {"• Secrets: "}<strong>{scans.secretLeakDetection.status}</strong>
-          {leakS ? ` — ${leakS.findings} findings` : ""}
-        </Typography>
+        <Box>
+          <Typography variant="caption" display="block" sx={{ ml: 1, color: leakS && leakS.findings === 0 ? "#4caf50" : "#f44336" }}>
+            {"• Secrets: "}<strong>{scans.secretLeakDetection.status}</strong>
+            {leakS ? ` — ${leakS.findings} findings` : ""}
+          </Typography>
+          <IPFSLogViewer cid={scans.secretLeakDetection.logsCID} label="Gitleaks" />
+        </Box>
+      )}
+      {scans.sbomGeneration && (
+        <Box>
+          <Typography variant="caption" display="block" sx={{ ml: 1, color: sbomS ? "#4caf50" : "text.secondary" }}>
+            {"• SBOM: "}<strong>{scans.sbomGeneration.status}</strong>
+            {sbomS ? ` — ${sbomS.totalPackages} packages` : ""}
+          </Typography>
+          <IPFSLogViewer cid={scans.sbomGeneration.logsCID} label="SBOM" />
+        </Box>
       )}
       {scans.vulnerabilityScan && (
-        <Typography variant="caption" display="block" sx={{ ml: 1, color: vulnS && (vulnS.critical || 0) === 0 && (vulnS.high || 0) === 0 ? "#4caf50" : "#f44336" }}>
-          {"• Vuln: "}<strong>{scans.vulnerabilityScan.status}</strong>
-          {vulnS ? ` — C:${vulnS.critical || 0} H:${vulnS.high || 0} M:${vulnS.medium || 0} L:${vulnS.low || 0}` : ""}
-        </Typography>
+        <Box>
+          <Typography variant="caption" display="block" sx={{ ml: 1, color: vulnS && (vulnS.critical || 0) === 0 && (vulnS.high || 0) === 0 ? "#4caf50" : "#f44336" }}>
+            {"• Vuln: "}<strong>{scans.vulnerabilityScan.status}</strong>
+            {vulnS ? ` — C:${vulnS.critical || 0} H:${vulnS.high || 0} M:${vulnS.medium || 0} L:${vulnS.low || 0}` : ""}
+          </Typography>
+          <IPFSLogViewer cid={scans.vulnerabilityScan.logsCID} label="Vulnerability" />
+        </Box>
       )}
     </Box>
   );
