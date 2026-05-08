@@ -1,21 +1,149 @@
 <h1 align="center">🛡️ Sherlock Security Suite 🛡️</h1>
 
-<p align="center">
-  <strong>Enterprise-grade security platform that safeguards software supply chain integrity using cryptography, blockchain, and AI driven technology.
-</strong>
+<p>
+  <strong> Enterprise-Grade Secure Software Delivery: A Cryptographic Framework for Code-Signing, Artifact Integrity, and Provenance Assurance in Software Supply Chain </strong>
 </p>
 
 ---
 
 
-> **Author:** Jayanta Ghosh (CS23M513, IIT Madras)  
-
+> **Author:** Jayanta Ghosh  
 
 ---
 
-## Overview
+## Abstract
 
-Sherlock Security Suite is a security platform for software supply chain integrity. It runs as:
+Modern software supply chains are increasingly targeted through dependency poisoning, credential leakage, and artifact tampering. Supply chain attacks have surged 742% since 2019 with over 245,000 malicious packages detected in open-source ecosystems (Sonatype, 2024). Gartner predicts 45% of organizations will experience such attacks by 2025, while 84% of codebases contain at least one known vulnerability (Synopsys OSSRA, 2024). Current tooling addresses these threats in isolation, leaving no unified, cryptographically verifiable chain of custody from audited source to published release.
+
+**Sherlock Security Suite** combines cryptographic trust, blockchain-backed auditing, and AI-driven analytics to enforce end-to-end supply chain integrity through a blockchain-anchored provenance distribution pipeline (SCAN → RELEASE → SIGN):
+
+**(1) Vulnerability Scanning & Proactive Defense** — automated vulnerability scanning with CVE correlation, Software Bill of Materials (SBOM) generation in CycloneDX format, secret leak detection via Gitleaks across repository history, and GPG commit signature verification for developer identity validation.
+
+**(2) Cryptographic Trust & Software Integrity** — RSA/ECDSA key pair generation and deterministic digital code-signing of artifacts. Signed artifacts are archived on the InterPlanetary File System (IPFS), producing immutable Content Identifiers (CIDs) guaranteeing bitwise integrity.
+
+**(3) Blockchain-Backed Secure Distribution** — each lifecycle step is permanently inscribed on the Hedera Hashgraph distributed ledger through a custom Solidity smart contract (ProductRegistry), binding scan decisions, release metadata, and IPFS CIDs into a tamper-evident provenance record.
+
+**(4) AI-Driven Security Intelligence** — Large Language Model integration for automated vulnerability triage and remediation guidance.
+
+The architecture enables any stakeholder to cryptographically audit the complete journey of a software artifact — anchored on public blockchain and decentralized storage.
+
+---
+
+## High-Level Architecture & Service Interactions
+
+```
+                                         ┌──────────┐
+                                         │   USER   │
+                                         └────┬─────┘
+                                              │
+                          ┌───────────────────┼────────────────────┐
+                          │ 1. Login /        │ 2. Authenticated   │
+                          │    Register       │    Requests (JWT)  │
+                          ▼                   ▼                    │
+ ┌═══════════════════════════════════════════════════════════════════════════════════════┐
+ ║                                                                                       ║
+ ║                         Q-SHERLOCK SECURITY SUITE                                     ║
+ ║                       (Electron Desktop / Web Browser)                                ║
+ ║                                                                                       ║
+ ║  ┌────────────────────────────────────────────────────────────────────────────────┐   ║
+ ║  │                         React Frontend (SPA)                                   │   ║
+ ║  │          Pages · Components · Services · Store (Zustand)                       │   ║
+ ║  │                      Platform Bridge (auto-detect)                             │   ║
+ ║  └────────────────────────────────────────────────────────────────────────────────┘   ║
+ ║                                                                                       ║
+ ║  ┌────────────────────────────────────────────────────────────────────────────────┐   ║
+ ║  │                      Security Tools (Bundled CLIs)                             │   ║
+ ║  │                                                                                │   ║
+ ║  │   ┌─────────────────┐   ┌─────────────────┐   ┌─────────────────┐              │   ║
+ ║  │   │  SECURITY SCAN  │   │    SIGNING      │   │  VERIFICATION   │              │   ║
+ ║  │   │                 │   │                 │   │                 │              │   ║
+ ║  │   │ • GPG Commit    │   │ • KeyGen        │   │ • Software      │              │   ║
+ ║  │   │   Verifier      │   │   (RSA / ECDSA) │   │   Verifier      │              │   ║
+ ║  │   │ • GitLeaks      │   │ • Software      │   │                 │              │   ║
+ ║  │   │   (Secret Scan) │   │   Signer        │   │                 │              │   ║
+ ║  │   │ • Vuln Scanner  │   │                 │   │                 │              │   ║
+ ║  │   │   (CVE + SBOM)  │   │                 │   │                 │              │   ║
+ ║  │   └─────────────────┘   └─────────────────┘   └─────────────────┘              │   ║
+ ║  └────────────────────────────────────────────────────────────────────────────────┘   ║
+ ║                                                                                       ║
+ ╚════╤═══════════════╤══════════════════╤═══════════════════╤══════════════╤════════════╝
+      │               │                  │                   │              │
+      │ Auth API      │ Product API      │ Upload            │ Inscribe     │ AI Query
+      │ (REST)        │ (REST + JWT)     │ Artifacts         │ Provenance   │ (Streaming)
+      │               │                  │                   │              │
+      ▼               ▼                  ▼                   ▼              ▼
+┌────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+│   User     │  │   Product    │  │              │  │  Blockchain  │  │   LiteLLM    │
+│Management  │  │  Management  │  │     IPFS     │  │   (Hedera    │  │   Proxy      │
+│Microservice│  │ Microservice │  │  (Storacha)  │  │  Hashgraph)  │  │              │
+│            │  │              │  │              │  │              │  │              │
+└─────┬──────┘  └──────┬───────┘  └──────┬───────┘  └───────┬──────┘  └──────┬───────┘
+      │                │                 │              ▲   │                │
+      ▼                ▼                 │    CID       │   │                ▼
+┌───────────┐  ┌──────────────┐          └──────────────┘   │         ┌──────────────┐
+│PostgreSQL │  │   MongoDB    │          (CID stored        │         │  LLM Models  │
+│           │  │              │           on-chain)         │         │              │
+│ • Users   │  │ • Products   │                             │         │ • GPT-4o     │
+│ • Roles   │  │ • Repos      │    Smart Contract           │         │ • Gemini     │
+│ • Licenses│  │ • Scan Data  │    (ProductRegistry.sol)    │         │ • Ollama     │
+│           │  │ • Artifacts  │    • recordStep()           │         │ • Mistral    │
+└───────────┘  └──────────────┘    • getSnapshots()         │         └──────────────┘
+                                                            │
+                                                   ┌────────┴────────┐
+                                                   │   HashScan.io   │
+                                                   │  (Tx Explorer)  │
+                                                   └─────────────────┘
+```
+
+---
+
+## Interaction Flow Summary
+
+| # | Flow | Path |
+|---|------|------|
+| 1 | **Authentication** | User → Sherlock Suite → User Management Service → PostgreSQL |
+| 2 | **Product Management** | User (JWT) → Sherlock Suite → Product Management Service → MongoDB |
+| 3 | **Security Scanning** | User → Sherlock Suite → Bundled CLI Tools (GitLeaks, Vuln Scanner, GPG Verifier) |
+| 4 | **Cryptographic Signing** | User → Sherlock Suite → KeyGen + SoftwareSigner tools |
+| 5 | **Signature Verification** | User → Sherlock Suite → SoftwareVerifier tool |
+| 6 | **IPFS Archival** | User → Sherlock Suite → IPFS (Storacha) → CID stored on Hedera Blockchain |
+| 7 | **Blockchain Inscription** | User → Sherlock Suite → Hedera Hashgraph (Smart Contract) |
+| 8 | **AI Security Analysis** | User → Sherlock Suite → LiteLLM Proxy → LLM Models (GPT-4o, Gemini, Ollama) |
+
+---
+
+## 3-Step Provenance Pipeline
+
+```
+  ┌─────────────────┐       ┌─────────────────┐       ┌─────────────────┐
+  │   STEP 1: SCAN  │──────►│ STEP 2: RELEASE │──────►│  STEP 3: SIGN   │
+  │                 │       │                 │       │                 │
+  │ • GPG Verify    │       │ • GitHub Release│       │ • Key Generate  │
+  │ • Secret Scan   │       │ • Tag & Publish │       │ • Digital Sign  │
+  │ • Vuln Scan     │       │                 │       │ • IPFS Upload   │
+  │ • SBOM Generate │       │                 │       │                 │
+  │                 │       │                 │       │                 │
+  │  ┌───────────┐  │       │  ┌───────────┐  │       │  ┌───────────┐  │
+  │  │ Inscribe  │  │       │  │ Inscribe  │  │       │  │ Inscribe  │  │
+  │  │ on Hedera │  │       │  │ on Hedera │  │       │  │ on Hedera │  │
+  │  └───────────┘  │       │  └───────────┘  │       │  └───────────┘  │
+  └─────────────────┘       └─────────────────┘       └─────────────────┘
+         │                         │                         │
+         ▼                         ▼                         ▼
+  ┌─────────────────────────────────────────────────────────────────┐
+  │              Hedera Hashgraph — Immutable Provenance            │
+  │                                                                 │
+  │   ProductRegistry Smart Contract (Solidity)                     │
+  │   • recordStep(productId, step, snapshot)                       │
+  │   • getProductSnapshots(productId) → 3 on-chain records         │
+  └─────────────────────────────────────────────────────────────────┘
+```
+
+Each step's decision (Approved / Rejected) is permanently inscribed on-chain with full product metadata, scan results, and IPFS artifact CIDs.
+
+---
+
+## Sherlock Security Suite_ is a security platform for software supply chain integrity. It runs as:
 
 - **Desktop Mode** — Electron app with local IPC for native OS access  
 - **Web Mode** — Browser SPA backed by a Node.js host-server via REST & SSE  
@@ -24,7 +152,7 @@ Both modes share the **same React frontend**. A platform abstraction layer auto-
 
 ---
 
-## High-Level Architecture
+## High-Level Application Workflow
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────────┐
@@ -323,10 +451,6 @@ Signing artifacts (signature file & public key) are stored across **three system
 
 ### Retrieval
 
-`ProvenanceChain UI Component` reads CIDs from the blockchain snapshot or ApplicationDB fallback:
-```
-signSnap?.signatureFileIPFS || product.signatureFilePath
-```
 Users can download artifacts directly from IPFS storage
 
 ---
@@ -352,7 +476,7 @@ Platform-specific binaries are bundled under `tools/`:
 | **GPG Signed Commit Verifier** | Verify GPG-signed commits | Win, macOS, Linux |
 | **GitLeaks** | Secret/credential leak detection | Win, macOS, Linux |
 | **VulnerabilityScanner** | Vulnerability scanner & SBOM | Win, macOS, Linux |
-| **KeyGen** | RSA/ECDSA key pair generation | Win, macOS, Linux |
+| **KeyGenerator** | RSA/ECDSA key pair generation | Win, macOS, Linux |
 | **SoftwareSigner** | Artifact digital signing | Win, macOS, Linux |
 | **SoftwareVerifier** | Signature verification | Win, macOS, Linux |
 
