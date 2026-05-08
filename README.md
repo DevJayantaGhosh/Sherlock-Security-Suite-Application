@@ -13,7 +13,28 @@
 
 ## Abstract
 
-Modern software supply chains are increasingly targeted through dependency poisoning, credential leakage, and artifact tampering. Supply chain attacks have surged 742% since 2019 with over 245,000 malicious packages detected in open-source ecosystems (Sonatype, 2024). Gartner predicts 45% of organizations will experience such attacks by 2025, while 84% of codebases contain at least one known vulnerability (Synopsys OSSRA, 2024). Current tooling addresses these threats in isolation, leaving no unified, cryptographically verifiable chain of custody from audited source to published release.
+Modern software supply chains are increasingly susceptible to dependency poisoning, credential leakage, and 
+artifact tampering. Q-Sherlock Security Suite mitigates these risks through an end-to-end secure delivery framework 
+that integrates AI-assisted vulnerability analysis, cryptographic code signing, and blockchain-backed provenance 
+auditing. The framework provides a hardened security combining decentralized trust, cryptographic verification, and 
+enterprise-grade controls to ensure verifiable and tamper-resistant software distribution. 
+
+## Problem Definition and Motivation 
+Despite the availability of vulnerability scanners, code-signing utilities, and package managers, these tools typically 
+operate in isolation and fail to produce a unified, cryptographically verifiable, blockchain-anchored chain of trust 
+from code audit to final signed release. Most existing solutions centralize trust under a single organization, creating 
+a monopoly over verification and distribution. This lack of transparency fundamentally conflicts with the needs of 
+open-source software, which depends on openness, independent verification, and public auditable trust. 
+
+- No single platform links evidence across stages—scanned → released → signed—into one verifiable 
+provenance record. 
+- There is no end-to-end, tamper-evident chain of evidence that survives compromise of the producer’s 
+infrastructure. 
+- Integrity and authenticity cannot be validated independently. 
+- Lack of decentralization: centralized trust creates single points of failure and concentrates control over 
+verification and distribution within one administrative domain. 
+- Publicly auditable provenance from source audit to signed release is typically unavailable, limiting 
+transparency for open-source consumers. 
 
 **Sherlock Security Suite** combines cryptographic trust, blockchain-backed auditing, and AI-driven analytics to enforce end-to-end supply chain integrity through a blockchain-anchored provenance distribution pipeline (SCAN → RELEASE → SIGN):
 
