@@ -30,6 +30,7 @@ import {
   getStepName, ProductSnapshot,
 } from "../../services/blockchainService";
 import { updateProduct } from "../../services/productService";
+import IPFSLogViewer from "../ipfs/IPFSLogViewer";
 
 /* ────────────────────────────────────────────────────────────
  *  Props
@@ -72,8 +73,9 @@ function SH({ icon, label, color }: { icon: React.ReactNode; label: string; colo
   );
 }
 
+
 /* ────────────────────────────────────────────────────────────
- *  Inline scan summary — plain text, no misleading green chips
+ *  Inline scan summary with IPFS log viewer
  * ──────────────────────────────────────────────────────────── */
 function ScanLines({ scans }: { scans: any }) {
   if (!scans) return null;
@@ -95,28 +97,40 @@ function ScanLines({ scans }: { scans: any }) {
   return (
     <Box mt={.5}>
       {scans.signatureVerification && (
-        <Typography variant="caption" display="block" sx={{ ml: 1, color: gpgOk ? "#4caf50" : "#f44336" }}>
-          {"• GPG Verification: "}<strong>{scans.signatureVerification.status}</strong>
-          {gpgSummary ? ` — ${gpgSummary.goodSignatures}/${gpgSummary.totalCommits} commits verified` : ""}
-        </Typography>
+        <Box>
+          <Typography variant="caption" display="block" sx={{ ml: 1, color: gpgOk ? "#4caf50" : "#f44336" }}>
+            {"• GPG Verification: "}<strong>{scans.signatureVerification.status}</strong>
+            {gpgSummary ? ` — ${gpgSummary.goodSignatures}/${gpgSummary.totalCommits} commits verified` : ""}
+          </Typography>
+          <IPFSLogViewer cid={scans.signatureVerification.logsCID} label="GPG" />
+        </Box>
       )}
       {scans.secretLeakDetection && (
-        <Typography variant="caption" display="block" sx={{ ml: 1, color: leakOk ? "#4caf50" : "#f44336" }}>
-          {"• Secret Leak Detection: "}<strong>{scans.secretLeakDetection.status}</strong>
-          {leakSummary ? ` — ${leakSummary.findings} findings` : ""}
-        </Typography>
+        <Box>
+          <Typography variant="caption" display="block" sx={{ ml: 1, color: leakOk ? "#4caf50" : "#f44336" }}>
+            {"• Secret Leak Detection: "}<strong>{scans.secretLeakDetection.status}</strong>
+            {leakSummary ? ` — ${leakSummary.findings} findings` : ""}
+          </Typography>
+          <IPFSLogViewer cid={scans.secretLeakDetection.logsCID} label="Gitleaks" />
+        </Box>
       )}
       {scans.sbomGeneration && (
-        <Typography variant="caption" display="block" sx={{ ml: 1, color: scans.sbomGeneration.status === "success" ? "#4caf50" : "#f44336" }}>
-          {"• SBOM Generation: "}<strong>{scans.sbomGeneration.status}</strong>
-          {scans.sbomGeneration.summary ? ` — ${scans.sbomGeneration.summary.totalPackages} packages` : ""}
-        </Typography>
+        <Box>
+          <Typography variant="caption" display="block" sx={{ ml: 1, color: scans.sbomGeneration.status === "success" ? "#4caf50" : "#f44336" }}>
+            {"• SBOM Generation: "}<strong>{scans.sbomGeneration.status}</strong>
+            {scans.sbomGeneration.summary ? ` — ${scans.sbomGeneration.summary.totalPackages} packages` : ""}
+          </Typography>
+          <IPFSLogViewer cid={scans.sbomGeneration.logsCID} label="SBOM" />
+        </Box>
       )}
       {scans.vulnerabilityScan && (
-        <Typography variant="caption" display="block" sx={{ ml: 1, color: vulnOk ? "#4caf50" : "#f44336" }}>
-          {"• Vulnerability Scan: "}<strong>{scans.vulnerabilityScan.status}</strong>
-          {vulnSummary ? ` — ${vulnSummary.vulnerabilities} CVEs (Critical: ${vulnSummary.critical || 0}, High: ${vulnSummary.high || 0}, Medium: ${vulnSummary.medium || 0}, Low: ${vulnSummary.low || 0})` : ""}
-        </Typography>
+        <Box>
+          <Typography variant="caption" display="block" sx={{ ml: 1, color: vulnOk ? "#4caf50" : "#f44336" }}>
+            {"• Vulnerability Scan: "}<strong>{scans.vulnerabilityScan.status}</strong>
+            {vulnSummary ? ` — ${vulnSummary.vulnerabilities} CVEs (Critical: ${vulnSummary.critical || 0}, High: ${vulnSummary.high || 0}, Medium: ${vulnSummary.medium || 0}, Low: ${vulnSummary.low || 0})` : ""}
+          </Typography>
+          <IPFSLogViewer cid={scans.vulnerabilityScan.logsCID} label="Vulnerability" />
+        </Box>
       )}
     </Box>
   );
@@ -150,6 +164,40 @@ export default function BlockchainInscriptionCard({ variants, product, disabled,
     if (rp && rp.startsWith("https://hashscan.io")) { setDone(true); setUrl(rp); } else { setDone(false); setUrl(""); }
   }, [product, cfg.reportField]);
 
+  /* ── SCAN step validation ──
+   * ALL 4 scans must be completed AND all logs must be uploaded to IPFS */
+  let scanBlockReason = "";
+  const missingScans: string[] = [];
+  const missingIPFSUploads: string[] = [];
+
+  if (step === "SCAN") {
+    const scanKeys = [
+      { key: "signatureVerification", label: "GPG Verification" },
+      { key: "secretLeakDetection", label: "Gitleaks" },
+      { key: "sbomGeneration", label: "SBOM Generation" },
+      { key: "vulnerabilityScan", label: "Vulnerability Scan" },
+    ];
+
+    for (const repo of (product.repos || [])) {
+      for (const { key, label } of scanKeys) {
+        const scan = repo.scans ? (repo.scans as any)[key] : undefined;
+        if (!scan || (scan.status !== "success" && scan.status !== "failed")) {
+          missingScans.push(label);
+        } else if (scan.logs?.length > 0 && !scan.logsCID) {
+          missingIPFSUploads.push(label);
+        }
+      }
+    }
+
+    if (missingScans.length > 0) {
+      scanBlockReason = "All security scan steps must be completed before blockchain inscription.";
+    } else if (missingIPFSUploads.length > 0) {
+      scanBlockReason = "All scan logs must be uploaded to IPFS before blockchain inscription.";
+    }
+  }
+
+  const ipfsBlocked = scanBlockReason.length > 0;
+
   /* Connect wallet */
   const connect = useCallback(async () => {
     if (disabled) { toast(toolTip || "View-only", "warning"); return; }
@@ -171,6 +219,7 @@ export default function BlockchainInscriptionCard({ variants, product, disabled,
       const cs = step === "SCAN" ? ContractStep.SCAN : step === "SIGN" ? ContractStep.SIGN : ContractStep.RELEASE;
       const auto = `${step}: ${status} by ${user?.name || user?.email || "unknown"}`;
       const rmk = remark.trim() ? `${remark.trim()} | ${auto}` : auto;
+
       const snap = buildProductSnapshot(product, cs, status, user?.email || user?.name || "unknown", rmk,
         step === "SIGN" ? product.signatureFilePath || "" : "", step === "SIGN" ? product.publicKeyFilePath || "" : "");
       setTxStep(1);
@@ -230,6 +279,35 @@ export default function BlockchainInscriptionCard({ variants, product, disabled,
         <Typography variant="body2" color="text.secondary" mb={3}>Record your {step.toLowerCase()} decision permanently on Hedera Hashgraph.</Typography>
 
         {err && <Alert severity="error" icon={<ErrorOutlineIcon />} sx={{ mb: 2 }} onClose={() => setErr(null)}>{err}</Alert>}
+
+        {/* ── Scan Validation Warning ── */}
+        {ipfsBlocked && !done && (
+          <Alert severity="warning" sx={{ mb: 2, border: "1px solid #ff9800" }}>
+            <Typography variant="body2" fontWeight={600} gutterBottom>
+              ⚠️ {scanBlockReason}
+            </Typography>
+            {missingScans.length > 0 && (
+              <Box sx={{ mt: 1 }}>
+                <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>
+                  Pending security scan steps:
+                </Typography>
+                {[...new Set(missingScans)].map((m, i) => (
+                  <Chip key={i} label={`❌ ${m}`} size="small" color="error" variant="outlined" sx={{ mr: 0.5, mb: 0.5, fontSize: ".72rem" }} />
+                ))}
+              </Box>
+            )}
+            {missingIPFSUploads.length > 0 && (
+              <Box sx={{ mt: 1 }}>
+                <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>
+                  Scan logs pending IPFS upload:
+                </Typography>
+                {[...new Set(missingIPFSUploads)].map((m, i) => (
+                  <Chip key={i} label={`📤 ${m}`} size="small" color="warning" variant="outlined" sx={{ mr: 0.5, mb: 0.5, fontSize: ".72rem" }} />
+                ))}
+              </Box>
+            )}
+          </Alert>
+        )}
 
         {done ? (
           <Box>
@@ -338,14 +416,14 @@ export default function BlockchainInscriptionCard({ variants, product, disabled,
             </Paper>
             {wallet && (
               <Stack direction="row" spacing={2}>
-                <Tooltip title={disabled ? toolTip : ""}><span>
-                  <Button variant="contained" size="large" disabled={disabled} startIcon={<HubIcon />}
+                <Tooltip title={ipfsBlocked ? "Upload all scan logs to IPFS first" : disabled ? toolTip : ""}><span>
+                  <Button variant="contained" size="large" disabled={disabled || ipfsBlocked} startIcon={<HubIcon />}
                     onClick={() => openPreview(step === "SCAN" ? "Approved" : step === "SIGN" ? "Signed" : "Released")}
                     sx={{ bgcolor: cfg.color, color: "#000", fontWeight: 700, px: 3 }}>{cfg.approveButton}</Button>
                 </span></Tooltip>
                 {step === "SCAN" && cfg.rejectButton && (
-                  <Tooltip title={disabled ? toolTip : ""}><span>
-                    <Button variant="outlined" size="large" color="error" disabled={disabled}
+                  <Tooltip title={ipfsBlocked ? "Upload all scan logs to IPFS first" : disabled ? toolTip : ""}><span>
+                    <Button variant="outlined" size="large" color="error" disabled={disabled || ipfsBlocked}
                       onClick={() => openPreview("Rejected")} sx={{ fontWeight: 700, px: 3 }}>{cfg.rejectButton}</Button>
                   </span></Tooltip>
                 )}
