@@ -29,14 +29,229 @@ import CloseIcon from "@mui/icons-material/Close";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
 
+import CloudUploadIcon from "@mui/icons-material/CloudUpload";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
+import { Chip, Tooltip } from "@mui/material";
+
 import { Product, RepoDetails, RepoScanResults, SignatureVerificationResult,SecretLeakDetectionResult ,VulnerabilityScanResult, SBOMGenerationResult} from "../../models/Product";
 import CopyLogButton from "../CopyLogButton";
 import AnalyzeLogButton from "../AnalyzeLogButton";
 import { useUserStore } from "../../store/userStore";
 import { authorizeApprove } from "../../services/productService";
 import { platform } from "../../platform";
+import { uploadBytesToIPFS, getGatewayUrl, fetchFromIPFS } from "../../services/ipfsService";
 
 type ScanStatus = "idle" | "running" | "success" | "failed";
+
+/* ── Reusable IPFS Upload Button — with animated upload modal ── */
+function IPFSLogUploadButton({
+  logs,
+  scanType,
+  existingCID,
+  onUploaded,
+}: {
+  logs: string[];
+  scanType: string;
+  existingCID?: string;
+  onUploaded: (cid: string) => void;
+}) {
+  const [cid, setCid] = useState(existingCID || "");
+  const [modalOpen, setModalOpen] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<"uploading" | "success" | "error">("uploading");
+  const [errorMsg, setErrorMsg] = useState("");
+  const [resultCid, setResultCid] = useState("");
+
+  // View IPFS content
+  const [viewOpen, setViewOpen] = useState(false);
+  const [viewContent, setViewContent] = useState("");
+  const [fetching, setFetching] = useState(false);
+
+  // Sync with prop if parent updates
+  useEffect(() => { if (existingCID) setCid(existingCID); }, [existingCID]);
+
+  const handleUpload = async () => {
+    if (logs.length === 0) return;
+    setModalOpen(true);
+    setUploadStatus("uploading");
+    setErrorMsg("");
+    setResultCid("");
+
+    try {
+      const logText = logs.join("");
+      const fileName = `${scanType}-${Date.now()}.log`;
+      const result = await uploadBytesToIPFS(logText, fileName, { type: scanType });
+      setCid(result.cid);
+      setResultCid(result.cid);
+      setUploadStatus("success");
+      onUploaded(result.cid);
+      // Auto-close after 2.5s on success
+      setTimeout(() => setModalOpen(false), 2500);
+    } catch (err: any) {
+      console.error(`[IPFS] Upload failed for ${scanType}:`, err);
+      setUploadStatus("error");
+      setErrorMsg(err.message || "Connection refused. Is IPFS Desktop running?");
+    }
+  };
+
+  const handleViewCID = async () => {
+    setViewOpen(true);
+    setFetching(true);
+    try {
+      const content = await fetchFromIPFS(cid);
+      setViewContent(content);
+    } catch (err: any) {
+      setViewContent(`Error fetching from IPFS: ${err.message}`);
+    } finally {
+      setFetching(false);
+    }
+  };
+
+  if (logs.length === 0) return null;
+
+  return (
+    <>
+      <Stack direction="row" spacing={1} alignItems="center" sx={{ display: "inline-flex" }}>
+        {!cid ? (
+          <Tooltip title="Upload scan logs to IPFS for permanent archival">
+            <Button
+              size="small"
+              startIcon={<CloudUploadIcon />}
+              onClick={handleUpload}
+              sx={{ fontSize: "0.75rem", textTransform: "none" }}
+            >
+              Upload to IPFS
+            </Button>
+          </Tooltip>
+        ) : (
+          <Tooltip title="Click to view logs from IPFS">
+            <Chip
+              icon={<CheckCircleIcon sx={{ fontSize: 14 }} />}
+              label={`IPFS: ${cid.slice(0, 8)}…${cid.slice(-4)}`}
+              size="small"
+              color="success"
+              variant="outlined"
+              onClick={handleViewCID}
+              onDelete={() => window.open(getGatewayUrl(cid), "_blank")}
+              deleteIcon={<OpenInNewIcon sx={{ fontSize: 14 }} />}
+              sx={{ fontFamily: "'Fira Code', monospace", fontSize: "0.7rem", cursor: "pointer" }}
+            />
+          </Tooltip>
+        )}
+      </Stack>
+
+      {/* ── IPFS Upload Progress Modal ── */}
+      <Dialog
+        open={modalOpen}
+        onClose={() => uploadStatus !== "uploading" && setModalOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        disableEscapeKeyDown={uploadStatus === "uploading"}
+        PaperProps={{ sx: { backgroundColor: "#1e1e2e", backgroundImage: "none", borderRadius: 3, border: "1px solid rgba(123,92,255,.3)" } }}
+      >
+        <DialogContent sx={{ textAlign: "center", py: 5, px: 4 }}>
+          {uploadStatus === "uploading" && (
+            <Stack spacing={3} alignItems="center">
+              <Box sx={{ position: "relative", display: "inline-flex" }}>
+                <CircularProgress size={64} sx={{ color: "#7b5cff" }} />
+                <Box sx={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <CloudUploadIcon sx={{ fontSize: 28, color: "#7b5cff" }} />
+                </Box>
+              </Box>
+              <Typography variant="h6" fontWeight={700} sx={{ color: "#e0e0e0" }}>
+                Uploading to IPFS…
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Pinning <strong>{scanType}</strong> logs to your Kubo node
+              </Typography>
+              <LinearProgress sx={{ width: "80%", borderRadius: 1, "& .MuiLinearProgress-bar": { backgroundColor: "#7b5cff" } }} />
+            </Stack>
+          )}
+
+          {uploadStatus === "success" && (
+            <Stack spacing={2} alignItems="center">
+              <CheckCircleIcon sx={{ fontSize: 64, color: "#4caf50" }} />
+              <Typography variant="h6" fontWeight={700} sx={{ color: "#4caf50" }}>
+                Upload Successful!
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Scan logs pinned to IPFS
+              </Typography>
+              <Chip
+                label={resultCid}
+                size="small"
+                variant="outlined"
+                color="success"
+                sx={{ fontFamily: "'Fira Code', monospace", fontSize: "0.72rem", maxWidth: "100%" }}
+              />
+            </Stack>
+          )}
+
+          {uploadStatus === "error" && (
+            <Stack spacing={2} alignItems="center">
+              <Box sx={{ width: 64, height: 64, borderRadius: "50%", backgroundColor: "rgba(244,67,54,.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <CloseIcon sx={{ fontSize: 36, color: "#f44336" }} />
+              </Box>
+              <Typography variant="h6" fontWeight={700} sx={{ color: "#f44336" }}>
+                Upload Failed
+              </Typography>
+              <Alert severity="error" sx={{ width: "100%", textAlign: "left" }}>
+                <Typography variant="body2" sx={{ wordBreak: "break-word" }}>
+                  {errorMsg}
+                </Typography>
+              </Alert>
+              <Typography variant="caption" color="text.secondary">
+                Make sure IPFS Desktop (Kubo) is running on your machine.
+              </Typography>
+            </Stack>
+          )}
+        </DialogContent>
+
+        {uploadStatus !== "uploading" && (
+          <DialogActions sx={{ justifyContent: "center", pb: 3 }}>
+            <Button
+              onClick={() => setModalOpen(false)}
+              variant={uploadStatus === "error" ? "contained" : "outlined"}
+              color={uploadStatus === "error" ? "error" : "primary"}
+            >
+              {uploadStatus === "error" ? "Dismiss" : "Close"}
+            </Button>
+            {uploadStatus === "error" && (
+              <Button onClick={handleUpload} variant="outlined" startIcon={<CloudUploadIcon />}>
+                Retry
+              </Button>
+            )}
+          </DialogActions>
+        )}
+      </Dialog>
+
+      {/* ── IPFS Content Viewer Dialog ── */}
+      <Dialog open={viewOpen} onClose={() => setViewOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ backgroundColor: "#2d2d2d", borderBottom: "1px solid #404040" }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Typography variant="h6" fontWeight={600}>📄 IPFS Log — {scanType}</Typography>
+            <IconButton onClick={() => setViewOpen(false)} size="small"><CloseIcon /></IconButton>
+          </Stack>
+          <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "'Fira Code', monospace" }}>
+            CID: {cid}
+          </Typography>
+        </DialogTitle>
+        <DialogContent sx={{ backgroundColor: "#1a1a1a", p: 2, maxHeight: "60vh", overflow: "auto" }}>
+          {fetching ? (
+            <Stack alignItems="center" py={4}><CircularProgress size={24} /><Typography variant="body2" sx={{ mt: 1 }}>Fetching from IPFS…</Typography></Stack>
+          ) : (
+            <Box sx={{ fontFamily: "'Fira Code', monospace", fontSize: 12, color: "#e0e0e0", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+              {viewContent}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ backgroundColor: "#2d2d2d" }}>
+          <Button onClick={() => window.open(getGatewayUrl(cid), "_blank")} startIcon={<OpenInNewIcon />}>Open in Gateway</Button>
+          <Button onClick={() => setViewOpen(false)} variant="outlined">Close</Button>
+        </DialogActions>
+      </Dialog>
+    </>
+  );
+}
 
 export default function RepoScanAccordion({
   product,
@@ -86,6 +301,7 @@ export default function RepoScanAccordion({
         isQuickScan={isQuickScan}
         githubToken={githubToken}
         onScanComplete={(res) => handleScanUpdate('signatureVerification', res)}
+        onLogsCIDUpdate={(cid) => handleScanUpdate('signatureVerification', { logsCID: cid })}
       />
       <GitleaksPanel
         repoDetails={repoDetails}
@@ -93,6 +309,7 @@ export default function RepoScanAccordion({
         isQuickScan={isQuickScan}
         githubToken={githubToken}
         onScanComplete={(res) => handleScanUpdate('secretLeakDetection', res)}
+        onLogsCIDUpdate={(cid) => handleScanUpdate('secretLeakDetection', { logsCID: cid })}
       />
       <SBOMGenerationPanel
         repoDetails={repoDetails}
@@ -100,6 +317,7 @@ export default function RepoScanAccordion({
         isQuickScan={isQuickScan}
         githubToken={githubToken}
         onScanComplete={(res) => handleScanUpdate('sbomGeneration', res)}
+        onLogsCIDUpdate={(cid) => handleScanUpdate('sbomGeneration', { logsCID: cid })}
       />
       <VulnerabilityScanPanel
         repoDetails={repoDetails}
@@ -107,6 +325,7 @@ export default function RepoScanAccordion({
         isQuickScan={isQuickScan}
         githubToken={githubToken}
         onScanComplete={(res) => handleScanUpdate('vulnerabilityScan', res)}
+        onLogsCIDUpdate={(cid) => handleScanUpdate('vulnerabilityScan', { logsCID: cid })}
       />
     </Stack>
   );
@@ -120,13 +339,15 @@ function GPGVerificationPanel({
   isAuthorized,
   isQuickScan, 
   githubToken,
-  onScanComplete 
+  onScanComplete,
+  onLogsCIDUpdate,
 }: {
   repoDetails: RepoDetails;
   isAuthorized: boolean;
   isQuickScan: boolean;
   githubToken: string;
   onScanComplete: (result: SignatureVerificationResult) => void;
+  onLogsCIDUpdate: (cid: string) => void;
 }) {
   const logEndRef = useRef<HTMLDivElement>(null);
   const scanIdRef = useRef<string | null>(null);
@@ -371,12 +592,13 @@ function GPGVerificationPanel({
                 )}
               </Stack>
 
-              <Stack direction="row" spacing={1}>
+              <Stack direction="row" spacing={1} alignItems="center">
                 {logs.length > 0 && (
                   <Button startIcon={<DownloadIcon />} onClick={downloadLogs}>
                     Download Logs
                   </Button>
                 )}
+                {!isQuickScan && <IPFSLogUploadButton logs={logs} scanType="gpg-verification" existingCID={savedScan?.logsCID} onUploaded={(cid) => onLogsCIDUpdate(cid)} />}
                 <Button
                   variant="contained"
                   startIcon={<PlayArrowIcon />}
@@ -646,13 +868,15 @@ function GitleaksPanel({
   isAuthorized,
   isQuickScan, 
   githubToken,
-  onScanComplete
+  onScanComplete,
+  onLogsCIDUpdate,
 }: {
   repoDetails: RepoDetails;
   isAuthorized: boolean;
   isQuickScan: boolean;
   githubToken: string;
   onScanComplete?: (result: SecretLeakDetectionResult) => void;
+  onLogsCIDUpdate: (cid: string) => void;
 }) {
   const logEndRef = useRef<HTMLDivElement>(null);
   const scanIdRef = useRef<string | null>(null);
@@ -897,12 +1121,13 @@ function GitleaksPanel({
                 )}
               </Stack>
 
-              <Stack direction="row" spacing={1}>
+              <Stack direction="row" spacing={1} alignItems="center">
                 {logs.length > 0 && (
                   <Button startIcon={<DownloadIcon />} onClick={downloadLogs}>
                     Download Logs
                   </Button>
                 )}
+                {!isQuickScan && <IPFSLogUploadButton logs={logs} scanType="gitleaks-scan" existingCID={savedScan?.logsCID} onUploaded={(cid) => onLogsCIDUpdate(cid)} />}
                 <Button
                   variant="contained"
                   startIcon={<PlayArrowIcon />}
@@ -1166,12 +1391,14 @@ function SBOMGenerationPanel({
   isQuickScan,
   githubToken,
   onScanComplete,
+  onLogsCIDUpdate,
 }: {
   repoDetails: RepoDetails;
   isAuthorized: boolean;
   isQuickScan: boolean;
   githubToken: string;
   onScanComplete?: (result: SBOMGenerationResult) => void;
+  onLogsCIDUpdate: (cid: string) => void;
 }) {
   const logEndRef = useRef<HTMLDivElement>(null);
   const scanIdRef = useRef<string | null>(null);
@@ -1366,10 +1593,11 @@ function SBOMGenerationPanel({
                 )}
               </Stack>
 
-              <Stack direction="row" spacing={1}>
+              <Stack direction="row" spacing={1} alignItems="center">
                 {logs.length > 0 && (
                   <Button startIcon={<DownloadIcon />} onClick={downloadLogs}>Download Logs</Button>
                 )}
+                {!isQuickScan && <IPFSLogUploadButton logs={logs} scanType="sbom-generation" existingCID={savedScan?.logsCID} onUploaded={(cid) => onLogsCIDUpdate(cid)} />}
                 <Button
                   variant="contained"
                   startIcon={<PlayArrowIcon />}
@@ -1535,13 +1763,15 @@ function VulnerabilityScanPanel({
   isAuthorized,
   isQuickScan, 
   githubToken,
-  onScanComplete 
+  onScanComplete,
+  onLogsCIDUpdate,
 }: {
   repoDetails: RepoDetails;
   isAuthorized: boolean;
   isQuickScan: boolean;
   githubToken: string;
   onScanComplete?: (result: VulnerabilityScanResult) => void;
+  onLogsCIDUpdate: (cid: string) => void;
 }) {
   const logEndRef = useRef<HTMLDivElement>(null);
   const scanIdRef = useRef<string | null>(null);
@@ -1791,12 +2021,13 @@ function VulnerabilityScanPanel({
                 )}
               </Stack>
 
-              <Stack direction="row" spacing={1}>
+              <Stack direction="row" spacing={1} alignItems="center">
                 {logs.length > 0 && (
                   <Button startIcon={<DownloadIcon />} onClick={downloadLogs}>
                     Download Logs
                   </Button>
                 )}
+                {!isQuickScan && <IPFSLogUploadButton logs={logs} scanType="vulnerability-scan" existingCID={savedScan?.logsCID} onUploaded={(cid) => onLogsCIDUpdate(cid)} />}
                 <Button
                   variant="contained"
                   startIcon={<PlayArrowIcon />}
