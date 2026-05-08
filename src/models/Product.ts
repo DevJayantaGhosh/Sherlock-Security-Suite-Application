@@ -19,7 +19,8 @@ export type ScanStatus = "idle" | "running" | "success" | "failed";
 export interface BaseScanResult {
   status: ScanStatus;
   timestamp?: string; 
-  logs?: string[];    
+  logs?: string[];
+  logsCID?: string;  
 }
 
 // 1. Signature Verification (Tool: GPG)
