@@ -31,7 +31,7 @@ export interface ProductSnapshot {
   productDirector: string;
   securityHead: string;
   releaseEngineers: string;
-  reposJson: string;
+  reposJson: string;          // Contains per-repo scan data INCLUDING logsCID per scan type
   dependencies: string;
   status: string;
   remark: string;
@@ -230,8 +230,9 @@ export async function connectServiceWallet(): Promise<{ data: string; error: Api
  * Build a ProductSnapshot struct from the Product model.
  */
 /**
- * Strip scan logs from repos to keep blockchain payload small.
- * Only stores: repoUrl, branch, and scan summaries (no logs[]).
+ * Stores repo scan metadata on blockchain — status, summary, and IPFS CIDs for full logs.
+ * Raw logs are NOT stored on-chain (too large). Instead, each scan's logs are uploaded
+ * to IPFS beforehand and the CID is stored here for permanent reference.
  */
 function trimReposForChain(repos: Product["repos"]): string {
   if (!repos || repos.length === 0) return "[]";
@@ -242,16 +243,16 @@ function trimReposForChain(repos: Product["repos"]): string {
     scans: r.scans
       ? {
           signatureVerification: r.scans.signatureVerification
-            ? { status: r.scans.signatureVerification.status, summary: r.scans.signatureVerification.summary }
+            ? { status: r.scans.signatureVerification.status, summary: r.scans.signatureVerification.summary, logsCID: r.scans.signatureVerification.logsCID || "" }
             : undefined,
           secretLeakDetection: r.scans.secretLeakDetection
-            ? { status: r.scans.secretLeakDetection.status, summary: r.scans.secretLeakDetection.summary }
+            ? { status: r.scans.secretLeakDetection.status, summary: r.scans.secretLeakDetection.summary, logsCID: r.scans.secretLeakDetection.logsCID || "" }
             : undefined,
           sbomGeneration: r.scans.sbomGeneration
-            ? { status: r.scans.sbomGeneration.status, summary: r.scans.sbomGeneration.summary }
+            ? { status: r.scans.sbomGeneration.status, summary: r.scans.sbomGeneration.summary, logsCID: r.scans.sbomGeneration.logsCID || "" }
             : undefined,
           vulnerabilityScan: r.scans.vulnerabilityScan
-            ? { status: r.scans.vulnerabilityScan.status, summary: r.scans.vulnerabilityScan.summary }
+            ? { status: r.scans.vulnerabilityScan.status, summary: r.scans.vulnerabilityScan.summary, logsCID: r.scans.vulnerabilityScan.logsCID || "" }
             : undefined,
         }
       : undefined,
